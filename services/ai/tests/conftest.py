@@ -21,16 +21,28 @@ os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 from main import app  # noqa: E402
 from app.models.base import Base  # noqa: E402
 from app.models.privileged_access_log import PrivilegedAccessLog  # noqa: E402
+from app.models.audit_log import AIAuditLog  # noqa: E402
+from app.models.prompt import AIPrompt  # noqa: E402
+from app.models.user_provider_key import UserProviderKey  # noqa: E402
+from app.models.customer_ai_defaults import CustomerAiDefaults  # noqa: E402
+from app.models.ai_provider import AIProvider  # noqa: E402
+
+_DB_TABLES = [
+    PrivilegedAccessLog.__table__,
+    AIAuditLog.__table__,
+    AIPrompt.__table__,
+    AIProvider.__table__,
+    UserProviderKey.__table__,
+    CustomerAiDefaults.__table__,
+]
 
 
 @pytest.fixture
 def db():
-    """Real in-memory sqlite session covering PrivilegedAccessLog — sync,
-    matching this sink's deliberately sync design (see
-    app/services/privileged_access_audit.py). Add tables here as more tests
-    need a real DB session for this service."""
+    """Real in-memory sqlite session — sync, matching this service's sync
+    audit sinks. Add tables to _DB_TABLES as more tests need a real DB session."""
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine, tables=[PrivilegedAccessLog.__table__])
+    Base.metadata.create_all(engine, tables=_DB_TABLES)
     return sessionmaker(bind=engine)()
 
 

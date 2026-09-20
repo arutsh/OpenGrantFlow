@@ -1,2 +1,7 @@
 schema: spec-driven
 created: 2026-09-01
+priority: high
+author: Arutsh
+depends_on:
+  - audit-mixin-rollout-tier4
+  - shared-feat-299-audit-mixin-rollout-tier3

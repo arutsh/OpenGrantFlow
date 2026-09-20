@@ -4,15 +4,14 @@ from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import mapped_column, Mapped
 from app.models.base import Base
+from shared.db.audit_mixin import AuditMixin
 import shared.db.type_decorators as t
 
 
-class AIAuditLog(Base):
+class AIAuditLog(Base, AuditMixin):
     __tablename__ = "ai_audit_logs"
 
-    id: Mapped[t.GUID] = mapped_column(
-        t.GUID(), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[uuid.UUID] = mapped_column(t.GUID(), primary_key=True, default=lambda: uuid.uuid4())
     customer_id: Mapped[t.GUID] = mapped_column(t.GUID(), nullable=False, index=True)
     user_id: Mapped[t.GUID] = mapped_column(t.GUID(), nullable=False, index=True)
     prompt_version: Mapped[str] = mapped_column(String, nullable=False)
