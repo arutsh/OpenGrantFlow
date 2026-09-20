@@ -1,6 +1,6 @@
 One task group = one GitHub ticket = one PR, merged before the next group starts.
 
-## 1. ai service — depends on audit-mixin-auto-population being merged
+## 1. ai service — depends on audit-mixin-auto-population being merged — Issue #301
 
 - [ ] 1.1 Add Alembic migration adding nullable `created_by`/`updated_by` to `AIAuditLog`, `AIPrompt`, `UserProviderKey`, `CustomerAiDefaults` (via `AuditColumnsMixin`, non-`id` PK), `PrivilegedAccessLog`.
 - [ ] 1.2 Update each model class to inherit `AuditMixin`/`AuditColumnsMixin` as appropriate.
