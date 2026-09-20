@@ -5,16 +5,17 @@ from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+from shared.db.audit_mixin import AuditMixin
 import shared.db.type_decorators as t
 
 
-class PrivilegedAccessLog(Base):
+class PrivilegedAccessLog(Base, AuditMixin):
     """Append-only — no update/delete path exists anywhere in the app."""
 
     __tablename__ = "privileged_access_logs"
 
-    id: Mapped[t.GUID] = mapped_column(
-        t.GUID(), primary_key=True, default=lambda: str(uuid.uuid4())
+    id: Mapped[uuid.UUID] = mapped_column(
+        t.GUID(), primary_key=True, default=lambda: uuid.uuid4()
     )
     actor_user_id: Mapped[t.GUID] = mapped_column(t.GUID(), nullable=False, index=True)
     customer_id: Mapped[t.GUID] = mapped_column(t.GUID(), nullable=False, index=True)

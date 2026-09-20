@@ -3,14 +3,15 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.orm import mapped_column, Mapped
 from app.models.base import Base
+from shared.db.audit_mixin import AuditMixin
 import shared.db.type_decorators as t
 
 
-class AIPrompt(Base):
+class AIPrompt(Base, AuditMixin):
     __tablename__ = "ai_prompts"
 
-    id: Mapped[t.GUID] = mapped_column(
-        t.GUID(), primary_key=True, default=lambda: str(uuid.uuid4())
+    id: Mapped[uuid.UUID] = mapped_column(
+        t.GUID(), primary_key=True, default=lambda: uuid.uuid4()
     )
     name: Mapped[str] = mapped_column(String, nullable=False, index=True)
     version: Mapped[str] = mapped_column(String, nullable=False)

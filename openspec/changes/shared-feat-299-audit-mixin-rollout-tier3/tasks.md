@@ -2,11 +2,11 @@ One task group = one GitHub ticket = one PR, merged before the next group starts
 
 ## 1. ai service — depends on audit-mixin-auto-population being merged — Issue #301
 
-- [ ] 1.1 Add Alembic migration adding nullable `created_by`/`updated_by` to `AIAuditLog`, `AIPrompt`, `UserProviderKey`, `CustomerAiDefaults` (via `AuditColumnsMixin`, non-`id` PK), `PrivilegedAccessLog`.
-- [ ] 1.2 Update each model class to inherit `AuditMixin`/`AuditColumnsMixin` as appropriate.
-- [ ] 1.3 For `PrivilegedAccessLog`, check whether an existing actor/subject field already captures the acting user; if so, assert it matches the auto-populated `created_by` in a test rather than treating them as unrelated.
-- [ ] 1.4 Add/update tests confirming `created_by` is populated on creation for each of the 5 models, and `updated_by` behaves per the model's mutability (populated on update for mutable models, stays `NULL` for the append-only `AIAuditLog`/`PrivilegedAccessLog`).
-- [ ] 1.5 Run `services/ai`'s test suite clean; PR merged.
+- [x] 1.1 Add Alembic migration adding nullable `created_by`/`updated_by` to `AIAuditLog`, `AIPrompt`, `UserProviderKey`, `CustomerAiDefaults` (via `AuditColumnsMixin`, non-`id` PK), `PrivilegedAccessLog`.
+- [x] 1.2 Update each model class to inherit `AuditMixin`/`AuditColumnsMixin` as appropriate.
+- [x] 1.3 For `PrivilegedAccessLog`, check whether an existing actor/subject field already captures the acting user; if so, assert it matches the auto-populated `created_by` in a test rather than treating them as unrelated.
+- [x] 1.4 Add/update tests confirming `created_by` is populated on creation for each of the 5 models, and `updated_by` behaves per the model's mutability (populated on update for mutable models, stays `NULL` for the append-only `AIAuditLog`/`PrivilegedAccessLog`).
+- [x] 1.5 Run `services/ai`'s test suite clean; PR merged.
 
 ## 2. chat service — depends on 1
 
