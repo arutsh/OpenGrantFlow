@@ -10,9 +10,7 @@ import shared.db.type_decorators as t
 class AIPrompt(Base, AuditMixin):
     __tablename__ = "ai_prompts"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        t.GUID(), primary_key=True, default=lambda: uuid.uuid4()
-    )
+    id: Mapped[uuid.UUID] = mapped_column(t.GUID(), primary_key=True, default=lambda: uuid.uuid4())
     name: Mapped[str] = mapped_column(String, nullable=False, index=True)
     version: Mapped[str] = mapped_column(String, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

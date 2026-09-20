@@ -11,9 +11,7 @@ import shared.db.type_decorators as t
 class AIAuditLog(Base, AuditMixin):
     __tablename__ = "ai_audit_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        t.GUID(), primary_key=True, default=lambda: uuid.uuid4()
-    )
+    id: Mapped[uuid.UUID] = mapped_column(t.GUID(), primary_key=True, default=lambda: uuid.uuid4())
     customer_id: Mapped[t.GUID] = mapped_column(t.GUID(), nullable=False, index=True)
     user_id: Mapped[t.GUID] = mapped_column(t.GUID(), nullable=False, index=True)
     prompt_version: Mapped[str] = mapped_column(String, nullable=False)

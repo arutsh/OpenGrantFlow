@@ -12,9 +12,7 @@ import shared.db.type_decorators as t
 class UserProviderKey(Base, AuditMixin):
     __tablename__ = "user_provider_keys"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        t.GUID(), primary_key=True, default=lambda: uuid.uuid4()
-    )
+    id: Mapped[uuid.UUID] = mapped_column(t.GUID(), primary_key=True, default=lambda: uuid.uuid4())
     user_id: Mapped[t.GUID] = mapped_column(t.GUID(), nullable=False, index=True)
     customer_id: Mapped[t.GUID | None] = mapped_column(t.GUID(), nullable=True, index=True)
     provider_id: Mapped[t.GUID] = mapped_column(

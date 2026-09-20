@@ -14,9 +14,7 @@ class PrivilegedAccessLog(Base, AuditMixin):
 
     __tablename__ = "privileged_access_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        t.GUID(), primary_key=True, default=lambda: uuid.uuid4()
-    )
+    id: Mapped[uuid.UUID] = mapped_column(t.GUID(), primary_key=True, default=lambda: uuid.uuid4())
     actor_user_id: Mapped[t.GUID] = mapped_column(t.GUID(), nullable=False, index=True)
     customer_id: Mapped[t.GUID] = mapped_column(t.GUID(), nullable=False, index=True)
     method: Mapped[str] = mapped_column(String, nullable=False)

@@ -85,3 +85,16 @@ Each group's PR closes its own sub-issue: `Closes #<sub-issue>` (fires the
 board's Done automation for that item). Once every sub-issue under the
 parent is closed, close the parent too — it's just a tracking issue at that
 point.
+
+## 6. Local lint enforcement before push
+
+`scripts/git-hooks/pre-push` mirrors each service's CI lint step
+(`black --check`, `mypy`, `flake8`) locally, scoped to whichever
+service(s) the push actually touches (a `shared/` change checks all four).
+One-time setup:
+
+```
+git config core.hooksPath scripts/git-hooks
+```
+
+Bypass with `git push --no-verify` when intentionally needed.
