@@ -14,21 +14,21 @@ One task group = one GitHub ticket = one PR, merged before the next group starts
 - [x] 2.2 Update each model class to inherit `AuditMixin`.
 - [x] 2.3 Repeat the `PrivilegedAccessLog` actor-field check from task 1.3 for chat's copy.
 - [x] 2.4 Add/update tests confirming `created_by`/`updated_by` population for `Conversation`/`Message`, and `created_by`-only for `PrivilegedAccessLog`.
-- [ ] 2.5 Run `services/chat`'s test suite clean; PR merged.
+- [x] 2.5 Run `services/chat`'s test suite clean; PR merged.
 
-## 3. budget service — depends on 1
+## 3. budget service — depends on 1 — Issue #305
 
-- [ ] 3.1 Decide whether `UserProfileModel` (read-through cache, PK `user_id`) adopts `AuditColumnsMixin` or is documented as an intentional exemption for `audit-mixin-coverage-guard`; record the decision.
-- [ ] 3.2 Add Alembic migration adding nullable `created_by`/`updated_by` to `PrivilegedAccessLog` (and `UserProfileModel` if 3.1 decided to include it).
-- [ ] 3.3 Update model class(es) to inherit the appropriate mixin.
-- [ ] 3.4 Repeat the `PrivilegedAccessLog` actor-field check from task 1.3 for budget's copy.
-- [ ] 3.5 Add/update tests confirming the decided behavior.
-- [ ] 3.6 Run `services/budget`'s test suite clean; PR merged.
+- [x] 3.1 Decide whether `UserProfileModel` (read-through cache, PK `user_id`) adopts `AuditColumnsMixin` or is documented as an intentional exemption for `audit-mixin-coverage-guard`; record the decision. **Decided: exempt** — see design.md Decision 2. `event_handlers.py`'s RabbitMQ consumer has no request/actor context (permanently `NULL`); `user_cache.py::get_users_by_ids_cached`'s live request-context write would misattribute the row to the viewer, not the cached user. Removed `get_user_from_cache`/`get_user_from_cache_or_fallback` (dead code, same misattribution shape) and their now-orphaned `user_client.get_user`/`UserServiceError`.
+- [x] 3.2 Add Alembic migration adding nullable `created_by`/`updated_by` to `PrivilegedAccessLog`.
+- [x] 3.3 Update model class(es) to inherit the appropriate mixin.
+- [x] 3.4 Repeat the `PrivilegedAccessLog` actor-field check from task 1.3 for budget's copy.
+- [x] 3.5 Add/update tests confirming the decided behavior.
+- [x] 3.6 Run `services/budget`'s test suite clean; PR merged.
 
 ## 4. users service — depends on 1
 
-- [ ] 4.1 Add Alembic migration adding nullable `created_by`/`updated_by` to `PrivilegedAccessLog`.
-- [ ] 4.2 Update the model class to inherit `AuditMixin`.
-- [ ] 4.3 Repeat the `PrivilegedAccessLog` actor-field check from task 1.3 for users' copy.
-- [ ] 4.4 Add/update a test confirming `created_by` population, `updated_by` stays `NULL`.
-- [ ] 4.5 Run `services/users`'s test suite clean; PR merged.
+- [x] 4.1 Add Alembic migration adding nullable `created_by`/`updated_by` to `PrivilegedAccessLog`.
+- [x] 4.2 Update the model class to inherit `AuditMixin`.
+- [x] 4.3 Repeat the `PrivilegedAccessLog` actor-field check from task 1.3 for users' copy.
+- [x] 4.4 Add/update a test confirming `created_by` population, `updated_by` stays `NULL`.
+- [x] 4.5 Run `services/users`'s test suite clean; PR merged.

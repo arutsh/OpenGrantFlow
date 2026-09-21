@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, cast
+from typing import Dict, Any, List, cast
 from uuid import UUID
 
 import structlog
@@ -6,84 +6,9 @@ from sqlalchemy import select
 
 from app.db.session import AsyncSessionLocal
 from app.models.user_cache import UserProfileModel
-from app.services.user_client import get_user, get_users_by_ids
+from app.services.user_client import get_users_by_ids
 
 logger = structlog.get_logger(__name__)
-
-
-async def get_user_from_cache(user_id: UUID) -> Optional[Dict[str, Any]]:
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(UserProfileModel).where(UserProfileModel.user_id == user_id)
-        )
-        profile = result.scalar_one_or_none()
-
-        if not profile:
-            logger.debug("cache_miss", user_id=str(user_id))
-            return None
-
-        logger.debug("cache_hit", user_id=str(user_id))
-        return {
-            "id": str(profile.user_id),
-            "email": profile.email,
-            "first_name": profile.first_name,
-            "last_name": profile.last_name,
-            "status": profile.status,
-            "customer_id": str(profile.customer_id) if profile.customer_id else None,
-            "role": profile.role,
-        }
-
-
-async def get_user_from_cache_or_fallback(user_id: UUID, token: str) -> Optional[Dict[str, Any]]:
-    cached = await get_user_from_cache(user_id)
-    if cached:
-        return cached
-
-    logger.warning("cache_miss_fallback_attempted", user_id=str(user_id))
-
-    try:
-        user = get_user(str(user_id), token)
-
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(UserProfileModel).where(UserProfileModel.user_id == user_id)
-            )
-            profile = result.scalar_one_or_none()
-
-            if profile:
-                profile.email = cast(str, user.get("email"))
-                profile.first_name = user.get("first_name")
-                profile.last_name = user.get("last_name")
-                profile.status = cast(str, user.get("status"))
-                profile.customer_id = (
-                    UUID(user.get("customer_id")) if user.get("customer_id") else None
-                )
-                profile.role = cast(str, user.get("role"))
-            else:
-                profile = UserProfileModel(
-                    user_id=user_id,
-                    email=user.get("email"),
-                    first_name=user.get("first_name"),
-                    last_name=user.get("last_name"),
-                    status=user.get("status"),
-                    customer_id=(
-                        UUID(user.get("customer_id")) if user.get("customer_id") else None
-                    ),
-                    role=user.get("role"),
-                )
-                session.add(profile)
-
-            await session.commit()
-            logger.info("cache_populated_from_fallback", user_id=str(user_id))
-
-        return user
-    except Exception as e:
-        logger.error(
-            "fallback_http_failed",
-            user_id=str(user_id),
-            error=str(e),
-        )
-        raise
 
 
 async def get_users_by_ids_cached(ids: List[str], token: str) -> Dict[str, Dict[str, Any]]:
