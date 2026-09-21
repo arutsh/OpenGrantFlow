@@ -248,3 +248,4 @@ frontend-typescript/tsconfig.tsbuildinfo
 uploads/
 *.db
 .codex/
+frontend-typescript/tsconfig.tsbuildinfo

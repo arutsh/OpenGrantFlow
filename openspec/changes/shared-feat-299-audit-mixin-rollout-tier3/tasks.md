@@ -8,12 +8,12 @@ One task group = one GitHub ticket = one PR, merged before the next group starts
 - [x] 1.4 Add/update tests confirming `created_by` is populated on creation for each of the 5 models, and `updated_by` behaves per the model's mutability (populated on update for mutable models, stays `NULL` for the append-only `AIAuditLog`/`PrivilegedAccessLog`).
 - [x] 1.5 Run `services/ai`'s test suite clean; PR merged.
 
-## 2. chat service — depends on 1
+## 2. chat service — depends on 1 — Issue #303
 
-- [ ] 2.1 Add Alembic migration adding nullable `created_by`/`updated_by` to `Conversation`, `Message`, `PrivilegedAccessLog`.
-- [ ] 2.2 Update each model class to inherit `AuditMixin`.
-- [ ] 2.3 Repeat the `PrivilegedAccessLog` actor-field check from task 1.3 for chat's copy.
-- [ ] 2.4 Add/update tests confirming `created_by`/`updated_by` population for `Conversation`/`Message`, and `created_by`-only for `PrivilegedAccessLog`.
+- [x] 2.1 Add Alembic migration adding nullable `created_by`/`updated_by` to `Conversation`, `Message`, `PrivilegedAccessLog`.
+- [x] 2.2 Update each model class to inherit `AuditMixin`.
+- [x] 2.3 Repeat the `PrivilegedAccessLog` actor-field check from task 1.3 for chat's copy.
+- [x] 2.4 Add/update tests confirming `created_by`/`updated_by` population for `Conversation`/`Message`, and `created_by`-only for `PrivilegedAccessLog`.
 - [ ] 2.5 Run `services/chat`'s test suite clean; PR merged.
 
 ## 3. budget service — depends on 1

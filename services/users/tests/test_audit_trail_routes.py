@@ -86,7 +86,7 @@ class TestBugReportAuditTrail:
             )
         ).scalar_one()
         assert str(bug_report.created_by) == user_id
-        assert str(bug_report.updated_by) == user_id
+        assert bug_report.updated_by is None
 
 
 class TestDonorGranteeAuditTrail:
@@ -117,4 +117,4 @@ class TestDonorGranteeAuditTrail:
             )
         ).scalar_one()
         assert str(donor_grantee.created_by) == user_id
-        assert str(donor_grantee.updated_by) == user_id
+        assert donor_grantee.updated_by is None
