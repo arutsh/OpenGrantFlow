@@ -31,11 +31,10 @@ class AuditMixin(AuditColumnsMixin):
 
 @event.listens_for(AuditColumnsMixin, "before_insert", propagate=True)
 def _set_created_by_and_updated_by_on_insert(mapper, connection, target: AuditColumnsMixin) -> None:
-    # Never clobber a value a caller already set explicitly (e.g. manual created_by=/updated_by=).
+    # updated_by stays NULL here so it can prove append-only rows were never modified.
     user_id = get_current_user_id()
     if user_id is not None:
         target.created_by = user_id
-        target.updated_by = user_id
 
 
 @event.listens_for(AuditColumnsMixin, "before_update", propagate=True)

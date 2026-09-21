@@ -41,19 +41,23 @@ class TestAIAuditLogAppendOnly:
         assert log.created_by == user_id
 
     def test_updated_by_stays_null_with_no_update_path(self, db):
-        log = AIAuditLog(
-            customer_id=str(uuid.uuid4()),
-            user_id=str(uuid.uuid4()),
-            prompt_version="v1",
-            input_text="text",
-            provider="anthropic",
-            model="claude",
-            success=True,
-            duration_ms=1,
-            created_at=_now(),
-        )
-        db.add(log)
-        db.commit()
+        token = set_current_user_id(uuid.uuid4())
+        try:
+            log = AIAuditLog(
+                customer_id=str(uuid.uuid4()),
+                user_id=str(uuid.uuid4()),
+                prompt_version="v1",
+                input_text="text",
+                provider="anthropic",
+                model="claude",
+                success=True,
+                duration_ms=1,
+                created_at=_now(),
+            )
+            db.add(log)
+            db.commit()
+        finally:
+            reset_current_user_id(token)
 
         assert log.updated_by is None
 
@@ -198,14 +202,18 @@ class TestPrivilegedAccessLogAppendOnly:
         assert str(log.actor_user_id) == str(actor_id)
 
     def test_updated_by_stays_null_with_no_update_path(self, db):
-        log = PrivilegedAccessLog(
-            actor_user_id=str(uuid.uuid4()),
-            customer_id=str(uuid.uuid4()),
-            method="GET",
-            path="/api/v1/ai/settings",
-            created_at=_now(),
-        )
-        db.add(log)
-        db.commit()
+        token = set_current_user_id(uuid.uuid4())
+        try:
+            log = PrivilegedAccessLog(
+                actor_user_id=str(uuid.uuid4()),
+                customer_id=str(uuid.uuid4()),
+                method="GET",
+                path="/api/v1/ai/settings",
+                created_at=_now(),
+            )
+            db.add(log)
+            db.commit()
+        finally:
+            reset_current_user_id(token)
 
         assert log.updated_by is None

@@ -3,16 +3,15 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, Index, JSON, String, Text
 from sqlalchemy.orm import mapped_column, Mapped
 from app.models.base import Base
+from shared.db.audit_mixin import AuditMixin
 import shared.db.type_decorators as t
 
 
-class Message(Base):
+class Message(Base, AuditMixin):
     __tablename__ = "messages"
     __table_args__ = (Index("ix_messages_conversation_created", "conversation_id", "created_at"),)
 
-    id: Mapped[t.GUID] = mapped_column(
-        t.GUID(), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[uuid.UUID] = mapped_column(t.GUID(), primary_key=True, default=lambda: uuid.uuid4())
     conversation_id: Mapped[t.GUID] = mapped_column(
         t.GUID(), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True
     )

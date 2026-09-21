@@ -48,7 +48,7 @@ def session():
 
 
 class TestAuditMixinListener:
-    def test_created_by_and_updated_by_set_on_insert_when_context_set(self, session):
+    def test_created_by_set_and_updated_by_stays_null_on_insert_when_context_set(self, session):
         user_id = uuid.uuid4()
         token = set_current_user_id(user_id)
         try:
@@ -59,7 +59,7 @@ class TestAuditMixinListener:
             reset_current_user_id(token)
 
         assert widget.created_by == user_id
-        assert widget.updated_by == user_id
+        assert widget.updated_by is None
 
     def test_created_by_stays_null_when_context_unset(self, session):
         widget = _WidgetModel()
@@ -141,11 +141,11 @@ class TestAuditMixinListener:
         finally:
             reset_current_user_id(token)
 
-        assert widget.updated_by == creator_id
+        assert widget.updated_by is None
 
 
 class TestAuditColumnsMixinListener:
-    def test_created_by_set_on_insert_when_context_set(self, session):
+    def test_created_by_set_and_updated_by_stays_null_on_insert_when_context_set(self, session):
         user_id = uuid.uuid4()
         token = set_current_user_id(user_id)
         try:
@@ -156,7 +156,7 @@ class TestAuditColumnsMixinListener:
             reset_current_user_id(token)
 
         assert tag.created_by == user_id
-        assert tag.updated_by == user_id
+        assert tag.updated_by is None
 
     def test_created_by_stays_null_when_context_unset(self, session):
         tag = _TagModel(slug="acme")

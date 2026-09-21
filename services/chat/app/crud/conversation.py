@@ -159,18 +159,18 @@ async def get_conversation_messages(
     if not _is_valid_uuid(conversation_id):
         return None
 
-    result = await db.execute(
+    owner_check = await db.execute(
         select(Conversation.id).where(
             Conversation.id == conversation_id, Conversation.customer_id == customer_id
         )
     )
-    if result.scalar_one_or_none() is None:
+    if owner_check.scalar_one_or_none() is None:
         return None
 
-    result = await db.execute(
+    messages_result = await db.execute(
         select(Message)
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.created_at.desc())
         .limit(limit)
     )
-    return list(reversed(result.scalars().all()))
+    return list(reversed(messages_result.scalars().all()))
