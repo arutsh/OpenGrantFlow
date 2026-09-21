@@ -5,10 +5,11 @@ from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+from shared.db.audit_mixin import AuditMixin
 import shared.db.type_decorators as t
 
 
-class PrivilegedAccessLog(Base):
+class PrivilegedAccessLog(Base, AuditMixin):
     """Append-only — no update/delete path exists anywhere in the app."""
 
     __tablename__ = "privileged_access_logs"

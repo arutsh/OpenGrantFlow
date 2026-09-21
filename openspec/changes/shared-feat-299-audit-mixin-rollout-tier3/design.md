@@ -23,8 +23,13 @@ Two structural wrinkles from the original investigation apply here:
 **1. Append-only models (`AIAuditLog`, `PrivilegedAccessLog` ×4) get `created_by` only — no update path is added, `updated_by` stays permanently `NULL`.**
 These models intentionally have no `update_*` CRUD function (audit/log integrity depends on immutability). Adding `updated_by` would be a column that's structurally impossible to ever populate — accept it as always-`NULL`, matching the semantics of "this row was never updated," rather than removing the column from the mixin (which would require a third mixin variant).
 
-**2. `UserProfileModel` is evaluated case-by-case, not auto-included.**
-It's a read-through cache populated by cross-service sync, not user action — `created_by`/`updated_by` may reflect "which sync process wrote this" rather than a meaningful actor, or may not apply at all. Decide during implementation (task 1 of tasks.md) whether to adopt `AuditColumnsMixin` or add it to the coverage guard's exemption list instead.
+**2. `UserProfileModel` is exempted — no `AuditColumnsMixin`, documented for `audit-mixin-coverage-guard`.**
+Two writers exist, and both are wrong for `created_by`/`updated_by`, for different reasons:
+- `event_handlers.py`'s `handle_user_created`/`updated`/`deleted` (RabbitMQ event-consumer callbacks) run with no FastAPI request in scope — no `Depends(get_validated_user)`, no `set_current_user_id()` call — so `created_by`/`updated_by` would be permanently `NULL` by construction here.
+- `user_cache.py`'s `get_users_by_ids_cached` (the live path, called from `budget_services.py::populate_budget_with_user_details` under an authenticated request) *would* have an actor in context — but it's the wrong one: it's caching *other* users' profiles (e.g. a budget's other collaborators) on behalf of whoever is viewing that budget, so `created_by` would end up recording the viewer, not the cached user or any actor who actually touched that profile. Populating would be actively misleading, not just absent.
+(A third function, `get_user_from_cache_or_fallback`, had the same misattribution problem and zero callers anywhere in the repo — removed as dead code rather than left to add a fourth data point.)
+
+`created_at`/`updated_at` are untouched (already correctly maintained via the model's own `onupdate`).
 
 **3. One Alembic migration per affected service, not a combined cross-service migration.**
 Each service has its own independent migration history; `ai` touches 5 models in one migration, `chat` touches 3, `budget` touches 2, `users` touches 1 — batched per-service since they're already grouped by ticket/PR boundary in tasks.md.
@@ -41,5 +46,6 @@ Standard Alembic migration per service, additive/nullable columns only. Deploy o
 
 ## Open Questions
 
-- Does `UserProfileModel` get audit columns, or does it become a documented exemption in `audit-mixin-coverage-guard`? Decide during task 1 (see tasks.md).
 - For each `PrivilegedAccessLog` copy, does an existing actor/subject field make `created_by` redundant, and if so should CRUD code assert they match rather than relying purely on the automatic listener?
+
+Resolved: `UserProfileModel` is exempted from `AuditColumnsMixin` — see Decision 2.

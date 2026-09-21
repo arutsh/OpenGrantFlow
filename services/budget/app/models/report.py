@@ -34,7 +34,7 @@ class ReportModel(Base, AuditMixin):
         GUID(),
         primary_key=True,
         index=True,
-        default=lambda: str(uuid.uuid4()),
+        default=lambda: uuid.uuid4(),
     )
     budget_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("budgets.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)

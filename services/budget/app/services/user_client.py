@@ -1,4 +1,3 @@
-import requests
 from app.core.config import settings
 import uuid
 import httpx
@@ -23,24 +22,6 @@ async def close_urls():
     if _client:
         await _client.aclose()
         print("🛑 Users client closed")
-
-
-class UserServiceError(Exception):
-    pass
-
-
-def get_user(user_id: str | uuid.UUID, token: str) -> dict:
-    """
-    Fetch a user from the user service by ID.
-    """
-    try:
-        resp = requests.get(
-            f"{USER_SERVICE_URL}users/{user_id}", headers={"Authorization": f"Bearer {token}"}
-        )
-        resp.raise_for_status()
-        return resp.json()
-    except requests.RequestException as e:
-        raise UserServiceError(f"Failed to fetch user {user_id}") from e
 
 
 @service_call_exception_handler
