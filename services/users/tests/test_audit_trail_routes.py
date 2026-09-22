@@ -18,7 +18,7 @@ from app.models.bug_report import BugReportModel
 from app.models.customer import DonorGranteeModel
 from main import app
 from shared.security import session_revocation
-from shared.security.jwt_utils import create_access_token
+from tests.conftest import _token_for
 from tests.factories.user import CustomerFactory
 
 pytestmark = pytest.mark.anyio
@@ -43,18 +43,6 @@ async def bug_reports_db():
 @pytest.fixture(autouse=True)
 def fake_redis(monkeypatch):
     monkeypatch.setattr(session_revocation, "_redis_client", fakeredis.FakeStrictRedis())
-
-
-def _token_for(user_id: str, **extra_claims) -> str:
-    return create_access_token(
-        {
-            "user_id": user_id,
-            "session_id": str(uuid4()),
-            "role": "user",
-            "email_verified": True,
-            **extra_claims,
-        }
-    )
 
 
 class TestBugReportAuditTrail:

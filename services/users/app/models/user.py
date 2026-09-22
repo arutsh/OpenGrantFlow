@@ -7,11 +7,13 @@ from app.models.base import Base
 import uuid
 from datetime import datetime
 from app.utils.db import GUID
+from shared.db.audit_mixin import AuditMixin
 from shared.schemas.user_schema import UserStatus, UserRole
 
 
-class UserModel(Base):
+class UserModel(Base, AuditMixin):
     __tablename__ = "users"
+    __audit_actor_table__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(
         GUID(), primary_key=True, default=lambda: uuid.uuid4(), nullable=False, index=True
@@ -71,5 +73,5 @@ class UserModel(Base):
     deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    customer = relationship("CustomerModel", lazy="joined")
+    customer = relationship("CustomerModel", lazy="joined", foreign_keys=[customer_id])
     sessions = relationship("SessionModel", back_populates="user", cascade="all, delete-orphan")

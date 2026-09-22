@@ -3,16 +3,20 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import DateTime, event, inspect
+from sqlalchemy.orm import Mapped, declared_attr, mapped_column
+from sqlalchemy import DateTime, ForeignKey, event, inspect
 
 from shared.db.type_decorators import GUID
 from shared.security.current_user_context import get_current_user_id
 
 
 class AuditColumnsMixin:
-    """created_at/updated_at/created_by/updated_by with no primary key —
-    for models whose PK isn't named/shaped like AuditMixin's `id`."""
+    """created_at/updated_at/created_by/updated_by; set __audit_actor_table__ to FK
+    created_by/updated_by to that same-database table instead of leaving them unconstrained."""
+
+    # An existing relationship() to this table needs foreign_keys= on both sides once this
+    # FK exists, or SQLAlchemy raises AmbiguousForeignKeysError.
+    __audit_actor_table__: Optional[str] = None
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
@@ -20,9 +24,19 @@ class AuditColumnsMixin:
 
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
-    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(GUID(), nullable=True)
+    @declared_attr
+    def created_by(cls) -> Mapped[Optional[uuid.UUID]]:
+        return mapped_column(GUID(), *cls._audit_actor_fk(), nullable=True)
 
-    updated_by: Mapped[Optional[uuid.UUID]] = mapped_column(GUID(), nullable=True)
+    @declared_attr
+    def updated_by(cls) -> Mapped[Optional[uuid.UUID]]:
+        return mapped_column(GUID(), *cls._audit_actor_fk(), nullable=True)
+
+    @classmethod
+    def _audit_actor_fk(cls) -> tuple:
+        if not cls.__audit_actor_table__:
+            return ()
+        return (ForeignKey(f"{cls.__audit_actor_table__}.id", ondelete="SET NULL"),)
 
 
 class AuditMixin(AuditColumnsMixin):

@@ -2,9 +2,10 @@ from __future__ import annotations
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Integer, JSON
 from app.models.base import Base
+from shared.db.audit_mixin import AuditColumnsMixin
 
 
-class DonorTemplateModel(Base):
+class DonorTemplateModel(Base, AuditColumnsMixin):
     __tablename__ = "donor_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)

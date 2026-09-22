@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-09-22
+author: Norair Arutshyan
+priority: medium
+depends_on:
+  - shared-feat-307-audit-mixin-rollout-tier4
+  - async-privileged-access-audit

@@ -26,12 +26,14 @@ from app.models.prompt import AIPrompt  # noqa: E402
 from app.models.user_provider_key import UserProviderKey  # noqa: E402
 from app.models.customer_ai_defaults import CustomerAiDefaults  # noqa: E402
 from app.models.ai_provider import AIProvider  # noqa: E402
+from app.models.ai_provider_model import AIProviderModel  # noqa: E402
 
 _DB_TABLES = [
     PrivilegedAccessLog.__table__,
     AIAuditLog.__table__,
     AIPrompt.__table__,
     AIProvider.__table__,
+    AIProviderModel.__table__,
     UserProviderKey.__table__,
     CustomerAiDefaults.__table__,
 ]

@@ -12,21 +12,13 @@ from main import app
 from app.api.budget_routes import get_db
 from app.models.base import Base
 from app.models.budget import BudgetModel
-from shared.security.jwt_utils import create_access_token
+from tests.conftest import _token_for
 
 pytestmark = pytest.mark.anyio
 
 
 def _token(email_verified: bool) -> str:
-    return create_access_token(
-        {
-            "user_id": str(uuid4()),
-            "session_id": str(uuid4()),
-            "role": "user",
-            "customer_id": str(uuid4()),
-            "email_verified": email_verified,
-        }
-    )
+    return _token_for(str(uuid4()), customer_id=str(uuid4()), email_verified=email_verified)
 
 
 @pytest.fixture
