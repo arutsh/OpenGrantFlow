@@ -2,7 +2,7 @@
 
 Workflow rule: one task group = one GitHub sub-issue (of this change's parent issue) = one PR, merged before the next group starts.
 
-## 1. Export endpoint scaffolding + Sheet 1 (Original Budget)
+## 1. Export endpoint scaffolding + Sheet 1 (Original Budget) — Issue #316
 
 - [ ] 1.0 Run `scripts/start-group.sh budget-excel-export 1` to create/link this group's sub-issue and branch before starting any other work in this group.
 - [ ] 1.1 Add `services/budget/app/services/excel_export_service.py` with a `generate_budget_export_workbook(budget, categories, lines, ...)` entry point that creates an `openpyxl.Workbook()` and returns bytes; verify with a unit test that it returns a valid `.xlsx` (round-trips through `openpyxl.load_workbook`)
