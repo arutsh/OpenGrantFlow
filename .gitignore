@@ -228,9 +228,9 @@ package-lock.json
 package.json
 .vscode/launch.json
 plans/
-scripts/
 docs/Supabase
-.claude/
+.claude/worktrees/
+.claude/settings.local.json
 .continue/
 
 frontend-typescript/.env.development

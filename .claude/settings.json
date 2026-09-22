@@ -1,0 +1,79 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m pytest tests/ -k \"not trio\" -q)",
+      "Bash(python3 -m flake8 ./app)",
+      "Bash(black --check ./app)",
+      "Bash(python3 -m pytest tests/ -q)",
+      "Bash(python3 -m pytest tests/test_budget_routes.py::test_get_budgets -x)",
+      "Bash(python3 -m pytest tests/test_budget_routes.py -q)",
+      "Bash(python3 -m flake8 --max-line-length=100 tests/)",
+      "Bash(git checkout *)",
+      "Bash(ssh -i /tmp/claude-1000/-home-noro-repos-GrandFlow/fec2b9bb-a8ed-4660-8ae1-a6f6870e0411/scratchpad/grantflow_deploy_key -o ConnectTimeout=10 deploy@51.68.212.86 ' *)",
+      "Bash(python3 -c \"import yaml; yaml.safe_load\\(open\\('.github/workflows/deploy.yml'\\)\\); print\\('YAML OK'\\)\")",
+      "Bash(docker compose *)",
+      "Bash(echo \"compose config exit: $?\")",
+      "Bash(gh project view *)",
+      "Bash(gh project list *)",
+      "Bash(gh project item-list *)",
+      "Bash(python3 -c \"import json; json.load\\(open\\('frontend-typescript/vercel.json'\\)\\); print\\('JSON OK'\\)\")",
+      "WebSearch",
+      "Bash(git pull *)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)"
+    ],
+    "ask": [
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr merge*)",
+      "Bash(gh pr edit*)",
+      "Bash(gh pr close*)",
+      "Bash(gh pr comment*)",
+      "Bash(gh issue create*)",
+      "Bash(gh issue edit*)",
+      "Bash(gh issue close*)",
+      "Bash(gh issue comment*)",
+      "Bash(gh project item-edit*)",
+      "Bash(gh project item-add*)",
+      "Bash(gh project item-create*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /home/noro/repos/GrandFlow/.claude/hooks/block_secret_file_reads.py",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python3 /home/noro/repos/GrandFlow/.claude/hooks/block_manual_branch_creation.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /home/noro/repos/GrandFlow/.claude/hooks/check_comment_brevity.py",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python3 /home/noro/repos/GrandFlow/.claude/hooks/check_test_factory_usage.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
