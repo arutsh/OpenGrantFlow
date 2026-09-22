@@ -1,6 +1,6 @@
 ## Context
 
-The 5 Tier 4 models each already declare their own `id` primary key column (`UserModel.id` uses `default=lambda: str(uuid.uuid4())`, notably a `str` default rather than `AuditMixin`'s `uuid.UUID` default — a pre-existing minor inconsistency, not something this change needs to reconcile). `AuditMixin` also declares an `id` column. In SQLAlchemy declarative mixins, an attribute defined directly on the concrete model class takes precedence over the same-named attribute inherited from a mixin — so mixing in `AuditMixin` on these models does **not** require touching their existing `id` definitions; only the unset `created_at`/`updated_at`/`created_by`/`updated_by` attributes get pulled in from the mixin. This significantly de-risks adopting `AuditMixin` on `UserModel`/`CustomerModel`: no PK change, no id-format migration.
+The 5 Tier 4 models each already declare their own `id` primary key column. `AuditMixin` also declares an `id` column. In SQLAlchemy declarative mixins, an attribute defined directly on the concrete model class takes precedence over the same-named attribute inherited from a mixin — so mixing in `AuditMixin` on these models does **not** require touching their existing `id` definitions; only the unset `created_at`/`updated_at`/`created_by`/`updated_by` attributes get pulled in from the mixin. This significantly de-risks adopting `AuditMixin` on `UserModel`/`CustomerModel`: no PK change, no id-format migration.
 
 `UserModel`/`CustomerModel` sit on the auth/tenancy hot path (login, registration, JWT issuance, company onboarding, admin management) with a large existing test surface — this is the highest-risk tier of the whole rollout, ordered last deliberately.
 
@@ -13,7 +13,7 @@ The 5 Tier 4 models each already declare their own `id` primary key column (`Use
 
 **Non-Goals:**
 - No backfill of `created_at` for existing users/customers (historical creation time is genuinely unknown).
-- No change to how `UserModel.id`/`CustomerModel.id` are generated (stays `str(uuid.uuid4())`, not unified with `AuditMixin`'s `uuid.uuid4()` — cosmetic inconsistency, out of scope).
+- No change to how `UserModel.id`/`CustomerModel.id` are generated — both already use `uuid.uuid4()` directly, same as `AuditMixin`'s default, so there's nothing to reconcile.
 - No requirement that `created_by` be non-NULL — self-registration has no authenticated actor, so NULL is a valid, expected value here (unlike, say, budget models where every row has a clear creator).
 
 ## Decisions
@@ -39,4 +39,5 @@ Standard Alembic migration per service (`ai`, `budget`, `users`), additive/nulla
 
 ## Open Questions
 
-- Should admin-created accounts (company-onboarding, admin-invite flows) be audited to confirm they already pass an actor context that would populate `created_by` correctly, or do those flows also run unauthenticated in some cases?
+- ~~Should admin-created accounts (company-onboarding, admin-invite flows) be audited to confirm they already pass an actor context that would populate `created_by` correctly, or do those flows also run unauthenticated in some cases?~~
+  **Resolved:** both `POST /users/invite` and `POST /customers/` require `Depends(get_validated_user)` (`services/users/app/api/user_routes.py:265`, `services/users/app/api/customer_routes.py:36`), which sets the actor contextvar (`shared/security/dependencies.py:54`) before the row is inserted — covered by `TestAdminInviteAuditTrail`/`TestCustomerCreationAuditTrail` in `test_tier4_audit_columns.py`. "Company-onboarding" (a new company's founder self-registering) goes through the unauthenticated self-registration path instead, where `created_by` staying `NULL` is the documented, tested (`TestUserSelfRegistrationAuditTrail`), expected behavior per decision 2 above — not a gap.

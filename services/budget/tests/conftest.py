@@ -6,6 +6,7 @@ at import time.
 """
 
 import os
+from uuid import uuid4
 
 os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 
@@ -27,6 +28,7 @@ from app.models.currency_ledger import (  # noqa: E402
 )
 from app.models.privileged_access_log import PrivilegedAccessLog  # noqa: E402
 from shared.security.dependencies import get_validated_user  # noqa: E402
+from shared.security.jwt_utils import create_access_token  # noqa: E402
 from tests.factories.user import ValidUserFactory  # noqa: E402
 
 
@@ -75,6 +77,19 @@ async def db():
     async with maker() as session:
         yield session
     await engine.dispose()
+
+
+def _token_for(user_id: str, **extra_claims) -> str:
+    """A real signed JWT, for tests that need get_validated_user's contextvar side effect."""
+    return create_access_token(
+        {
+            "user_id": user_id,
+            "session_id": str(uuid4()),
+            "role": "user",
+            "email_verified": True,
+            **extra_claims,
+        }
+    )
 
 
 @pytest.fixture

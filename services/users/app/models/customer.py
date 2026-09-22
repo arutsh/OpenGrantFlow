@@ -7,8 +7,9 @@ from app.utils.db import GUID
 from shared.db.audit_mixin import AuditMixin
 
 
-class CustomerModel(Base):
+class CustomerModel(Base, AuditMixin):
     __tablename__ = "customers"
+    __audit_actor_table__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(
         GUID(),
@@ -25,7 +26,9 @@ class CustomerModel(Base):
     # login/token-issuance for this company's users. Not a hard delete —
     # cross-service enforcement in budget/reports is a follow-on.
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    users = relationship("UserModel", back_populates="customer")
+    users = relationship(
+        "UserModel", back_populates="customer", foreign_keys="UserModel.customer_id"
+    )
 
 
 class DonorGranteeModel(Base, AuditMixin):

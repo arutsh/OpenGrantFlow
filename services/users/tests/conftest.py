@@ -8,6 +8,7 @@ init_db() (a real Postgres connection) on startup.
 import os
 from contextlib import ExitStack
 from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 
@@ -27,8 +28,10 @@ from app.db.session import get_db  # noqa: E402
 from app.models.base import Base  # noqa: E402
 from app.models.customer import CustomerModel, DonorGranteeModel  # noqa: E402
 from app.models.privileged_access_log import PrivilegedAccessLog  # noqa: E402
+from app.models.user import UserModel  # noqa: E402
 from app.utils.security import get_current_user  # noqa: E402
 from shared.security.dependencies import get_validated_user  # noqa: E402
+from shared.security.jwt_utils import create_access_token  # noqa: E402
 from tests.factories.user import ValidUserFactory  # noqa: E402
 
 
@@ -40,7 +43,7 @@ def anyio_backend():
 
 @pytest.fixture
 async def db():
-    """Real in-memory async sqlite session (Customer/DonorGrantee/PrivilegedAccessLog);
+    """Real in-memory async sqlite session (Customer/DonorGrantee/PrivilegedAccessLog/User);
     mirrors services/ai/tests/test_email_verified_gate.py's TestClient+real-session pattern."""
     engine = create_async_engine(
         "sqlite+aiosqlite://",
@@ -54,12 +57,26 @@ async def db():
                 CustomerModel.__table__,
                 DonorGranteeModel.__table__,
                 PrivilegedAccessLog.__table__,
+                UserModel.__table__,
             ],
         )
     maker = async_sessionmaker(engine, expire_on_commit=False)
     async with maker() as session:
         yield session
     await engine.dispose()
+
+
+def _token_for(user_id: str, **extra_claims) -> str:
+    """A real signed JWT, for tests that need get_validated_user's contextvar side effect."""
+    return create_access_token(
+        {
+            "user_id": user_id,
+            "session_id": str(uuid4()),
+            "role": "user",
+            "email_verified": True,
+            **extra_claims,
+        }
+    )
 
 
 @pytest.fixture
