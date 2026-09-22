@@ -27,6 +27,9 @@ Self-registration and self-service org creation have no prior authenticated user
 **3. Migrate `ai`, `budget`, `users` independently; `AIProvider`/`AIProviderModel` (catalog tables, likely seeded via migration/admin scripts rather than end-user requests) may show `NULL` `created_by` even for legitimate inserts.**
 Acceptable — these are reference data, not user-attributable domain rows in the same sense.
 
+**4. `CustomerModel`/`UserModel` FK `created_by`/`updated_by` to `users.id` (`ON DELETE SET NULL`), unlike other services' unconstrained columns.**
+Added during code review: `customers`/`users` share a database, so an FK is safe here (unlike `ai`/`budget`/`chat`, which are cross-database). Implemented as an `AuditMixin.__audit_actor_table__` class option (`shared/db/audit_mixin.py`) rather than hand-copying FK column declarations onto each model. See spec delta's amended "No cross-service foreign key on audit columns" requirement.
+
 ## Risks / Trade-offs
 
 - **[Risk]** `UserModel`/`CustomerModel` are read/written by a large number of existing call sites and tests; adding columns via `AuditMixin` could interact unexpectedly with code that does `SELECT *`-style comparisons, serialization schemas that don't allowlist fields, or ORM query construction that assumes the current column set. → **Mitigation**: staging verification required before merge (per this repo's standard practice for auth-adjacent schema changes); run the full `users` service test suite and manually verify login/registration/admin flows.
