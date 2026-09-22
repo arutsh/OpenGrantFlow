@@ -1,9 +1,13 @@
 ---
-name: "OPSX: Verify"
-description: "Verify implementation matches change artifacts before archiving"
+name: openspec-verify-change
+description: Verify implementation matches OpenSpec change artifacts. Use when the user wants to validate that implementation is complete, correct, and coherent before archiving. Also use when the user says "openspec verify" or "opsx verify".
 allowed-tools: Bash(openspec:*)
-category: "Workflow"
-tags: ["workflow", "verify", "experimental"]
+license: MIT
+compatibility: Requires openspec CLI.
+metadata:
+  author: openspec
+  version: "1.0"
+  generatedBy: "1.13.1"
 ---
 
 Verify that an implementation matches the change artifacts (specs, tasks, design).
@@ -21,7 +25,7 @@ Otherwise, with no root, what happens next depends on how this workflow was reac
 
 In both branches, never create the root as a side effect: do not run `openspec init` until the user asks for it, do not hand-create `openspec/` files, and do not let a command create it.
 
-**Input**: Optionally specify a change name after `/opsx:verify` (e.g., `/opsx:verify add-auth`). If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
+**Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
 
 **Steps**
 
@@ -36,7 +40,7 @@ In both branches, never create the root as a side effect: do not run `openspec i
    Include the schema used for each change if available.
    Mark changes with incomplete tasks as "(In Progress)".
 
-   Always announce: "Using change: <name>" and how to override (e.g., `/opsx:verify <other>`).
+   Always announce: "Using change: <name>" and how to override (e.g., `$openspec-verify-change (Codex) or /openspec-verify-change (other agents) <other>`).
 
 2. **Check status to understand the schema**
    ```bash

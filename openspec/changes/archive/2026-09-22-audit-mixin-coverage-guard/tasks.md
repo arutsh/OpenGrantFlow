@@ -8,4 +8,4 @@ One task group = one GitHub ticket = one PR, merged before the next group starts
 - [x] 1.4 Add the equivalent test in `services/chat/tests/`.
 - [x] 1.5 Add the equivalent test in `services/users/tests/`.
 - [x] 1.6 Verify each guard test fails as expected when a temporary non-compliant model is added locally (sanity-check the assertion actually catches the failure mode, then remove the temporary model).
-- [ ] 1.7 Run all 4 services' test suites clean; PR merged.
+- [x] 1.7 Run all 4 services' test suites clean; PR merged.
