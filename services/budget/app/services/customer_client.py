@@ -82,9 +82,7 @@ def require_donor(valid_user: dict) -> None:
         raise DomainError("Customer is not a donor", status.HTTP_403_FORBIDDEN)
 
 
-async def validate_customer_can_own(
-    customer_id: str | uuid.UUID, raise_domain_error: bool = False
-):
+async def validate_customer_can_own(customer_id: str | uuid.UUID, raise_domain_error: bool = False):
     """Assert the customer has is_ngo=True (can receive grants / own budgets)."""
     Error = DomainError if raise_domain_error else ValueError
     try:

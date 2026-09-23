@@ -56,9 +56,13 @@ async def export_budget_workbook_service(
         users = {}
     exported_by = users.get(str(valid_user["user_id"]), {}).get("email")
     return budget, generate_budget_export_workbook(
-        budget, categories, lines,
-        organisation_name=organisation_name, donor_name=donor_name,
-        exported_by=exported_by, exported_at=datetime.now(timezone.utc),
+        budget,
+        categories,
+        lines,
+        organisation_name=organisation_name,
+        donor_name=donor_name,
+        exported_by=exported_by,
+        exported_at=datetime.now(timezone.utc),
     )
 
 
@@ -219,9 +223,7 @@ def _write_sheet1(
         cid: (categories_by_id[cid].name if cid else "Uncategorized")
         for cid in ordered_category_ids
     }
-    category_lines = {
-        cid: lines_by_category_id.get(cid, []) for cid in ordered_category_ids
-    }
+    category_lines = {cid: lines_by_category_id.get(cid, []) for cid in ordered_category_ids}
     extra_keys = _extra_field_keys(lines)
     cols = _amount_columns(extra_keys)
     _set_column_widths(ws, extra_keys, cols)
@@ -229,16 +231,41 @@ def _write_sheet1(
     plan = _plan_rows(ordered_category_ids, lines_by_category_id)
 
     _write_budget_summary(
-        ws, plan, ordered_category_ids, category_names, amount_header, estimate_header,
-        extra_keys, cols, local_fmt, estimate_fmt, has_rate,
+        ws,
+        plan,
+        ordered_category_ids,
+        category_names,
+        amount_header,
+        estimate_header,
+        extra_keys,
+        cols,
+        local_fmt,
+        estimate_fmt,
+        has_rate,
     )
     _write_detailed_budget(
-        ws, plan, ordered_category_ids, category_names, category_lines, extra_keys, cols,
-        local_fmt, estimate_fmt, has_rate, rate_cell,
+        ws,
+        plan,
+        ordered_category_ids,
+        category_names,
+        category_lines,
+        extra_keys,
+        cols,
+        local_fmt,
+        estimate_fmt,
+        has_rate,
+        rate_cell,
     )
     _write_footer(
-        ws, plan, ordered_category_ids, cols, local_fmt, estimate_fmt, has_rate,
-        exported_by, exported_at,
+        ws,
+        plan,
+        ordered_category_ids,
+        cols,
+        local_fmt,
+        estimate_fmt,
+        has_rate,
+        exported_by,
+        exported_at,
     )
 
 
@@ -271,8 +298,17 @@ def _write_header(
 
 
 def _write_budget_summary(
-    ws, plan, ordered_category_ids, category_names, amount_header, estimate_header,
-    extra_keys, cols, local_fmt, estimate_fmt, has_rate,
+    ws,
+    plan,
+    ordered_category_ids,
+    category_names,
+    amount_header,
+    estimate_header,
+    extra_keys,
+    cols,
+    local_fmt,
+    estimate_fmt,
+    has_rate,
 ) -> None:
     amount_col, estimate_col = cols["amount_col"], cols["estimate_col"]
     amount_letter, estimate_letter = cols["amount_letter"], cols["estimate_letter"]
@@ -315,8 +351,17 @@ def _write_budget_summary(
 
 
 def _write_detailed_budget(
-    ws, plan, ordered_category_ids, category_names, category_lines, extra_keys, cols,
-    local_fmt, estimate_fmt, has_rate, rate_cell,
+    ws,
+    plan,
+    ordered_category_ids,
+    category_names,
+    category_lines,
+    extra_keys,
+    cols,
+    local_fmt,
+    estimate_fmt,
+    has_rate,
+    rate_cell,
 ) -> None:
     amount_col, estimate_col = cols["amount_col"], cols["estimate_col"]
     amount_letter, estimate_letter = cols["amount_letter"], cols["estimate_letter"]
@@ -347,9 +392,7 @@ def _write_detailed_budget(
             amount_range = f"{amount_letter}{line_rows[0]}:{amount_letter}{line_rows[-1]}"
             _set_cell(ws, subtotal_row, amount_col, f"=SUM({amount_range})", local_fmt)
             if has_rate:
-                estimate_range = (
-                    f"{estimate_letter}{line_rows[0]}:{estimate_letter}{line_rows[-1]}"
-                )
+                estimate_range = f"{estimate_letter}{line_rows[0]}:{estimate_letter}{line_rows[-1]}"
                 _set_cell(ws, subtotal_row, estimate_col, f"=SUM({estimate_range})", estimate_fmt)
         else:
             _set_cell(ws, subtotal_row, amount_col, 0.0, local_fmt)
@@ -369,8 +412,15 @@ def _audit_line(exported_by: str | None, exported_at: datetime | None) -> str:
 
 
 def _write_footer(
-    ws, plan, ordered_category_ids, cols, local_fmt, estimate_fmt, has_rate,
-    exported_by, exported_at,
+    ws,
+    plan,
+    ordered_category_ids,
+    cols,
+    local_fmt,
+    estimate_fmt,
+    has_rate,
+    exported_by,
+    exported_at,
 ) -> None:
     amount_col, estimate_col = cols["amount_col"], cols["estimate_col"]
     amount_letter, estimate_letter = cols["amount_letter"], cols["estimate_letter"]
