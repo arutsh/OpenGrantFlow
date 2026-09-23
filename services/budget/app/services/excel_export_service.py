@@ -208,14 +208,16 @@ def _write_sheet1(
         f"Estimate ({budget.actual_currency})" if budget.actual_currency else "Donor Estimate"
     )
 
-    categories_by_id = {category.id: category for category in categories}
+    categories_by_id: dict[UUID | None, BudgetCategoryModel] = {
+        category.id: category for category in categories
+    }
     lines_by_category_id: dict = {}
     for line in lines:
         category = categories_by_id.get(line.category_id)
         lines_by_category_id.setdefault(category.id if category else None, []).append(line)
 
     # categories/lines already arrive ordered by created_at, id from the CRUD queries.
-    ordered_category_ids = list(categories_by_id)
+    ordered_category_ids: list[UUID | None] = list(categories_by_id)
     if None in lines_by_category_id:
         ordered_category_ids.append(None)
 

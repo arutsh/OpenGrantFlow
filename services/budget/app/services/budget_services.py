@@ -599,6 +599,7 @@ async def create_budget_with_lines_service(
 ):
     try:
         owner_id = request.owner_id or valid_user.get("customer_id")
+        assert owner_id is not None
 
         local_currency = request.local_currency
         if not local_currency:
