@@ -1,5 +1,8 @@
 # /services/budget/app/api/budget_routes.py
+import io
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import uuid4, UUID  # noqa: F401
 
@@ -33,10 +36,12 @@ from app.services.budget_services import (
     get_grantee_dashboard_summary_service,
 )
 from app.services.customer_client import require_donor
+from app.services.excel_export_service import export_budget_workbook_service
 from app.services.excel_import_service import prepare_excel_import_service
 from app.crud.budget_crud import get_budgets_by_creator
 from shared.observability import set_span_attributes
 from shared.security.dependencies import get_validated_user
+from shared.storage.storage_service import safe_content_disposition
 
 router = APIRouter(prefix="/budgets", tags=["Public Budgets"])
 private_router = APIRouter(prefix="/budgets", tags=["Private Budgets"])
@@ -102,6 +107,21 @@ async def get_budget_endpoint(
         )
         budget["lines"] = [BudgetLine.model_validate(line) for line in budget_lines]
     return budget
+
+
+@router.get("/{budget_id}/export.xlsx")
+async def export_budget_workbook_endpoint(
+    budget_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    valid_user=Depends(get_validated_user),
+):
+    set_span_attributes(budget_id=budget_id)
+    budget, workbook_bytes = await export_budget_workbook_service(db, valid_user, budget_id)
+    return StreamingResponse(
+        io.BytesIO(workbook_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": safe_content_disposition(f"{budget.name}.xlsx")},
+    )
 
 
 @router.patch("/{budget_id}", response_model=BudgetUpdate)
@@ -188,11 +208,7 @@ async def get_budgets_by_creator_endpoint(
     db: AsyncSession = Depends(get_db),
     valid_user=Depends(get_validated_user),
 ):
-    # Called by the users service to build a data-subject data-export — the
-    # users service forwards the requesting user's own token, so this is
-    # self-service only, same as delete_my_account. Unlike /customers/by_ids/,
-    # this sits on the public router with no gateway-level path exclusion, so
-    # it must enforce this itself rather than trust the "internal" convention.
+    # Unlike /customers/by_ids/, no gateway exclusion protects this path — this is the only guard.
     if str(valid_user["user_id"]) != str(user_id):
         raise HTTPException(status_code=403, detail="Not authorized to view this user's budgets")
     budgets = await get_budgets_by_creator(db, user_id)

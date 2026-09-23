@@ -11,7 +11,7 @@ validation logic runs end to end, matching how test_budget_donor_commitment.py
 et al. mock validate_customer_can_fund at the customer_client boundary.
 """
 import asyncio
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -116,7 +116,11 @@ class TestValidateDonorGranteeRelationship:
 class TestCreateBudgetServiceGate:
     def test_create_rejected_without_approved_relationship(self):
         with (
-            patch("app.services.budget_services.validate_customer_can_fund", return_value=None),
+            patch(
+                "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
             patch(
                 "app.services.donor_grantee_client.check_donor_grantee_relationship",
                 return_value=False,
@@ -130,7 +134,11 @@ class TestCreateBudgetServiceGate:
     def test_create_succeeds_with_approved_relationship(self):
         budget = BudgetFactory.build(owner_id=GRANTEE_ID, funding_customer_id=DONOR_ID)
         with (
-            patch("app.services.budget_services.validate_customer_can_fund", return_value=None),
+            patch(
+                "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
             patch(
                 "app.services.donor_grantee_client.check_donor_grantee_relationship",
                 return_value=True,
@@ -173,7 +181,11 @@ class TestUpdateBudgetServiceGate:
             status=BudgetStatus.draft,
         )
         with (
-            patch("app.services.budget_services.validate_customer_can_fund", return_value=None),
+            patch(
+                "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
             patch("app.services.budget_services.get_budget", return_value=existing),
             patch(
                 "app.services.donor_grantee_client.check_donor_grantee_relationship",
@@ -193,7 +205,11 @@ class TestUpdateBudgetServiceGate:
             status=BudgetStatus.draft,
         )
         with (
-            patch("app.services.budget_services.validate_customer_can_fund", return_value=None),
+            patch(
+                "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
             patch("app.services.budget_services.get_budget", return_value=existing),
             patch(
                 "app.services.donor_grantee_client.check_donor_grantee_relationship",

@@ -38,6 +38,10 @@ from app.services.user_client import (  # noqa: E402
     init_urls as user_client_init_urls,
     close_urls as close_user_client_urls,
 )
+from app.services.customer_client import (  # noqa: E402
+    init_urls as customer_client_init_urls,
+    close_urls as close_customer_client_urls,
+)
 from app.services.event_consumer import init_consumer, close_consumer, start_consumer  # noqa: E402
 from app.services.privileged_access_audit import write_privileged_access_log  # noqa: E402
 
@@ -68,6 +72,8 @@ async def lifespan(app: FastAPI):
         async with asyncio.timeout(30):
             await user_client_init_urls()
             logger.info("user_client_initialized")
+            await customer_client_init_urls()
+            logger.info("customer_client_initialized")
             await init_consumer()
             logger.info("event_consumer_initialized")
             await start_consumer()
@@ -80,6 +86,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("app_shutdown", service="budget")
     await close_user_client_urls()
+    await close_customer_client_urls()
     await close_consumer()
     logger.info("event_consumer_stopped")
 

@@ -379,6 +379,7 @@ class TestAiDraftBudgetStatus:
             ),
             patch(
                 "app.services.budget_services.get_customer_cached",
+                new_callable=AsyncMock,
                 return_value={"currency": "GBP"},
             ),
         ):
@@ -563,6 +564,7 @@ class TestCreateBudgetFieldsPersist:
             ),
             patch(
                 "app.services.budget_services.get_customer_cached",
+                new_callable=AsyncMock,
                 return_value={"currency": "AMD"},
             ) as mock_get_customer,
         ):
@@ -580,6 +582,7 @@ class TestCreateBudgetFieldsPersist:
 
         with patch(
             "app.services.budget_services.get_customer_cached",
+            new_callable=AsyncMock,
             side_effect=CustomerServiceError("unreachable"),
         ):
             response = client.post("/api/v1/budgets/with-lines", json=VALID_PAYLOAD)

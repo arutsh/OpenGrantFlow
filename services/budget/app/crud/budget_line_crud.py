@@ -91,14 +91,19 @@ async def list_budget_lines(
     session: AsyncSession,
     budget_id: UUID | None = None,
     customer_id: UUID | None = None,
-    limit: int = 100,
+    limit: int | None = 100,
 ):
-    query = select(BudgetLineModel).options(selectinload(BudgetLineModel.category))
+    query = (
+        select(BudgetLineModel)
+        .options(selectinload(BudgetLineModel.category))
+        .order_by(BudgetLineModel.created_at, BudgetLineModel.id)
+    )
     if budget_id:
         query = query.where(BudgetLineModel.budget_id == budget_id)
     if customer_id:
         query = query.join(BudgetLineModel.budget).where(BudgetModel.owner_id == customer_id)
-    result = await session.execute(query.limit(limit))
+    query = query.limit(limit)
+    result = await session.execute(query)
     return list(result.scalars().all())
 
 

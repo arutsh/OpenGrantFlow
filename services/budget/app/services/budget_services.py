@@ -1,6 +1,6 @@
 import asyncio
 import structlog
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from dateutil.relativedelta import relativedelta
 from fastapi import status, HTTPException
 from shared.observability import set_span_attributes
@@ -66,7 +66,7 @@ async def create_budget_service(
 ):
 
     if budget.funding_customer_id:
-        validate_customer_can_fund(budget.funding_customer_id, raise_domain_error=True)
+        await validate_customer_can_fund(budget.funding_customer_id, raise_domain_error=True)
 
     owner_id = valid_user.get("customer_id")
 
@@ -79,7 +79,7 @@ async def create_budget_service(
         # A bare superuser (no impersonation session) must not be able to
         # create a budget under an arbitrary customer_id — mirrors the same
         # check in update_budget_service.
-        validate_customer_can_own(budget.owner_id, raise_domain_error=True)
+        await validate_customer_can_own(budget.owner_id, raise_domain_error=True)
 
         owner_id = budget.owner_id
 
@@ -230,7 +230,7 @@ async def _resolve_updatable_budget(
 async def update_budget_service(budget_id: UUID, budget: BudgetCreate, valid_user: dict, db):
 
     if budget.funding_customer_id:
-        validate_customer_can_fund(budget.funding_customer_id, raise_domain_error=True)
+        await validate_customer_can_fund(budget.funding_customer_id, raise_domain_error=True)
 
     # Broader than "a bare confirm with no other fields" — this also covers a
     # confirm bundled with a metadata edit, so both the archived/already-
@@ -599,11 +599,12 @@ async def create_budget_with_lines_service(
 ):
     try:
         owner_id = request.owner_id or valid_user.get("customer_id")
+        assert owner_id is not None
 
         local_currency = request.local_currency
         if not local_currency:
             # Fall back to the org's default currency (Decision 8); errors propagate, no silent GBP.
-            local_currency = get_customer_cached(owner_id).get("currency")
+            local_currency = (await get_customer_cached(owner_id)).get("currency")
 
         # commit=False throughout: budget + categories + lines + total are flushed only,
         # one db.commit() below makes the whole operation atomic (design.md Decision 5).
@@ -685,13 +686,18 @@ async def create_budget_with_lines_service(
         ) from e
 
 
+def _add_duration_months(start_date: date, duration_months: int | None) -> date:
+    """Shared with excel_export_service._period_label — keep both in sync."""
+    return start_date + relativedelta(months=duration_months or 0)
+
+
 def _compute_end_date(budget: BudgetModel):
     """Mirrors report_services.create_report_service's default period_end —
     the single source of truth for this formula, so the frontend displays
     end_date from here rather than reimplementing the math."""
     if not budget.start_date:
         return None
-    return budget.start_date + relativedelta(months=budget.duration_months or 0)
+    return _add_duration_months(budget.start_date, budget.duration_months)
 
 
 def _compute_estimated_local_cap(budget: BudgetModel) -> float | None:
