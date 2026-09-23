@@ -8,7 +8,7 @@ layer, matching this service's existing test convention).
 """
 
 from datetime import date
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -89,6 +89,7 @@ class TestConfirmRequiresStartDate:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
@@ -117,6 +118,7 @@ class TestConfirmRequiresStartDate:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
@@ -147,6 +149,7 @@ class TestConfirmRequiresStartDate:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
@@ -201,6 +204,7 @@ class TestConfirmRequiresStartDate:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(

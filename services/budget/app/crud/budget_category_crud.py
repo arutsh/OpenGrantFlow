@@ -87,12 +87,15 @@ async def get_budget_category(
 
 
 async def list_budget_categories(
-    session: AsyncSession, budget_id: UUID | None = None, limit: int = 100
+    session: AsyncSession, budget_id: UUID | None = None, limit: int | None = 100
 ):
-    query = select(BudgetCategoryModel)
+    query = select(BudgetCategoryModel).order_by(
+        BudgetCategoryModel.created_at, BudgetCategoryModel.id
+    )
     if budget_id:
         query = query.where(BudgetCategoryModel.budget_id == budget_id)
-    result = await session.execute(query.limit(limit))
+    query = query.limit(limit)
+    result = await session.execute(query)
     return list(result.scalars().all())
 
 

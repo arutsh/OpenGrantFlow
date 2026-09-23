@@ -102,6 +102,7 @@ class TestMetadataLockOnConfirmed:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
@@ -136,6 +137,7 @@ class TestMetadataLockOnConfirmed:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
@@ -161,6 +163,7 @@ class TestMetadataLockOnConfirmed:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
@@ -239,7 +242,11 @@ class TestClearingDonorFields:
 
         payload = BudgetUpdate(donor_total_amount=None, estimated_exchange_rate=None)
 
-        with patch("app.services.budget_services.validate_customer_can_fund", return_value=None):
+        with patch(
+            "app.services.budget_services.validate_customer_can_fund",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
             result = await update_budget_service(budget.id, payload, _valid_user(), db)
 
         assert result.donor_total_amount is None
@@ -264,7 +271,11 @@ class TestClearingDonorFields:
 
         payload = BudgetUpdate(name="Renamed")
 
-        with patch("app.services.budget_services.validate_customer_can_fund", return_value=None):
+        with patch(
+            "app.services.budget_services.validate_customer_can_fund",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
             result = await update_budget_service(budget.id, payload, _valid_user(), db)
 
         assert result.name == "Renamed"
@@ -345,7 +356,11 @@ class TestClearingFundingCustomerId:
         payload = BudgetUpdate(funding_customer_id=donor_id, external_funder_name="")
 
         with (
-            patch("app.services.budget_services.validate_customer_can_fund", return_value=None),
+            patch(
+                "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
             patch(
                 "app.services.budget_services.validate_donor_grantee_relationship",
                 return_value=None,
@@ -426,6 +441,7 @@ class TestFunderEitherOrRequired:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
@@ -453,6 +469,7 @@ class TestConfirmedAtTransition:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
@@ -486,6 +503,7 @@ class TestConfirmedAtTransition:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(
@@ -512,6 +530,7 @@ class TestConfirmedAtTransition:
         with (
             patch(
                 "app.services.budget_services.validate_customer_can_fund",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
             patch(

@@ -1,26 +1,45 @@
-import requests
+import uuid
+from collections import OrderedDict
+
+import httpx
 from app.core.config import settings
 from fastapi import status
-from functools import lru_cache
-import uuid
 from app.core.exceptions import DomainError
 
 CUSTOMER_SERVICE_URL = settings.customer_service_url
+_client: httpx.AsyncClient = httpx.AsyncClient(base_url=CUSTOMER_SERVICE_URL)
+
+_CACHE_MAXSIZE = 128
+_customer_cache: "OrderedDict[str, dict]" = OrderedDict()
 
 
 class CustomerServiceError(Exception):
     pass
 
 
-def get_customer(customer_id: str | uuid.UUID) -> dict:
-    """Uses the no-auth by_ids/ internal endpoint (not GET /customers/{id},
-    which now requires a JWT) since this is a service-to-service call with
-    no user token to forward."""
+async def init_urls():
+    global CUSTOMER_SERVICE_URL, _client
+
+    CUSTOMER_SERVICE_URL = settings.customer_service_url
+    _client = httpx.AsyncClient(base_url=CUSTOMER_SERVICE_URL)
+    print(f"✅ Customer client initialized: {CUSTOMER_SERVICE_URL}")
+
+
+async def close_urls():
+    """Gracefully close HTTP client session."""
+    global _client  # noqa: F824
+    if _client:
+        await _client.aclose()
+        print("🛑 Customer client closed")
+
+
+async def get_customer(customer_id: str | uuid.UUID) -> dict:
+    """No-auth by_ids/ endpoint: this is a service-to-service call, no user token to forward."""
     try:
-        resp = requests.post(f"{CUSTOMER_SERVICE_URL}by_ids/", json=[str(customer_id)])
+        resp = await _client.post(f"{CUSTOMER_SERVICE_URL}by_ids/", json=[str(customer_id)])
         resp.raise_for_status()
         items = resp.json()
-    except requests.RequestException as e:
+    except httpx.HTTPError as e:
         raise CustomerServiceError(f"Failed to fetch customer {customer_id}") from e
 
     if not items:
@@ -28,16 +47,27 @@ def get_customer(customer_id: str | uuid.UUID) -> dict:
     return items[0]
 
 
-@lru_cache(maxsize=128)
-def get_customer_cached(customer_id: str | uuid.UUID) -> dict:
-    return get_customer(customer_id)
+async def get_customer_cached(customer_id: str | uuid.UUID) -> dict:
+    """Same maxsize=128, no-TTL semantics as the old @lru_cache, async-compatible."""
+    key = str(customer_id)
+    if key in _customer_cache:
+        _customer_cache.move_to_end(key)
+        return _customer_cache[key]
+
+    customer = await get_customer(customer_id)
+    _customer_cache[key] = customer
+    if len(_customer_cache) > _CACHE_MAXSIZE:
+        _customer_cache.popitem(last=False)
+    return customer
 
 
-def validate_customer_can_fund(customer_id: str | uuid.UUID, raise_domain_error: bool = False):
+async def validate_customer_can_fund(
+    customer_id: str | uuid.UUID, raise_domain_error: bool = False
+):
     """Assert the customer has is_donor=True (can issue grants)."""
     Error = DomainError if raise_domain_error else ValueError
     try:
-        customer = get_customer_cached(customer_id)
+        customer = await get_customer_cached(customer_id)
     except CustomerServiceError as e:
         raise Error(str(e))
 
@@ -47,21 +77,18 @@ def validate_customer_can_fund(customer_id: str | uuid.UUID, raise_domain_error:
 
 
 def require_donor(valid_user: dict) -> None:
-    """Assert the authenticated user's customer has is_donor=True.
-
-    Reads the flag directly off the decoded JWT payload (get_validated_user's
-    output) rather than calling get_customer_cached — that cache is unbounded
-    with no TTL, and is_donor now travels in the token claims (ticket #135).
-    """
+    """Reads is_donor off the JWT claims rather than get_customer_cached (ticket #135)."""
     if not valid_user.get("is_donor"):
         raise DomainError("Customer is not a donor", status.HTTP_403_FORBIDDEN)
 
 
-def validate_customer_can_own(customer_id: str | uuid.UUID, raise_domain_error: bool = False):
+async def validate_customer_can_own(
+    customer_id: str | uuid.UUID, raise_domain_error: bool = False
+):
     """Assert the customer has is_ngo=True (can receive grants / own budgets)."""
     Error = DomainError if raise_domain_error else ValueError
     try:
-        customer = get_customer_cached(customer_id)
+        customer = await get_customer_cached(customer_id)
     except CustomerServiceError as e:
         raise Error(str(e))
 
