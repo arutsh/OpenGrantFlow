@@ -203,7 +203,8 @@ def _build_expense_rows(
     for expense in expenses:
         budget_line = lines_by_id.get(expense.budget_line_id)
         budget_line_description = budget_line.description if budget_line else None
-        category_name = category_names.get(budget_line.category_id) if budget_line else None
+        category_id = budget_line.category_id if budget_line else None
+        category_name = category_names.get(category_id) if category_id else None
         allocated_total = 0.0
         for allocation in expense.allocations:
             allocated_total += allocation.amount_allocated

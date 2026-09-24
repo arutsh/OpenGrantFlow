@@ -65,9 +65,13 @@ for area in "${!areas[@]}"; do
   case "$area" in
     ai|budget|chat|users)
       echo "== services/$area =="
-      run black --check "services/$area/app"
-      run mypy "services/$area/app"
-      run flake8 "services/$area/app"
+      # Run from the service dir like CI: from the repo root, app.* imports don't
+      # resolve and mypy.ini's ignore_missing_imports silently turns them into Any.
+      pushd "services/$area" > /dev/null
+      run black --check ./app
+      run mypy ./app
+      run flake8 ./app
+      popd > /dev/null
       ;;
     worker)
       echo "== services/worker =="
