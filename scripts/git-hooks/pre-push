@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mirrors .github/workflows/{ai,budget,chat,users,shared,worker}.yml's lint
+# Mirrors .github/workflows/{ai,budget,chat,users,shared,tooling,worker}.yml's lint
 # steps locally, scoped to whatever's actually being pushed. See
 # docs/development/WORKFLOW.md for setup (git config core.hooksPath).
 set -euo pipefail
@@ -17,7 +17,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   branch="${local_ref#refs/heads/}"
   if [[ "$branch" != "main" && ! "$branch" =~ $branch_name_re ]]; then
     echo "error: branch '${branch}' doesn't match <Service>/<type>/Issue-<n>/<description>" >&2
-    echo "       create branches with scripts/start-group.sh (docs/development/WORKFLOW.md)" >&2
+    echo "       create branches with scripts/flow.py start <change-name> <N> (docs/development/WORKFLOW.md)" >&2
     exit 1
   fi
 
@@ -42,6 +42,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       services/chat/*) areas["chat"]=1 ;;
       services/users/*) areas["users"]=1 ;;
       services/worker/*) areas["worker"]=1 ;;
+      scripts/*) areas["scripts"]=1 ;;
       shared/*) areas["ai"]=1; areas["budget"]=1; areas["chat"]=1; areas["users"]=1; areas["shared"]=1 ;;
     esac
   done <<< "$changed"
@@ -79,6 +80,12 @@ for area in "${!areas[@]}"; do
       echo "== shared =="
       run black --check shared/ai_client shared/tests
       run flake8 --max-line-length=100 shared/ai_client shared/tests
+      ;;
+    scripts)
+      echo "== scripts =="
+      run black --check scripts/
+      run flake8 --max-line-length=100 scripts/
+      run python3 -m pytest scripts/test_flow.py -q
       ;;
   esac
 done

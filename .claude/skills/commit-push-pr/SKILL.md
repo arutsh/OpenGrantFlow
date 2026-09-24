@@ -47,7 +47,7 @@ Commit the changes the user has already staged, push the current branch, and ope
    Run `gh pr view --json url,number,state 2>/dev/null` (or `gh pr list --head <branch> --json url,number`) to see if a PR already exists for this branch.
 
    - If one exists: report its URL, do not create a duplicate.
-   - If none exists: gather the branch's full commit history vs. the base branch (`git log <base>..HEAD`, `git diff <base>...HEAD`) and create one with `gh pr create`, using a HEREDOC body:
+   - If none exists: gather the branch's full commit history vs. the base branch (`git log <base>..HEAD`, `git diff <base>...HEAD`), run `scripts/flow.py pr` to get the issue-closing trailer for this branch, and create the PR with `gh pr create`, using a HEREDOC body:
      ```
      ## Summary
      <1-3 bullets>
@@ -56,8 +56,10 @@ Commit the changes the user has already staged, push the current branch, and ope
      <checklist>
 
      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+     <the `Closes #...` lines printed by scripts/flow.py pr>
      ```
-     Keep the title under ~70 characters.
+     Keep the title under ~70 characters. Use the trailer exactly as printed — it emits `Closes #<parent>` alongside `Closes #<sub-issue>` only when this is the last open group, and that is what closes the parent tracking issue and fires the board's Done automation. If `flow.py pr` errors (e.g. the branch isn't a task-group branch), say so and open the PR without a trailer rather than guessing issue numbers.
 
 6. **Report**
 
