@@ -10,10 +10,7 @@ from openpyxl.utils import get_column_letter
 from app.crud.budget_category_crud import list_budget_categories
 from app.crud.budget_line_crud import list_budget_lines
 from app.crud.currency_conversion_crud import FLOAT_EPSILON, list_currency_conversions
-from app.crud.excel_export_crud import (
-    BudgetLineExpenseRollup,
-    get_budget_line_expense_rollups,
-)
+from app.crud.excel_export_crud import ReportLineExpense, get_report_line_expenses
 from app.crud.funding_receipt_crud import list_funding_receipts
 from app.models.budget import BudgetCategoryModel, BudgetLineModel, BudgetModel
 from app.models.currency_ledger import CurrencyConversionModel, FundingReceiptModel
@@ -23,6 +20,7 @@ from app.services.user_cache import get_users_by_ids_cached
 
 SHEET1_TITLE = "Original Budget"
 SHEET2_TITLE = "Budget vs. Report Dashboard"
+SHEET3_TITLE = "List of Expenses"
 _BOLD = Font(bold=True)
 _AUDIT_FONT = Font(italic=True, size=9, color="808080")
 _TOTAL_FILL = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
@@ -30,6 +28,8 @@ _TOP_BORDER = Border(top=Side(style="thin"))
 _BOTTOM_BORDER = Border(bottom=Side(style="thin"))
 _ESTIMATE_CELL_FONT = Font(italic=True)
 _ESTIMATE_CELL_FILL = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+_FOOTNOTE_STAR_FONT = Font(italic=True, size=9, color="FF0000")
+_ROW_FLAG_FONT = Font(color="FF0000")
 _DESCRIPTION_COL_WIDTH = 26.63
 _EXTRA_COL_WIDTH = 20.0
 _AMOUNT_COL_WIDTH = 17.77
@@ -41,6 +41,18 @@ _RATE_FORMAT = "0.0000"
 _DATE_FORMAT = "yyyy-mm-dd"
 _PERCENT_FORMAT = "0.0%"
 _DASHBOARD_COL_WIDTHS = {1: 26.63, 2: 18.0, 3: 21.0, 4: 21.0, 5: 23.0, 6: 18.0}
+_EXPENSE_DATE_COL_WIDTH = 12.0
+_RATE_COL_WIDTH = 12.0
+_EXPENSE_LIST_COL_WIDTHS = {
+    1: _EXPENSE_DATE_COL_WIDTH,
+    2: _DESCRIPTION_COL_WIDTH,
+    3: _DESCRIPTION_COL_WIDTH,
+    4: _DESCRIPTION_COL_WIDTH,
+    5: _AMOUNT_COL_WIDTH,
+    6: _ESTIMATE_COL_WIDTH,
+    7: _RATE_COL_WIDTH,
+    8: _EXPENSE_DATE_COL_WIDTH,
+}
 
 
 async def export_budget_workbook_service(
@@ -53,7 +65,7 @@ async def export_budget_workbook_service(
     lines = await list_budget_lines(db, budget_id=budget_id, limit=None)
     conversions = await list_currency_conversions(db, budget_id=budget_id)
     receipts = await list_funding_receipts(db, budget_id=budget_id)
-    rollups = await get_budget_line_expense_rollups(db, budget_id=budget_id)
+    expenses = await get_report_line_expenses(db, budget_id=budget_id)
     organisation_name = None
     try:
         organisation_name = (await get_customer_cached(budget.owner_id)).get("name")
@@ -80,7 +92,7 @@ async def export_budget_workbook_service(
         lines,
         conversions=conversions,
         receipts=receipts,
-        rollups=rollups,
+        expenses=expenses,
         organisation_name=organisation_name,
         donor_name=donor_name,
         exported_by=exported_by,
@@ -94,20 +106,24 @@ def generate_budget_export_workbook(
     lines: list[BudgetLineModel],
     conversions: list[CurrencyConversionModel] | None = None,
     receipts: list[FundingReceiptModel] | None = None,
-    rollups: dict[UUID, BudgetLineExpenseRollup] | None = None,
+    expenses: list[ReportLineExpense] | None = None,
     organisation_name: str | None = None,
     donor_name: str | None = None,
     exported_by: str | None = None,
     exported_at: datetime | None = None,
 ) -> bytes:
-    """Builds the export workbook for one budget. Sheet 3 (List of Expenses)
-    lands in group 3; group 6 makes sheet selection template-driven."""
+    """Builds the export workbook for one budget. Group 6 makes sheet
+    selection template-driven."""
     wb = Workbook()
     sheet1 = wb.active
     sheet1.title = SHEET1_TITLE
     OriginalBudgetSheet(
         sheet1, budget, categories, lines, organisation_name, donor_name, exported_by, exported_at
     ).write()
+
+    expense_rows = _build_expense_rows(
+        lines, categories, expenses or [], budget.estimated_exchange_rate
+    )
 
     sheet2 = wb.create_sheet(SHEET2_TITLE)
     DashboardSheet(
@@ -119,7 +135,18 @@ def generate_budget_export_workbook(
         conversions or [],
         categories,
         lines,
-        rollups or {},
+        expense_rows,
+        exported_by,
+        exported_at,
+    ).write()
+
+    sheet3 = wb.create_sheet(SHEET3_TITLE)
+    ExpenseListSheet(
+        sheet3,
+        budget,
+        organisation_name,
+        donor_name,
+        expense_rows,
         exported_by,
         exported_at,
     ).write()
@@ -139,31 +166,78 @@ def _period_label(start_date: date | None, duration_months: int | None) -> str |
 
 
 @dataclass
-class LineExpenseConversion:
-    converted_donor_amount: float
+class _ExpenseRow:
+    expense_date: date
+    budget_line_id: UUID | None
+    budget_line_description: str | None
+    category_name: str | None
+    description: str | None
+    amount: float
+    rate: float | None
     is_estimated: bool
+    conversion_date: date | None
 
 
-def _compute_converted_expense(
-    rollup: BudgetLineExpenseRollup, estimated_exchange_rate: float
-) -> LineExpenseConversion:
-    """Real per-allocation rate for allocated amounts, `estimated_exchange_rate`
-    for any unsatisfied remainder (design.md Decision 2)."""
-    allocated_total = 0.0
-    converted = 0.0
-    for allocation in rollup.allocations:
-        allocated_total += allocation.amount_allocated
-        if allocation.conversion_local_amount:
-            converted += (
-                allocation.amount_allocated
-                * allocation.conversion_donor_amount
-                / allocation.conversion_local_amount
+def _usable_rate(rate: float | None) -> float | None:
+    # A 0/negative rate would divide by zero or flip signs in Sheet 3's =E/G.
+    return rate if rate and rate > 0 else None
+
+
+def _implied_rate(allocation) -> float | None:
+    if not allocation.conversion_donor_amount or not allocation.conversion_local_amount:
+        return None
+    return _usable_rate(allocation.conversion_local_amount / allocation.conversion_donor_amount)
+
+
+def _build_expense_rows(
+    lines: list[BudgetLineModel],
+    categories: list[BudgetCategoryModel],
+    expenses: list[ReportLineExpense],
+    estimated_exchange_rate: float | None,
+) -> list[_ExpenseRow]:
+    """One row per allocation, plus one (estimated-rate-flagged) row per remainder."""
+    lines_by_id = {line.id: line for line in lines}
+    category_names = {category.id: category.name for category in categories}
+    estimated_rate = _usable_rate(estimated_exchange_rate)
+    rows: list[_ExpenseRow] = []
+    for expense in expenses:
+        budget_line = lines_by_id.get(expense.budget_line_id)
+        budget_line_description = budget_line.description if budget_line else None
+        category_id = budget_line.category_id if budget_line else None
+        category_name = category_names.get(category_id) if category_id else None
+        allocated_total = 0.0
+        for allocation in expense.allocations:
+            allocated_total += allocation.amount_allocated
+            rows.append(
+                _ExpenseRow(
+                    expense_date=expense.expense_date,
+                    budget_line_id=expense.budget_line_id,
+                    budget_line_description=budget_line_description,
+                    category_name=category_name,
+                    description=expense.description,
+                    amount=allocation.amount_allocated,
+                    rate=_implied_rate(allocation),
+                    is_estimated=False,
+                    conversion_date=allocation.converted_at,
+                )
             )
-    remainder = rollup.total_local_amount - allocated_total
-    is_estimated = remainder > FLOAT_EPSILON
-    if is_estimated:
-        converted += remainder / estimated_exchange_rate
-    return LineExpenseConversion(converted_donor_amount=converted, is_estimated=is_estimated)
+        remainder = expense.amount - allocated_total
+        # Rows must sum to expense.amount: keep refunds, zero amounts and over-allocation.
+        if not expense.allocations or abs(remainder) > FLOAT_EPSILON:
+            rows.append(
+                _ExpenseRow(
+                    expense_date=expense.expense_date,
+                    budget_line_id=expense.budget_line_id,
+                    budget_line_description=budget_line_description,
+                    category_name=category_name,
+                    description=expense.description,
+                    amount=remainder,
+                    rate=estimated_rate,
+                    is_estimated=estimated_rate is not None,
+                    conversion_date=None,
+                )
+            )
+    return rows
 
 
 def _group_lines_by_category(
@@ -209,11 +283,15 @@ class _SheetWriter:
         budget: BudgetModel,
         organisation_name: str | None,
         donor_name: str | None,
+        exported_by: str | None = None,
+        exported_at: datetime | None = None,
     ) -> None:
         self.ws = ws
         self.budget = budget
         self.organisation_name = organisation_name
         self.donor_name = donor_name
+        self.exported_by = exported_by
+        self.exported_at = exported_at
 
     def _write_header(self) -> str:
         """Writes the header block (rows 1-6) and returns the rate cell ref for formulas."""
@@ -257,6 +335,11 @@ class _SheetWriter:
         cell.number_format = number_format
         return cell
 
+    def _write_audit_footer(self, row: int) -> None:
+        audit_line = _audit_line(self.exported_by, self.exported_at)
+        cell = self.ws.cell(row=row, column=1, value=audit_line)
+        cell.font = _AUDIT_FONT
+
 
 class OriginalBudgetSheet(_SheetWriter):
     """Sheet 1 — Original Budget: header block, Budget Summary, Detailed Budget, footer."""
@@ -272,11 +355,9 @@ class OriginalBudgetSheet(_SheetWriter):
         exported_by: str | None,
         exported_at: datetime | None,
     ) -> None:
-        super().__init__(ws, budget, organisation_name, donor_name)
+        super().__init__(ws, budget, organisation_name, donor_name, exported_by, exported_at)
         self.categories = categories
         self.lines = lines
-        self.exported_by = exported_by
-        self.exported_at = exported_at
 
     def write(self) -> None:
         budget = self.budget
@@ -558,10 +639,7 @@ class OriginalBudgetSheet(_SheetWriter):
         ws.cell(row=contact_row, column=1).border = _TOP_BORDER
         ws.cell(row=contact_row + 1, column=1, value="Project contact person")
 
-        audit_cell = ws.cell(
-            row=plan["audit_row"], column=1, value=_audit_line(self.exported_by, self.exported_at)
-        )
-        audit_cell.font = _AUDIT_FONT
+        self._write_audit_footer(plan["audit_row"])
 
 
 class DashboardSheet(_SheetWriter):
@@ -577,18 +655,16 @@ class DashboardSheet(_SheetWriter):
         conversions: list[CurrencyConversionModel],
         categories: list[BudgetCategoryModel],
         lines: list[BudgetLineModel],
-        rollups: dict[UUID, BudgetLineExpenseRollup],
+        expense_rows: list["_ExpenseRow"],
         exported_by: str | None,
         exported_at: datetime | None,
     ) -> None:
-        super().__init__(ws, budget, organisation_name, donor_name)
+        super().__init__(ws, budget, organisation_name, donor_name, exported_by, exported_at)
         self.receipts = receipts
         self.conversions = conversions
         self.categories = categories
         self.lines = lines
-        self.rollups = rollups
-        self.exported_by = exported_by
-        self.exported_at = exported_at
+        self.expense_rows = expense_rows
 
     def write(self) -> None:
         self._set_column_widths()
@@ -608,7 +684,7 @@ class DashboardSheet(_SheetWriter):
         received_total = sum(receipt.amount for receipt in self.receipts)
         converted_total = sum(conversion.donor_amount for conversion in self.conversions)
         local_converted_total = sum(conversion.local_amount for conversion in self.conversions)
-        local_expenses_total = sum(self._rollup_for(line).total_local_amount for line in self.lines)
+        local_expenses_total = sum(row.amount for row in self.expense_rows)
 
         self._write_approved_block(plan, approved_total)
         self._write_balance_block(
@@ -620,23 +696,21 @@ class DashboardSheet(_SheetWriter):
         )
         self._write_ledger(plan, events)
         self._write_report_summary(plan, ordered_category_ids, category_names)
-        self._write_detail(
+        estimated_line_ids = {row.budget_line_id for row in self.expense_rows if row.is_estimated}
+        has_estimated_cells = self._write_detail(
             plan,
             ordered_category_ids,
             category_names,
             category_lines,
             bool(estimated_exchange_rate),
+            estimated_line_ids,
         )
-        self._write_footer(plan)
+        self._write_footer(plan, has_estimated_cells)
 
     def _set_column_widths(self) -> None:
         for column, width in _DASHBOARD_COL_WIDTHS.items():
             self.ws.column_dimensions[get_column_letter(column)].width = width
-
-    def _rollup_for(self, line: BudgetLineModel) -> BudgetLineExpenseRollup:
-        return self.rollups.get(
-            line.id, BudgetLineExpenseRollup(budget_line_id=line.id, total_local_amount=0.0)
-        )
+        self.ws.column_dimensions[get_column_letter(8)].hidden = True
 
     def _ledger_events(
         self,
@@ -889,13 +963,20 @@ class DashboardSheet(_SheetWriter):
         self._apply_box_border(total_row, total_row, 6)
 
     def _write_detail(
-        self, plan: dict, ordered_category_ids, category_names, category_lines, has_rate: bool
-    ) -> None:
+        self,
+        plan: dict,
+        ordered_category_ids,
+        category_names,
+        category_lines,
+        has_rate: bool,
+        estimated_line_ids: set,
+    ) -> bool:
         ws = self.ws
         budget = self.budget
         donor_fmt = self._currency_format(budget.actual_currency)
         local_fmt = self._currency_format(budget.local_currency)
         estimated_exchange_rate = budget.estimated_exchange_rate
+        has_estimated_cells = False
 
         for category_id in ordered_category_ids:
             header_row = plan["detail_category_header_rows"][category_id]
@@ -904,18 +985,29 @@ class DashboardSheet(_SheetWriter):
 
             line_rows = plan["detail_line_rows"][category_id]
             for line, row in zip(category_lines[category_id], line_rows):
-                rollup = self._rollup_for(line)
                 planned = line.amount or 0.0
                 ws.cell(row=row, column=1, value=line.description)
                 self._set_cell(row, 3, planned, local_fmt)
-                self._set_cell(row, 4, rollup.total_local_amount, local_fmt)
+                ws.cell(row=row, column=8, value=str(line.id))
+                self._set_cell(
+                    row,
+                    4,
+                    f"=SUMIF('{SHEET3_TITLE}'!$I:$I,$H{row},'{SHEET3_TITLE}'!$E:$E)",
+                    local_fmt,
+                )
                 if has_rate and estimated_exchange_rate:
                     self._set_cell(row, 2, planned / estimated_exchange_rate, donor_fmt)
-                    conversion = _compute_converted_expense(rollup, estimated_exchange_rate)
-                    cell = self._set_cell(row, 5, conversion.converted_donor_amount, donor_fmt)
-                    if conversion.is_estimated:
+                    cell = self._set_cell(
+                        row,
+                        5,
+                        f"=SUMIF('{SHEET3_TITLE}'!$I:$I,$H{row},'{SHEET3_TITLE}'!$F:$F)",
+                        donor_fmt,
+                    )
+                    if line.id in estimated_line_ids:
                         cell.font = _ESTIMATE_CELL_FONT
                         cell.fill = _ESTIMATE_CELL_FILL
+                        ws.cell(row=row, column=7, value="*").font = _ROW_FLAG_FONT
+                        has_estimated_cells = True
                     self._set_cell(row, 6, f"=B{row}-E{row}", donor_fmt)
             if line_rows:
                 self._apply_box_border(line_rows[0], line_rows[-1], 6)
@@ -940,7 +1032,9 @@ class DashboardSheet(_SheetWriter):
             self._bold_row(subtotal_row)
             self._apply_box_border(subtotal_row, subtotal_row, 6)
 
-    def _write_footer(self, plan: dict) -> None:
+        return has_estimated_cells
+
+    def _write_footer(self, plan: dict, has_estimated_cells: bool = False) -> None:
         ws = self.ws
         donor_fmt = self._currency_format(self.budget.actual_currency)
 
@@ -964,11 +1058,174 @@ class DashboardSheet(_SheetWriter):
         ws.cell(row=label_row, column=1, value="Authorised Signatory")
         ws.cell(row=label_row, column=4, value="Project Contact Person")
 
-        audit_cell = ws.cell(
-            row=plan["audit_row"], column=1, value=_audit_line(self.exported_by, self.exported_at)
-        )
-        audit_cell.font = _AUDIT_FONT
+        if has_estimated_cells:
+            legend_row = plan["audit_row"] - 2
+            ws.cell(row=legend_row, column=1, value="*").font = _FOOTNOTE_STAR_FONT
+            legend_cell = ws.cell(
+                row=legend_row,
+                column=2,
+                value=(
+                    "Highlighted amount includes an estimate — the budget's estimated "
+                    "exchange rate applied to the portion not yet linked to a currency conversion."
+                ),
+            )
+            legend_cell.font = _AUDIT_FONT
+
+        self._write_audit_footer(plan["audit_row"])
 
     @staticmethod
     def _column_header(label: str, currency: str | None) -> str:
         return f"{label} ({currency})" if currency else label
+
+
+class ExpenseListSheet(_SheetWriter):
+    """Sheet 3 — List of Expenses: one row per expense, or per allocation subline (Decision 12)."""
+
+    def __init__(
+        self,
+        ws,
+        budget: BudgetModel,
+        organisation_name: str | None,
+        donor_name: str | None,
+        rows: list["_ExpenseRow"],
+        exported_by: str | None,
+        exported_at: datetime | None,
+    ) -> None:
+        super().__init__(ws, budget, organisation_name, donor_name, exported_by, exported_at)
+        self.rows = rows
+
+    def write(self) -> None:
+        self._set_column_widths()
+        rows = self.rows
+        needs_footnote = self._needs_rate_footnote(rows)
+        plan = self._plan(len(rows), needs_footnote)
+        self._write_table(plan, rows, needs_footnote)
+        self._write_footer(plan)
+
+    def _set_column_widths(self) -> None:
+        for column, width in _EXPENSE_LIST_COL_WIDTHS.items():
+            self.ws.column_dimensions[get_column_letter(column)].width = width
+        self.ws.column_dimensions[get_column_letter(9)].hidden = True
+
+    @staticmethod
+    def _needs_rate_footnote(rows: list["_ExpenseRow"]) -> bool:
+        """True whenever a row is estimated or lacks a rate entirely."""
+        return any(row.is_estimated or row.rate is None for row in rows)
+
+    def _plan(self, row_count: int, needs_footnote: bool = False) -> dict:
+        header_row = 1
+        data_start_row = header_row + 1
+        last_row = data_start_row + row_count - 1 if row_count else header_row
+        total_row = last_row + 1 if row_count else header_row + 1
+        if needs_footnote:
+            footnote_row = total_row + 2
+            audit_row = footnote_row + 2
+        else:
+            footnote_row = None
+            audit_row = total_row + 2
+        return {
+            "header_row": header_row,
+            "data_start_row": data_start_row,
+            "last_row": last_row,
+            "total_row": total_row,
+            "footnote_row": footnote_row,
+            "audit_row": audit_row,
+        }
+
+    def _write_table(self, plan: dict, rows: list["_ExpenseRow"], needs_footnote: bool) -> None:
+        ws = self.ws
+        budget = self.budget
+        local_fmt = self._currency_format(budget.local_currency)
+        donor_fmt = self._currency_format(budget.actual_currency)
+
+        header_row = plan["header_row"]
+        ws.cell(row=header_row, column=1, value="Date")
+        ws.cell(row=header_row, column=2, value="Category")
+        ws.cell(row=header_row, column=3, value="Budget Line")
+        ws.cell(row=header_row, column=4, value="Description")
+        ws.cell(
+            row=header_row,
+            column=5,
+            value=f"Amount ({budget.local_currency})" if budget.local_currency else "Amount",
+        )
+        ws.cell(
+            row=header_row,
+            column=6,
+            value=(
+                f"Converted Amount ({budget.actual_currency})"
+                if budget.actual_currency
+                else "Converted Amount"
+            ),
+        )
+        ws.cell(row=header_row, column=7, value="Exchange rate")
+        ws.cell(row=header_row, column=8, value="Exchange date")
+        ws.cell(row=header_row, column=9, value="Budget Line ID")
+        self._bold_row(header_row)
+
+        row = plan["data_start_row"] - 1
+        for expense_row in rows:
+            row += 1
+            ws.cell(row=row, column=1, value=expense_row.expense_date).number_format = _DATE_FORMAT
+            ws.cell(row=row, column=2, value=expense_row.category_name)
+            ws.cell(row=row, column=3, value=expense_row.budget_line_description)
+            ws.cell(row=row, column=4, value=expense_row.description)
+            self._set_cell(row, 5, expense_row.amount, local_fmt)
+            if expense_row.rate is not None:
+                self._set_cell(row, 7, expense_row.rate, _RATE_FORMAT)
+                self._set_cell(row, 6, f"=E{row}/G{row}", donor_fmt)
+            if expense_row.conversion_date is not None:
+                ws.cell(row=row, column=8, value=expense_row.conversion_date).number_format = (
+                    _DATE_FORMAT
+                )
+            elif expense_row.is_estimated or expense_row.rate is None:
+                ws.cell(row=row, column=8, value="*").font = _ROW_FLAG_FONT
+            ws.cell(
+                row=row,
+                column=9,
+                value=str(expense_row.budget_line_id) if expense_row.budget_line_id else None,
+            )
+
+        if rows:
+            self._apply_box_border(plan["data_start_row"], plan["last_row"], 8)
+
+        total_row = plan["total_row"]
+        ws.cell(row=total_row, column=1, value="Total")
+        if rows:
+            first_row, last_row = plan["data_start_row"], plan["last_row"]
+            self._set_cell(total_row, 5, f"=SUM(E{first_row}:E{last_row})", local_fmt)
+            if any(expense_row.rate is not None for expense_row in rows):
+                self._set_cell(total_row, 6, f"=SUM(F{first_row}:F{last_row})", donor_fmt)
+                # A blended rate is only meaningful when every row has one; otherwise
+                # it'd divide all-local (E) by only-rated (F), fabricating a rate.
+                if all(expense_row.rate is not None for expense_row in rows):
+                    self._set_cell(total_row, 7, f"=E{total_row}/F{total_row}", _RATE_FORMAT)
+        else:
+            self._set_cell(total_row, 5, 0.0, local_fmt)
+        self._bold_row(total_row)
+
+        if needs_footnote:
+            estimated = sum(1 for expense_row in rows if expense_row.is_estimated)
+            no_rate = sum(1 for expense_row in rows if expense_row.rate is None)
+            currency_suffix = f" to {budget.actual_currency}" if budget.actual_currency else ""
+            ws.cell(row=plan["footnote_row"], column=1, value="*").font = _FOOTNOTE_STAR_FONT
+            if estimated:
+                text = (
+                    "Amount and exchange rate estimated using the budget's estimated "
+                    f"exchange rate — {estimated} of {len(rows)} expense row(s) not yet "
+                    f"linked to a currency conversion{currency_suffix}."
+                )
+            else:
+                omitted = (
+                    "Exchange rate"
+                    if no_rate < len(rows)
+                    else ("Converted amount and exchange rate")
+                )
+                text = (
+                    f"{omitted} omitted — {no_rate} of {len(rows)} expense row(s) "
+                    f"not yet converted{currency_suffix}."
+                )
+            text_cell = ws.cell(row=plan["footnote_row"], column=2, value=text)
+            text_cell.font = _AUDIT_FONT
+
+    def _write_footer(self, plan: dict) -> None:
+        self._write_audit_footer(plan["audit_row"])

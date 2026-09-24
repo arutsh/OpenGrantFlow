@@ -63,7 +63,7 @@ For each budget line (and category subtotal), Sheet 2 SHALL show: total expenses
 - **THEN** its expense and converted-expense figures show zero, and its deviation equals its full budgeted amount
 
 ### Requirement: Sheet 3 — List of Expenses with per-allocation sublines
-The workbook's third sheet SHALL list every report-line expense across all of the budget's reports, one row per report line when its full amount is covered by a single currency-conversion lot, or one row per allocation (subline) when a report line's amount is funded by more than one lot — each subline row carrying that allocation's own conversion date, converted amount, and implied rate.
+The workbook's third sheet SHALL list every report-line expense across all of the budget's reports, one row per report line when its full amount is covered by a single currency-conversion lot, or one row per allocation (subline) when a report line's amount is funded by more than one lot — each subline row carrying that allocation's own conversion date, converted amount, and implied rate. Each row SHALL also show the expense's budget-line category.
 
 #### Scenario: Expense funded by a single lot
 - **WHEN** a report-line expense is fully allocated to exactly one currency-conversion lot
@@ -73,9 +73,13 @@ The workbook's third sheet SHALL list every report-line expense across all of th
 - **WHEN** a report-line expense straddles more than one currency-conversion lot (e.g., one receipt converted across four separate events)
 - **THEN** Sheet 3 shows one row per allocation, each with its own conversion date and implied rate, and the rows' amounts sum to the expense's full amount
 
-#### Scenario: Expense not yet allocated
-- **WHEN** a report-line expense has no currency-conversion allocation at all
-- **THEN** Sheet 3 shows it as a single row with its local-currency amount and no conversion date or rate
+#### Scenario: Expense not yet allocated, budget has an estimated rate
+- **WHEN** a report-line expense has no currency-conversion allocation at all, and the budget has an `estimated_exchange_rate`
+- **THEN** Sheet 3 shows it as a single row with its local-currency amount, no conversion date, and the budget's estimated rate — flagged (a marker in place of the conversion date, and a footnote) as using the estimate rather than a recorded conversion
+
+#### Scenario: Expense not yet allocated, no estimated rate available
+- **WHEN** a report-line expense has no currency-conversion allocation at all, and the budget has no `estimated_exchange_rate`
+- **THEN** Sheet 3 shows it as a single row with its local-currency amount and no conversion date, rate, or converted amount, flagged with a footnote explaining the omission
 
 ### Requirement: Available export templates for a budget
 The system SHALL provide an endpoint listing the export templates a given viewer may use for a given budget: the system default, every template owned by the viewer's organisation, and every template owned by the budget's funder that is marked shared with grantees. Each entry SHALL identify whether it is the system default, the viewer's own, or a funder's.
