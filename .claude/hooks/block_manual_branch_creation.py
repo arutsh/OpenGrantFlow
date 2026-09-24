@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook (Bash): blocks manual branch creation that bypasses scripts/start-group.sh."""
+"""PreToolUse hook (Bash): blocks manual branch creation that bypasses scripts/flow.py."""
 import json
 import re
 import sys
@@ -36,9 +36,10 @@ def main():
                     "permissionDecisionReason": (
                         f"Blocked: manual branch creation with name '{name}', which doesn't "
                         "match <Service>/<type>/Issue-<n>/<description>. Branches must be "
-                        "created via `scripts/start-group.sh <change-name> <group-number>` "
-                        "(docs/development/WORKFLOW.md) so the sub-issue gets created and "
-                        "linked. Do not skip it, even for small/chore work."
+                        "created via `scripts/flow.py start <change-name> <group-number>` "
+                        "(docs/development/WORKFLOW.md) so the group's sub-issue is linked "
+                        "and both it and the parent move to In Progress. Do not skip it, "
+                        "even for small/chore work."
                     ),
                 }
             }

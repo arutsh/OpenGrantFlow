@@ -18,6 +18,6 @@ jobs:
           # <Service>/<type>/Issue-<sub-issue>/<description>, see docs/development/WORKFLOW.md §2
           if [[ ! "$BRANCH" =~ ^[A-Z][A-Za-z]*/(feat|fix|chore|refactor)/Issue-[0-9]+/.+$ ]]; then
             echo "::error::Branch '$BRANCH' doesn't match <Service>/<type>/Issue-<n>/<description>."
-            echo "::error::Create branches with scripts/start-group.sh — see docs/development/WORKFLOW.md"
+            echo "::error::Create branches with scripts/flow.py start — see docs/development/WORKFLOW.md"
             exit 1
           fi
