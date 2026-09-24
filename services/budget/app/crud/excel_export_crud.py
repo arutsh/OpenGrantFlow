@@ -1,80 +1,95 @@
+from datetime import date
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.budget import BudgetLineModel
 from app.models.currency_ledger import CurrencyConversionModel, ReportLineConversionAllocationModel
-from app.models.report import ReportLineModel
+from app.models.report import ReportLineModel, ReportModel
 
 
 @dataclass
-class AllocationRollup:
-    """One report line's expense funded by one currency-conversion lot."""
+class ReportLineAllocationDetail:
+    """One allocation (subline) of a report-line expense: its own conversion
+    date/amounts, oldest-first (FIFO consumption order)."""
 
     amount_allocated: float
+    converted_at: date
     conversion_donor_amount: float
     conversion_local_amount: float
 
 
 @dataclass
-class BudgetLineExpenseRollup:
-    """A budget line's total local-currency expenses plus funding allocations."""
+class ReportLineExpense:
+    """One report-line expense with its ordered currency-conversion allocations."""
 
+    report_line_id: UUID
     budget_line_id: UUID
-    total_local_amount: float
-    allocations: list[AllocationRollup] = field(default_factory=list)
+    description: str | None
+    amount: float
+    expense_date: date
+    allocations: list[ReportLineAllocationDetail] = field(default_factory=list)
 
 
-async def get_budget_line_expense_rollups(
+async def get_report_line_expenses(
     session: AsyncSession, budget_id: UUID
-) -> dict[UUID, BudgetLineExpenseRollup]:
-    """One rollup per budget line of `budget_id`, keyed by budget_line_id."""
-    totals_sq = (
+) -> list[ReportLineExpense]:
+    """Every report-line expense across all of `budget_id`'s reports, oldest
+    expense first, each with its ordered (oldest-first) allocations."""
+    lines_result = await session.execute(
         select(
-            ReportLineModel.budget_line_id.label("budget_line_id"),
-            func.sum(ReportLineModel.amount).label("total_local_amount"),
+            ReportLineModel.id,
+            ReportLineModel.budget_line_id,
+            ReportLineModel.description,
+            ReportLineModel.amount,
+            ReportLineModel.expense_date,
         )
-        .group_by(ReportLineModel.budget_line_id)
-        .subquery()
+        .join(ReportModel, ReportModel.id == ReportLineModel.report_id)
+        .where(ReportModel.budget_id == budget_id)
+        .order_by(ReportLineModel.expense_date, ReportLineModel.id)
     )
-    totals_result = await session.execute(
-        select(BudgetLineModel.id, func.coalesce(totals_sq.c.total_local_amount, 0.0))
-        .outerjoin(totals_sq, totals_sq.c.budget_line_id == BudgetLineModel.id)
-        .where(BudgetLineModel.budget_id == budget_id)
-    )
-    rollups = {
-        line_id: BudgetLineExpenseRollup(budget_line_id=line_id, total_local_amount=total)
-        for line_id, total in totals_result.all()
-    }
-    if not rollups:
-        return rollups
+    expenses: dict[UUID, ReportLineExpense] = {}
+    for report_line_id, budget_line_id, description, amount, expense_date in lines_result.all():
+        expenses[report_line_id] = ReportLineExpense(
+            report_line_id=report_line_id,
+            budget_line_id=budget_line_id,
+            description=description,
+            amount=amount or 0.0,
+            expense_date=expense_date,
+        )
+    if not expenses:
+        return []
 
     allocations_result = await session.execute(
         select(
-            ReportLineModel.budget_line_id,
+            ReportLineConversionAllocationModel.report_line_id,
             ReportLineConversionAllocationModel.amount_allocated,
+            CurrencyConversionModel.converted_at,
             CurrencyConversionModel.donor_amount,
             CurrencyConversionModel.local_amount,
-        )
-        .join(
-            ReportLineModel,
-            ReportLineModel.id == ReportLineConversionAllocationModel.report_line_id,
         )
         .join(
             CurrencyConversionModel,
             CurrencyConversionModel.id == ReportLineConversionAllocationModel.conversion_id,
         )
-        .where(ReportLineModel.budget_line_id.in_(rollups.keys()))
+        .where(ReportLineConversionAllocationModel.report_line_id.in_(expenses.keys()))
+        .order_by(CurrencyConversionModel.converted_at, CurrencyConversionModel.id)
     )
-    for budget_line_id, amount_allocated, donor_amount, local_amount in allocations_result.all():
-        rollups[budget_line_id].allocations.append(
-            AllocationRollup(
+    for (
+        report_line_id,
+        amount_allocated,
+        converted_at,
+        donor_amount,
+        local_amount,
+    ) in allocations_result.all():
+        expenses[report_line_id].allocations.append(
+            ReportLineAllocationDetail(
                 amount_allocated=amount_allocated,
+                converted_at=converted_at,
                 conversion_donor_amount=donor_amount,
                 conversion_local_amount=local_amount,
             )
         )
 
-    return rollups
+    return list(expenses.values())
