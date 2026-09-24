@@ -1173,9 +1173,9 @@ class ExpenseListSheet(_SheetWriter):
                 self._set_cell(row, 7, expense_row.rate, _RATE_FORMAT)
                 self._set_cell(row, 6, f"=E{row}/G{row}", donor_fmt)
             if expense_row.conversion_date is not None:
-                ws.cell(
-                    row=row, column=8, value=expense_row.conversion_date
-                ).number_format = _DATE_FORMAT
+                ws.cell(row=row, column=8, value=expense_row.conversion_date).number_format = (
+                    _DATE_FORMAT
+                )
             elif expense_row.is_estimated or expense_row.rate is None:
                 ws.cell(row=row, column=8, value="*").font = _ROW_FLAG_FONT
             ws.cell(
@@ -1214,8 +1214,10 @@ class ExpenseListSheet(_SheetWriter):
                     f"linked to a currency conversion{currency_suffix}."
                 )
             else:
-                omitted = "Exchange rate" if no_rate < len(rows) else (
-                    "Converted amount and exchange rate"
+                omitted = (
+                    "Exchange rate"
+                    if no_rate < len(rows)
+                    else ("Converted amount and exchange rate")
                 )
                 text = (
                     f"{omitted} omitted — {no_rate} of {len(rows)} expense row(s) "
