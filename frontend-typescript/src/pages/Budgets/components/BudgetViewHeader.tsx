@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
-import { Archive } from "lucide-react";
+import { Archive, Download, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import Button, { ConfirmDeleteButton } from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { editBudget, saveBudgetAsTemplate } from "@/api/budgetApi";
+import {
+  editBudget,
+  exportBudgetWorkbook,
+  saveBudgetAsTemplate,
+} from "@/api/budgetApi";
 import { useFunderPicker } from "@/hooks/useFunderPicker";
 import {
   getCurrentCustomerId,
@@ -231,6 +235,7 @@ export function BudgetViewHeader({
               )}
             </div>
             <div className="flex items-center gap-2">
+              <BudgetActionsToolbar budget={budget} />
               {isEditMode ? (
                 <>
                   <Button
@@ -515,6 +520,64 @@ export function BudgetViewHeader({
         </CardContent>
       </Card>
     </>
+  );
+}
+
+// Icon-button cluster for lightweight actions — export today, room for more later.
+function BudgetActionsToolbar({ budget }: { budget: Budget }) {
+  const canExport =
+    isBudgetOwner(budget, getCurrentCustomerId()) ||
+    isBudgetFunder(budget, getCurrentCustomerId());
+
+  if (!canExport) return null;
+
+  return (
+    <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-200 rounded-lg p-0.5">
+      <ExportBudgetAction budget={budget} />
+    </div>
+  );
+}
+
+function ExportBudgetAction({ budget }: { budget: Budget }) {
+  const [isExporting, setIsExporting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    setError("");
+    try {
+      const blob = await exportBudgetWorkbook(budget.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${budget.name}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError("Failed to export budget. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <Button
+        variant="icon"
+        title="Export to Excel"
+        onClick={handleExport}
+        disabled={isExporting}
+      >
+        {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+      </Button>
+      {error && (
+        <p className="absolute right-0 top-full mt-1 w-48 text-xs text-red-600 bg-white border border-red-200 rounded-md shadow-md p-2 z-10">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
