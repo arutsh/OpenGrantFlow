@@ -56,9 +56,7 @@
             "timeout": 15
           }
         ]
-      }
-    ],
-    "PostToolUse": [
+      },
       {
         "matcher": "Write|Edit",
         "hooks": [
@@ -66,7 +64,14 @@
             "type": "command",
             "command": "python3 /home/noro/repos/GrandFlow/.claude/hooks/check_comment_brevity.py",
             "timeout": 15
-          },
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
           {
             "type": "command",
             "command": "python3 /home/noro/repos/GrandFlow/.claude/hooks/check_test_factory_usage.py",

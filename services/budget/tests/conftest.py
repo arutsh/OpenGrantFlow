@@ -27,6 +27,7 @@ from app.models.currency_ledger import (  # noqa: E402
     ReportLineConversionAllocationModel,
 )
 from app.models.privileged_access_log import PrivilegedAccessLog  # noqa: E402
+from app.models.export_template import ExportTemplateModel  # noqa: E402
 from shared.security.dependencies import get_validated_user  # noqa: E402
 from shared.security.jwt_utils import create_access_token  # noqa: E402
 from tests.factories.user import ValidUserFactory  # noqa: E402
@@ -71,6 +72,7 @@ async def db():
                 CurrencyConversionModel.__table__,
                 ReportLineConversionAllocationModel.__table__,
                 PrivilegedAccessLog.__table__,
+                ExportTemplateModel.__table__,
             ],
         )
     maker = async_sessionmaker(engine, expire_on_commit=False)

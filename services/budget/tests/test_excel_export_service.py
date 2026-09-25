@@ -9,6 +9,7 @@ from openpyxl import Workbook, load_workbook
 from app.crud.excel_export_crud import ReportLineAllocationDetail, ReportLineExpense
 from app.models.budget import BudgetCategoryModel, BudgetLineModel, BudgetModel
 from app.schemas.budget_schema import BudgetStatus
+from app.schemas.export_template_schema import TemplateVisibility
 from app.services.excel_export_service import (
     SHEET3_TITLE,
     DashboardSheet,
@@ -20,6 +21,7 @@ from app.services.excel_export_service import (
 )
 from tests.factories.budget import BudgetCategoryFactory, BudgetFactory, BudgetLineFactory
 from tests.factories.currency_ledger import CurrencyConversionFactory, FundingReceiptFactory
+from tests.factories.export_template import ExportTemplateFactory
 
 OWNER_ID = str(uuid4())
 FUNDER_ID = str(uuid4())
@@ -1342,3 +1344,45 @@ class TestExportBudgetWorkbookRoute:
         response = client.get(f"/api/v1/budgets/{budget.id}/export.xlsx")
 
         assert response.status_code == 400
+
+
+@pytest.mark.anyio
+class TestExportTemplatesRoute:
+    async def test_owner_gets_predicted_candidate_set(self, db, make_client):
+        budget = await _make_budget(db, funding_customer_id=FUNDER_ID)
+        await _add_export_template(db, owner_customer_id=None, name="GrandFlow Default")
+        await _add_export_template(db, owner_customer_id=OWNER_ID, name="My Template")
+        client = make_client(db=db, customer_id=OWNER_ID)
+
+        response = client.get(f"/api/v1/budgets/{budget.id}/export-templates")
+
+        assert response.status_code == 200
+        sources = {c["source"] for c in response.json()}
+        assert sources == {"system", "own"}
+
+    async def test_funder_gets_predicted_candidate_set(self, db, make_client):
+        budget = await _make_budget(db, funding_customer_id=FUNDER_ID)
+        await _add_export_template(db, owner_customer_id=None, name="GrandFlow Default")
+        client = make_client(db=db, customer_id=FUNDER_ID)
+
+        response = client.get(f"/api/v1/budgets/{budget.id}/export-templates")
+
+        assert response.status_code == 200
+        assert {c["source"] for c in response.json()} == {"system"}
+
+    async def test_non_viewer_is_rejected(self, db, make_client):
+        budget = await _make_budget(db)
+        client = make_client(db=db, customer_id=STRANGER_ID)
+
+        response = client.get(f"/api/v1/budgets/{budget.id}/export-templates")
+
+        assert response.status_code == 400
+
+
+async def _add_export_template(db, owner_customer_id, name, visibility=TemplateVisibility.private):
+    template = ExportTemplateFactory.build(
+        owner_customer_id=owner_customer_id, name=name, visibility=visibility
+    )
+    db.add(template)
+    await db.commit()
+    return template

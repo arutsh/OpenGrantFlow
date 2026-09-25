@@ -8,6 +8,7 @@ from app.models.currency_ledger import (
     ReportLineConversionAllocationModel,
 )
 from app.models.privileged_access_log import PrivilegedAccessLog
+from app.models.export_template import ExportTemplateModel
 
 __all__ = [
     "BudgetModel",
@@ -21,4 +22,5 @@ __all__ = [
     "CurrencyConversionModel",
     "ReportLineConversionAllocationModel",
     "PrivilegedAccessLog",
+    "ExportTemplateModel",
 ]

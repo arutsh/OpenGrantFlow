@@ -49,10 +49,21 @@ This is enforced, not just documented:
   blocks manually-created branches whose name doesn't match the convention.
 - `scripts/git-hooks/pre-push` refuses to push a branch with a non-conforming
   name (requires `git config core.hooksPath scripts/git-hooks` — see
-  WORKFLOW.md §7, which also covers this hook's lint-mirroring behavior).
+  WORKFLOW.md §8, which also covers this hook's lint-mirroring behavior).
 - `.github/workflows/branch-naming.yml` re-checks the branch name on every
   push and PR as a backstop.
 
 For a ticket that isn't part of an OpenSpec change, use
 `scripts/flow.py issue "<title>" "<body>"`. If such a task still needs a branch,
 ask the user before improvising a name outside the convention.
+
+## Comments — keep them short
+
+Comments (line-comment runs, `/* */` blocks, docstrings) are at most 2 lines.
+Longer rationale belongs in a commit message, PR description, or docs — not
+in the code.
+
+This is enforced, not just documented: `.claude/hooks/check_comment_brevity.py`
+(a `PreToolUse` hook on `Write`/`Edit`) denies any write that introduces a
+comment longer than that, so trim it before retrying rather than fighting the
+hook.

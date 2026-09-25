@@ -12,6 +12,7 @@ Everything below is driven by one tool, `scripts/flow.py`:
 | `flow.py start <change> <group>` | starting a group | parent + group → In Progress, branch from `main` |
 | `flow.py pr` | opening the PR | prints the `Closes` trailer |
 | `flow.py issue "<t>" "<body>"` | one-off ticket | issue on the board, outside any change |
+| `flow.py cleanup [--yes]` | after merges pile up | deletes local branches whose remote was deleted |
 
 Sub-issues are matched to task groups by the issue number recorded in `tasks.md`,
 falling back to the `(group N)` title suffix when no number is recorded.
@@ -140,7 +141,21 @@ scripts/flow.py issue "<title>" "<body>"
 Creates the issue and puts it on the board as Todo. If it needs a branch, agree
 a name with a human first — the convention above assumes a sub-issue exists.
 
-## 7. Local lint enforcement before push
+## 7. Local branch cleanup
+
+Squash-merging means `git branch --merged` never recognizes a merged group
+branch, so they pile up locally even though the remote is clean. Run:
+
+```
+scripts/flow.py cleanup
+```
+
+It fetches with `--prune`, lists local branches whose upstream was deleted
+(skipping the current branch and any branch checked out in another worktree),
+and deletes them after a y/N confirmation (`-D`, since they're squash-merged
+rather than fast-forward-mergeable). Pass `--yes` to skip the prompt.
+
+## 8. Local lint enforcement before push
 
 `scripts/git-hooks/pre-push` mirrors each service's CI lint step
 (`black --check`, `mypy`, `flake8`) locally, scoped to whichever service(s) the
@@ -155,7 +170,7 @@ git config core.hooksPath scripts/git-hooks
 
 Bypass with `git push --no-verify` when intentionally needed.
 
-## 8. Testing the tool itself
+## 9. Testing the tool itself
 
 `scripts/test_flow.py` covers the change-name/group parsing and the `tasks.md`
 rewriting — the load-bearing, network-free parts:
@@ -166,7 +181,7 @@ python3 -m pytest scripts/test_flow.py -q
 
 `.github/workflows/tooling.yml` runs the same tests plus `black`/`flake8` over
 `scripts/` on any push or PR that touches `scripts/**`, and the pre-push hook
-(§7) mirrors it locally.
+(§8) mirrors it locally.
 
 `scripts/flow.py --dry-run <subcommand> ...` prints every mutating `gh`/`git`
 call instead of running it, which is the safe way to preview `init` or `sync`.

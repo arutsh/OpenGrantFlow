@@ -18,6 +18,7 @@ from app.schemas.budget_schema import (
 )
 from app.schemas.budget_line_schema import BudgetLine
 from app.schemas.excel_import_schema import ExcelPrepareImportResult
+from app.schemas.export_template_schema import ExportTemplateCandidate
 from app.schemas.mapping_schema import DonorTemplate, DonorTemplateCreate
 from app.schemas.with_lines_schema import CreateBudgetWithLinesRequest
 from app.services.budget_line_services import get_viewable_budget_lines_service
@@ -38,6 +39,7 @@ from app.services.budget_services import (
 from app.services.customer_client import require_donor
 from app.services.excel_export_service import export_budget_workbook_service
 from app.services.excel_import_service import prepare_excel_import_service
+from app.services.export_template_service import list_candidate_templates
 from app.crud.budget_crud import get_budgets_by_creator
 from shared.observability import set_span_attributes
 from shared.security.dependencies import get_validated_user
@@ -122,6 +124,17 @@ async def export_budget_workbook_endpoint(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": safe_content_disposition(f"{budget.name}.xlsx")},
     )
+
+
+@router.get("/{budget_id}/export-templates", response_model=list[ExportTemplateCandidate])
+async def list_budget_export_templates_endpoint(
+    budget_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    valid_user=Depends(get_validated_user),
+):
+    set_span_attributes(budget_id=budget_id)
+    budget = await get_viewable_budget_service(budget_id, valid_user, db)
+    return await list_candidate_templates(db, valid_user, budget)
 
 
 @router.patch("/{budget_id}", response_model=BudgetUpdate)

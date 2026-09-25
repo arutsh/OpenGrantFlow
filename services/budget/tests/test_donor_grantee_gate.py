@@ -14,8 +14,8 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+import httpx
 import pytest
-import requests
 
 from app.core.exceptions import DomainError
 from app.schemas.budget_schema import BudgetCreate, BudgetStatus
@@ -45,39 +45,29 @@ def _payload(**kwargs):
     return BudgetCreate(**kwargs)
 
 
-class _FakeResponse:
-    def __init__(self, payload):
-        self._payload = payload
+def _fake_response(payload):
+    return httpx.Response(200, json=payload, request=httpx.Request("GET", "http://test"))
 
-    def raise_for_status(self):
-        pass
 
-    def json(self):
-        return self._payload
+def _patch_client_get(**kwargs):
+    return patch(
+        "app.services.donor_grantee_client._client.get", new_callable=AsyncMock, **kwargs
+    )
 
 
 class TestCheckDonorGranteeRelationship:
     def test_relationship_exists_returns_true(self):
-        with patch(
-            "app.services.donor_grantee_client.requests.get",
-            return_value=_FakeResponse({"exists": True}),
-        ):
-            assert check_donor_grantee_relationship(DONOR_ID, GRANTEE_ID) is True
+        with _patch_client_get(return_value=_fake_response({"exists": True})):
+            assert asyncio.run(check_donor_grantee_relationship(DONOR_ID, GRANTEE_ID)) is True
 
     def test_relationship_missing_returns_false(self):
-        with patch(
-            "app.services.donor_grantee_client.requests.get",
-            return_value=_FakeResponse({"exists": False}),
-        ):
-            assert check_donor_grantee_relationship(DONOR_ID, GRANTEE_ID) is False
+        with _patch_client_get(return_value=_fake_response({"exists": False})):
+            assert asyncio.run(check_donor_grantee_relationship(DONOR_ID, GRANTEE_ID)) is False
 
     def test_request_failure_raises_service_error(self):
-        with patch(
-            "app.services.donor_grantee_client.requests.get",
-            side_effect=requests.RequestException("boom"),
-        ):
+        with _patch_client_get(side_effect=httpx.ConnectError("boom")):
             with pytest.raises(DonorGranteeServiceError):
-                check_donor_grantee_relationship(DONOR_ID, GRANTEE_ID)
+                asyncio.run(check_donor_grantee_relationship(DONOR_ID, GRANTEE_ID))
 
 
 class TestValidateDonorGranteeRelationship:
@@ -86,7 +76,7 @@ class TestValidateDonorGranteeRelationship:
             "app.services.donor_grantee_client.check_donor_grantee_relationship",
             return_value=True,
         ):
-            validate_donor_grantee_relationship(DONOR_ID, GRANTEE_ID)  # does not raise
+            asyncio.run(validate_donor_grantee_relationship(DONOR_ID, GRANTEE_ID))  # does not raise
 
     def test_missing_relationship_raises_value_error(self):
         with patch(
@@ -94,7 +84,7 @@ class TestValidateDonorGranteeRelationship:
             return_value=False,
         ):
             with pytest.raises(ValueError):
-                validate_donor_grantee_relationship(DONOR_ID, GRANTEE_ID)
+                asyncio.run(validate_donor_grantee_relationship(DONOR_ID, GRANTEE_ID))
 
     def test_missing_relationship_raises_domain_error_when_flagged(self):
         with patch(
@@ -102,7 +92,11 @@ class TestValidateDonorGranteeRelationship:
             return_value=False,
         ):
             with pytest.raises(DomainError):
-                validate_donor_grantee_relationship(DONOR_ID, GRANTEE_ID, raise_domain_error=True)
+                asyncio.run(
+                    validate_donor_grantee_relationship(
+                        DONOR_ID, GRANTEE_ID, raise_domain_error=True
+                    )
+                )
 
     def test_service_error_raises_domain_error_when_flagged(self):
         with patch(
@@ -110,7 +104,11 @@ class TestValidateDonorGranteeRelationship:
             side_effect=DonorGranteeServiceError("unreachable"),
         ):
             with pytest.raises(DomainError):
-                validate_donor_grantee_relationship(DONOR_ID, GRANTEE_ID, raise_domain_error=True)
+                asyncio.run(
+                    validate_donor_grantee_relationship(
+                        DONOR_ID, GRANTEE_ID, raise_domain_error=True
+                    )
+                )
 
 
 class TestCreateBudgetServiceGate:
