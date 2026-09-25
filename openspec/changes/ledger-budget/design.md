@@ -37,6 +37,9 @@ Both `_backfill_unsatisfied_expenses` (new conversion backfilling old unsatisfie
 **5. No new schema/migration.**
 All new operations are CRUD against the two existing tables; `ReportLineConversionAllocationModel` deletion on conversion delete/reset relies on either an explicit delete-then-delete in the service layer or a DB-level cascade added via a small migration if it doesn't already cascade — confirm the current FK (`services/budget/migrations/versions/000007_add_currency_ledger.py`) before implementation; add `ondelete="CASCADE"` there only if needed, otherwise delete allocation rows explicitly in the reset/delete service function ahead of the conversion delete.
 
+**6. Money types follow `budget-fix-341-money-integrity`, which lands first.**
+New update schemas for receipts and conversions use the shared `Money` type (`Decimal` in Python, JSON number on the wire), not `float`. The zero-allocation check in Decision 4 and any balance comparison use exact `Decimal(0)`, never the removed `FLOAT_EPSILON`. See that change's design.md, Decisions 1 and 4.
+
 ## Risks / Trade-offs
 
 - **[Risk] Reset Ledger is destructive and irreversible with no undo.** → Mitigation: owner-only, explicit confirm-dialog on the frontend ("this permanently deletes N receipts and M conversions"), and it's opt-in — the revert block never triggers it automatically.

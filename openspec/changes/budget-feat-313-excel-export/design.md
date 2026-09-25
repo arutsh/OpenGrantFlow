@@ -82,6 +82,14 @@ Revised after real-data testing on group 3 surfaced two problems: an expense wit
 *Alternative considered*: keep Sheet 3's remainder blank and have Sheet 2 keep its own Python blend. Rejected — that's the two-sources-of-truth setup that caused the bug; a single computed row list removes the possibility of the sheets disagreeing.
 *Verification*: round-tripped through `soffice --headless`, confirming the `SUMIF` formulas compute the same blended total the old Python rollup did.
 
+**15. Remaining groups (5+) rebase onto `budget-fix-341-money-integrity`, which lands first.**
+That change migrates every money column to `Numeric` and converts `excel_export_service.py`'s own arithmetic to `Decimal`: `allocated_total`, the `FLOAT_EPSILON` remainder check (removed, now an exact zero comparison), and `or 0.0` defaults. After rebasing:
+- new export code uses `Decimal(0)` accumulators and never mixes in float literals, because `Decimal * float` raises `TypeError`;
+- new schemas use the shared `Money` type;
+- group 5's unmerged migrations (`000017`/`000018`) are renumbered after that change's migration, with `down_revision` updated.
+
+openpyxl writes `Decimal` cells natively, so workbook output is unchanged.
+
 ## Risks / Trade-offs
 
 - [A budget with many report lines/allocations could make generation slow] → Out of scope for a "simple export" of one budget; single-budget expense volume in practice is small (tens to low hundreds of lines), revisit only if real usage shows otherwise.

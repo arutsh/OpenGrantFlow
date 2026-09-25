@@ -2,3 +2,5 @@ schema: spec-driven
 created: 2026-09-20
 author: Norair Arutshyan
 priority: medium
+depends_on:
+  - budget-fix-341-money-integrity
