@@ -119,17 +119,6 @@ The export endpoint SHALL accept an optional template identifier and SHALL NOT s
 - **WHEN** a client re-sends a template identifier that has since been deleted or un-shared
 - **THEN** the request is rejected with an error identifying that the template is no longer available, rather than falling back to another template
 
-### Requirement: Template-scoped ownership
-An export template SHALL belong to exactly one organisation and SHALL carry a visibility of either private or shared with grantees. Template names SHALL be unique within an owning organisation. Every query for templates SHALL be scoped to a requesting organisation; the system SHALL NOT expose a way to read templates without an organisational scope.
-
-#### Scenario: Duplicate name within an organisation
-- **WHEN** an organisation creates a second template with the name of one it already owns
-- **THEN** the request is rejected, so which template a name refers to is never ambiguous
-
-#### Scenario: Same name across organisations
-- **WHEN** two different organisations each create a template named "Annual Report"
-- **THEN** both are accepted, and each organisation only ever sees its own
-
 ### Requirement: Renderer options applied to the generated workbook
 A template SHALL define its output as a bounded set of options over the built-in renderer — which sheets to include, whether the donor-currency estimate column is shown, column header label overrides, and whether the audit footer is shown — validated on write. The system SHALL reject an unrecognised option at write time rather than ignoring it at generation time. Options absent from a stored template SHALL fall back to the system default's value at generation time.
 

@@ -89,7 +89,7 @@ async def create_budget_service(
         # superuser, budget.owner_id (either client-supplied or the
         # FIXME fallback above) — never None in practice.
         assert owner_id is not None
-        validate_donor_grantee_relationship(
+        await validate_donor_grantee_relationship(
             budget.funding_customer_id, owner_id, raise_domain_error=True
         )
     new_budget = await create_budget(
@@ -287,7 +287,7 @@ async def update_budget_service(budget_id: UUID, budget: BudgetCreate, valid_use
         # funding_customer_id in the same request must be validated against
         # the new owner, otherwise the gate could be bypassed by reassigning
         # to an unapproved grantee after the check.
-        validate_donor_grantee_relationship(
+        await validate_donor_grantee_relationship(
             budget.funding_customer_id, owner_id or valid_budget.owner_id, raise_domain_error=True
         )
 

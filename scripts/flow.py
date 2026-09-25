@@ -9,6 +9,7 @@ Subcommands:
   start <change> <group>     parent + group to In Progress, branch from main
   pr [--branch B]            print the Closes trailer for a group's PR
   issue "<title>" ["<body>"] create a standalone issue on the board
+  cleanup [--yes]            delete local branches whose remote was deleted
 
 GitHub is the source of truth: a group is matched to the sub-issue number
 tasks.md records, falling back to the "(group N)" title suffix, and every
@@ -767,12 +768,34 @@ def find_change_for_issue(sub: int) -> tuple[Change, Group, list[Group]] | None:
     return None
 
 
+USER_FACING_ROOT = "frontend-typescript/src/"
+USER_FACING_EXCLUDE_RE = re.compile(r"\.(test|spec|stories)\.[jt]sx?$|/__tests__/|/__mocks__/")
+
+
+def warn_if_user_guide_stale(branch: str) -> None:
+    base = run(["git", "merge-base", "main", branch], check=False)
+    if not base:
+        return
+    changed = run(["git", "diff", "--name-only", base, branch], check=False).splitlines()
+    user_facing = [
+        f
+        for f in changed
+        if f.startswith(USER_FACING_ROOT) and not USER_FACING_EXCLUDE_RE.search(f)
+    ]
+    if user_facing and not any(f.startswith("docs/user-guide/") for f in changed):
+        warn(
+            "touches user-facing frontend code but not docs/user-guide/ — update the guide "
+            "(and its 'Last reviewed' line) if this changes what users see"
+        )
+
+
 def cmd_pr(args) -> None:
     branch = args.branch or run(["git", "branch", "--show-current"])
     match = BRANCH_RE.match(branch)
     if not match:
         die(f"branch '{branch}' doesn't match <Service>/<type>/Issue-<n>/<description>")
     sub = int(match.group(1))
+    warn_if_user_guide_stale(branch)
 
     found = find_change_for_issue(sub)
     closes = [sub]
@@ -797,6 +820,43 @@ def cmd_pr(args) -> None:
             closes.append(change.issue)
 
     print("\n".join(f"Closes #{n}" for n in closes))
+
+
+def cmd_cleanup(args) -> None:
+    run(["git", "fetch", "--prune", "origin"], mutating=True)
+
+    current = run(["git", "branch", "--show-current"])
+    worktree_branches = {
+        line.removeprefix("branch refs/heads/")
+        for line in run(["git", "worktree", "list", "--porcelain"]).splitlines()
+        if line.startswith("branch ")
+    }
+
+    gone = []
+    for line in run(
+        ["git", "for-each-ref", "refs/heads", "--format=%(refname:short) %(upstream:track)"]
+    ).splitlines():
+        branch, _, track = line.partition(" ")
+        if "[gone]" in track and branch != current and branch not in worktree_branches:
+            gone.append(branch)
+
+    if not gone:
+        print("no local branches with a deleted remote")
+        return
+
+    print(f"{len(gone)} local branch(es) with a deleted remote:")
+    for branch in gone:
+        print(f"  {branch}")
+
+    if not args.yes:
+        answer = input("\nDelete these branches? [y/N] ").strip().lower()
+        if answer != "y":
+            print("aborted")
+            return
+
+    for branch in gone:
+        run(["git", "branch", "-D", branch], mutating=True)
+        print(f"  deleted {branch}")
 
 
 def cmd_issue(args) -> None:
@@ -843,6 +903,10 @@ def main() -> None:
     p.add_argument("title")
     p.add_argument("body", nargs="?")
     p.set_defaults(func=cmd_issue)
+
+    p = sub.add_parser("cleanup", help="delete local branches whose remote was deleted")
+    p.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
+    p.set_defaults(func=cmd_cleanup)
 
     args = parser.parse_args()
     DRY_RUN = args.dry_run
