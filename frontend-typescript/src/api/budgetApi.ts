@@ -63,3 +63,11 @@ export const saveBudgetAsTemplate = async (
   });
   return data;
 };
+
+// Streams the workbook bytes directly, unlike downloadAttachment's presigned-URL redirect.
+export const exportBudgetWorkbook = async (budgetId: string): Promise<Blob> => {
+  const { data } = await gatewayApi.get(`/budgets/${budgetId}/export.xlsx`, {
+    responseType: "blob",
+  });
+  return data;
+};

@@ -15,6 +15,7 @@ vi.mock("@/api/budgetApi", async (importOriginal) => {
     ...actual,
     editBudget: vi.fn(),
     saveBudgetAsTemplate: vi.fn(),
+    exportBudgetWorkbook: vi.fn(),
   };
 });
 
@@ -49,6 +50,9 @@ vi.mock("@/api/customerApi", async (importOriginal) => {
 
 const editBudgetMock = budgetApi.editBudget as unknown as ReturnType<typeof vi.fn>;
 const saveBudgetAsTemplateMock = budgetApi.saveBudgetAsTemplate as unknown as ReturnType<
+  typeof vi.fn
+>;
+const exportBudgetWorkbookMock = budgetApi.exportBudgetWorkbook as unknown as ReturnType<
   typeof vi.fn
 >;
 const getCurrentCustomerIdMock = roleAccess.getCurrentCustomerId as unknown as ReturnType<
@@ -749,6 +753,61 @@ describe("BudgetViewHeader metadata edit", () => {
 
     expect(screen.getByText("Currency").nextElementSibling).toHaveTextContent("EUR");
     expect(screen.getByText("Currency").nextElementSibling?.tagName).not.toBe("SELECT");
+  });
+});
+
+describe("BudgetViewHeader export action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getCurrentCustomerIdMock.mockReturnValue("owner-1");
+    isBudgetOwnerMock.mockReturnValue(true);
+    isBudgetFunderMock.mockReturnValue(false);
+    window.URL.createObjectURL = vi.fn(() => "blob:mock-url");
+    window.URL.revokeObjectURL = vi.fn();
+  });
+
+  it("hides the export action for a non-owner, non-funder viewer", () => {
+    isBudgetOwnerMock.mockReturnValue(false);
+    isBudgetFunderMock.mockReturnValue(false);
+
+    renderHeader(<BudgetViewHeader budget={makeBudget()} isLocked={false} />);
+
+    expect(screen.queryByTitle("Export to Excel")).not.toBeInTheDocument();
+  });
+
+  it("shows the export action to the matching funder even when they are not the owner", () => {
+    isBudgetOwnerMock.mockReturnValue(false);
+    isBudgetFunderMock.mockReturnValue(true);
+
+    renderHeader(<BudgetViewHeader budget={makeBudget()} isLocked={false} />);
+
+    expect(screen.getByTitle("Export to Excel")).toBeInTheDocument();
+  });
+
+  it("downloads the workbook using the budget's name as the filename", async () => {
+    const user = userEvent.setup();
+    const blob = new Blob(["xlsx-bytes"]);
+    exportBudgetWorkbookMock.mockResolvedValue(blob);
+
+    renderHeader(<BudgetViewHeader budget={makeBudget()} isLocked={false} />);
+    await user.click(screen.getByTitle("Export to Excel"));
+
+    await waitFor(() => expect(exportBudgetWorkbookMock).toHaveBeenCalledWith("b1"));
+    expect(window.URL.createObjectURL).toHaveBeenCalledWith(blob);
+    expect(window.URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+  });
+
+  it("shows an inline error and stays on the page when the export request fails", async () => {
+    const user = userEvent.setup();
+    exportBudgetWorkbookMock.mockRejectedValue(new Error("failed"));
+
+    renderHeader(<BudgetViewHeader budget={makeBudget()} isLocked={false} />);
+    await user.click(screen.getByTitle("Export to Excel"));
+
+    await waitFor(() =>
+      expect(screen.getByText(/failed to export budget/i)).toBeInTheDocument(),
+    );
+    expect(screen.getByTitle("Export to Excel")).toBeInTheDocument();
   });
 });
 
