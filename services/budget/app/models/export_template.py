@@ -2,7 +2,14 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import (
-    Boolean, CheckConstraint, Enum as SQLEnum, Index, Integer, JSON, String, UniqueConstraint,
+    Boolean,
+    CheckConstraint,
+    Enum as SQLEnum,
+    Index,
+    Integer,
+    JSON,
+    String,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
