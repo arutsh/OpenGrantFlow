@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from shared.schemas.customer_schema import Customer
 import enum
 from uuid import UUID
@@ -25,19 +25,13 @@ class UserBase(BaseModel):
     status: UserStatus
 
 
-class UserCreate(UserBase):
-    class Config:
-        extra = "ignore"  # 👈 Ignore unexpected fields like `id`
+class UserSelfUpdate(BaseModel):
+    # Forbid, not ignore: membership/role/status/email must fail loudly, never be dropped.
+    model_config = ConfigDict(extra="forbid")
 
-
-class UserUpdate(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
-    email: EmailStr | None = None
-    role: UserRole | None = None
-    customer_id: UUID | None = None
-    status: UserStatus | None = UserStatus.pending
-    new_customer_name: str | None = None  # If creating a new customer
+    new_customer_name: str | None = None  # founder onboarding only, while pending
 
 
 class User(UserBase):

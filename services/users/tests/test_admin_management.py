@@ -383,6 +383,34 @@ class TestDeactivateCompany:
 
         assert resp.status_code == 200
 
+    async def test_impersonation_cannot_deactivate_a_different_company(self, make_client, db):
+        impersonated = await _make_customer(db)
+        other = await _make_customer(db)
+        superuser = await _persist(db, UserModelFactory.build(role="superuser", status="active"))
+        client = make_client(
+            db=db,
+            user_id=superuser.id,
+            role="admin",
+            customer_id=str(impersonated.id),
+            is_impersonating=True,
+        )
+
+        resp = client.post(f"/api/customers/{other.id}/deactivate")
+
+        assert resp.status_code == 403
+        await db.refresh(other)
+        assert other.deactivated_at is None
+
+    async def test_impersonation_flag_without_matching_tenant_is_rejected(
+        self, make_client, db
+    ):
+        customer = await _make_customer(db)
+        client = make_client(db=db, role="superuser", customer_id=None, is_impersonating=True)
+
+        resp = client.post(f"/api/customers/{customer.id}/deactivate")
+
+        assert resp.status_code == 403
+
     async def test_companys_own_admin_cannot_deactivate_without_impersonating(
         self, make_client, db
     ):
