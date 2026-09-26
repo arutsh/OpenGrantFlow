@@ -12,6 +12,7 @@ from shared.schemas.budget_schema import CurrencyAmount  # noqa: F401
 from shared.schemas.budget_schema import FundedBudgetsSummary  # noqa: F401
 from shared.schemas.budget_schema import GranteeSummary  # noqa: F401
 from shared.schemas.budget_schema import FundedBudgetListItem  # noqa: F401
+from shared.schemas.money import CalculatedMoney, Money
 
 
 class BudgetStatusCount(BaseModel):
@@ -21,8 +22,8 @@ class BudgetStatusCount(BaseModel):
 
 class ConversionProgress(BaseModel):
     currency: str
-    received: float
-    converted: float
+    received: CalculatedMoney
+    converted: CalculatedMoney
     # 0-100; 0 when nothing has been received yet in this currency, rather
     # than dividing by zero.
     percent: float
@@ -34,9 +35,9 @@ class BudgetBreakdownRow(BaseModel):
     funding_customer_id: UUID | None = None
     external_funder_name: str | None = None
     local_currency: str | None = None
-    converted: float
-    spent: float
-    remaining: float
+    converted: Money
+    spent: Money
+    remaining: Money
 
 
 class GranteeDashboardSummary(BaseModel):

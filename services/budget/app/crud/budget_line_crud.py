@@ -1,3 +1,4 @@
+from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,7 +14,7 @@ async def create_budget_line(
     budget_id: UUID,
     category_id: UUID | None,
     description: str,
-    amount: float,
+    amount: Decimal,
     extra_fields: dict | None = None,
     commit: bool = True,
 ) -> BudgetLineModel:

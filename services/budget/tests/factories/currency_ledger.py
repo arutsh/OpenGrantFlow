@@ -1,3 +1,4 @@
+from decimal import Decimal
 import factory
 from uuid import uuid4
 from datetime import date
@@ -11,7 +12,7 @@ class FundingReceiptFactory(factory.Factory):
 
     id = factory.LazyFunction(uuid4)
     budget_id = factory.LazyFunction(uuid4)
-    amount = 1000.0
+    amount = Decimal("1000.0")
     received_at = date(2026, 1, 1)
     created_by = factory.LazyFunction(uuid4)
     updated_by = factory.LazyFunction(uuid4)
@@ -25,8 +26,8 @@ class CurrencyConversionFactory(factory.Factory):
 
     id = factory.LazyFunction(uuid4)
     budget_id = factory.LazyFunction(uuid4)
-    donor_amount = 500.0
-    local_amount = 550.0
+    donor_amount = Decimal("500.0")
+    local_amount = Decimal("550.0")
     converted_at = date(2026, 1, 2)
     created_by = factory.LazyFunction(uuid4)
     updated_by = factory.LazyFunction(uuid4)

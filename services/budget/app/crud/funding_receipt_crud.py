@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +11,7 @@ async def create_funding_receipt(
     session: AsyncSession,
     user_id: UUID,
     budget_id: UUID,
-    amount: float,
+    amount: Decimal,
     received_at: date,
 ) -> FundingReceiptModel:
     receipt = FundingReceiptModel(

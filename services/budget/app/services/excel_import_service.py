@@ -4,6 +4,7 @@ import json
 import os
 import uuid
 import re
+from decimal import Decimal, InvalidOperation
 
 from fastapi import UploadFile, status
 from sqlalchemy import select
@@ -31,15 +32,15 @@ def compute_structure_fingerprint(grid: list[list[str | None]]) -> str:
     return hashlib.sha256(json.dumps(skeleton).encode()).hexdigest()
 
 
-def _parse_amount(text: str | None) -> float | None:
+def _parse_amount(text: str | None) -> Decimal | None:
     if not text:
         return None
     cleaned = _AMOUNT_CLEAN_PATTERN.sub("", text)
     if not cleaned or cleaned in ("-", "."):
         return None
     try:
-        return float(cleaned)
-    except ValueError:
+        return Decimal(cleaned)
+    except InvalidOperation:
         return None
 
 

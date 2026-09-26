@@ -4,6 +4,8 @@
 
 **Status:** Open Grant Flow is under active development. Some features described here may still be evolving, and this guide reflects the platform's current functionality rather than a finished, locked product.
 
+**Last reviewed:** 2026-09-25
+
 This guide is split by audience:
 
 - **[Getting Started](#1-getting-started)** and **[Account & Organisation Settings](#2-account--organisation-settings)** — everyone

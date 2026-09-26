@@ -16,7 +16,7 @@ The Donor dashboard gives you portfolio-level visibility across everyone you fun
 - **Grantees** — Every approved grantee organisation, with their total committed amount and number of budgets.
 - **Funded budgets** — Every confirmed budget you fund, with the amount in your own currency alongside the real local total and the exchange rate used to get there — so the conversion is never opaque.
 
-From the Funded Budgets table you can jump straight into a grantee's budget or their reports.
+From the Funded Budgets table you can jump straight into a grantee's budget or their reports. From a budget's own detail view, you can also export it as a formatted Excel workbook — see the NGO guide's [Exporting to Excel](./ngo-guide.md#7-exporting-to-excel) for what each sheet contains.
 
 ## 3. Confirming a budget
 

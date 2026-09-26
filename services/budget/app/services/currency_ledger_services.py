@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from decimal import Decimal
 
 from fastapi import status
 from sqlalchemy import text
@@ -7,7 +8,6 @@ from uuid import UUID
 
 from app.core.exceptions import DomainError, PermissionDenied
 from app.crud.currency_conversion_crud import (
-    FLOAT_EPSILON,
     create_allocation,
     create_currency_conversion,
     delete_allocations_for_report_line,
@@ -120,7 +120,7 @@ async def list_funding_receipts_service(db, valid_user: dict, budget_id: UUID):
     return await list_funding_receipts(db, budget_id=budget_id)
 
 
-async def _consume_fifo(items, amount: float, create_row) -> None:
+async def _consume_fifo(items, amount: Decimal, create_row) -> None:
     """Walks `items` (an already oldest-first-ordered list of (entity,
     available_balance) pairs), greedily drawing down `amount` against each
     entity's balance in turn and awaiting create_row(entity, take) for every
@@ -130,7 +130,7 @@ async def _consume_fifo(items, amount: float, create_row) -> None:
     of consumer and pool reversed."""
     remaining = amount
     for entity, balance in items:
-        if remaining <= FLOAT_EPSILON:
+        if remaining <= 0:
             break
         take = min(remaining, balance)
         await create_row(entity, take)

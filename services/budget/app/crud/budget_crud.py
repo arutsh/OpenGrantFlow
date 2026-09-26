@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,9 +20,9 @@ async def create_budget(
     actual_currency: str | None = None,
     start_date: date | None = None,
     duration_months: int | None = None,
-    total_amount: float | None = None,
-    donor_total_amount: float | None = None,
-    estimated_exchange_rate: float | None = None,
+    total_amount: Decimal | None = None,
+    donor_total_amount: Decimal | None = None,
+    estimated_exchange_rate: Decimal | None = None,
     load_lines: bool = False,
     commit: bool = True,
 ) -> BudgetModel:
@@ -131,9 +132,9 @@ async def update_budget(
     local_currency: str | None = None,
     actual_currency: str | None = None,
     start_date: date | None = None,
-    donor_total_amount: float | None = None,
+    donor_total_amount: Decimal | None = None,
     donor_total_amount_set: bool = False,
-    estimated_exchange_rate: float | None = None,
+    estimated_exchange_rate: Decimal | None = None,
     estimated_exchange_rate_set: bool = False,
     confirmed_at: datetime | None = None,
     clear_confirmed_at: bool = False,
@@ -223,8 +224,7 @@ async def get_funded_budgets_summary(session: AsyncSession, funding_customer_id:
             select(
                 BudgetModel.actual_currency,
                 func.sum(
-                    func.coalesce(BudgetModel.total_amount, 0.0)
-                    / BudgetModel.estimated_exchange_rate
+                    func.coalesce(BudgetModel.total_amount, 0) / BudgetModel.estimated_exchange_rate
                 ),
             )
             .where(
@@ -240,7 +240,7 @@ async def get_funded_budgets_summary(session: AsyncSession, funding_customer_id:
     return {
         "total_budgets": total_budgets,
         "total_allocated_by_currency": [
-            {"currency": currency, "total_allocated": total or 0.0}
+            {"currency": currency, "total_allocated": total or Decimal(0)}
             for currency, total in currency_rows
         ],
     }
@@ -270,8 +270,7 @@ async def get_funded_grantees(session: AsyncSession, funding_customer_id: UUID) 
                 BudgetModel.owner_id,
                 BudgetModel.actual_currency,
                 func.sum(
-                    func.coalesce(BudgetModel.total_amount, 0.0)
-                    / BudgetModel.estimated_exchange_rate
+                    func.coalesce(BudgetModel.total_amount, 0) / BudgetModel.estimated_exchange_rate
                 ).label("total_allocated"),
             )
             .where(
@@ -298,7 +297,7 @@ async def get_funded_grantees(session: AsyncSession, funding_customer_id: UUID) 
             {"owner_id": row.owner_id, "budgets_count": 0, "total_allocated_by_currency": []},
         )
         grantee["total_allocated_by_currency"].append(
-            {"currency": row.actual_currency, "total_allocated": row.total_allocated or 0.0}
+            {"currency": row.actual_currency, "total_allocated": row.total_allocated or Decimal(0)}
         )
     return list(grantees.values())
 
