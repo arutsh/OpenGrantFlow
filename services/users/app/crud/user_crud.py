@@ -50,11 +50,6 @@ async def get_user_by_email(session: AsyncSession, email: str):
     return result.scalar_one_or_none()
 
 
-async def is_superuser(session: AsyncSession, user_id: UUID) -> bool:
-    user = await get_user(session, user_id)
-    return user is not None and user.role == "superuser"
-
-
 def build_users_select(user_ids: list[UUID] | None = None) -> Select:
     stmt = select(UserModel)
     if user_ids:

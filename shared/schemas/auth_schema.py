@@ -10,7 +10,6 @@ class RegisterRequest(BaseModel):
     first_name: Optional[str] = ""  # optional field
     last_name: Optional[str] = ""  # optional field
     password: str
-    customer_id: Optional[UUID] = None  # optional field
     # Unticked by default — GDPR requires an affirmative opt-in, not a
     # pre-checked box. Marketing consent is optional and separate.
     consent_data_processing: bool = False
