@@ -126,7 +126,7 @@ async def run_import_excel(
     estimated_exchange_rate = None
 
     if prepared.matched:
-        line_dicts = [line.model_dump() for line in (prepared.lines or [])]
+        line_dicts = [line.model_dump(mode="json") for line in (prepared.lines or [])]
         local_currency = prepared.currency
         donor_template_id = prepared.donor_template_id
         excel_import_fingerprint = None

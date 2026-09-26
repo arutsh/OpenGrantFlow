@@ -1,6 +1,7 @@
 import asyncio
 import structlog
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 from fastapi import status, HTTPException
 from shared.observability import set_span_attributes
@@ -504,10 +505,10 @@ async def get_grantee_dashboard_summary_service(
     conversion_progress = [
         ConversionProgress(
             currency=currency,
-            received=received_map.get(currency, 0.0),
-            converted=converted_map.get(currency, 0.0),
+            received=received_map.get(currency, Decimal(0)),
+            converted=converted_map.get(currency, Decimal(0)),
             percent=(
-                (converted_map.get(currency, 0.0) / received_map[currency] * 100)
+                float(converted_map.get(currency, Decimal(0)) / received_map[currency] * 100)
                 if received_map.get(currency)
                 else 0.0
             ),
@@ -700,7 +701,7 @@ def _compute_end_date(budget: BudgetModel):
     return _add_duration_months(budget.start_date, budget.duration_months)
 
 
-def _compute_estimated_local_cap(budget: BudgetModel) -> float | None:
+def _compute_estimated_local_cap(budget: BudgetModel) -> Decimal | None:
     """donor_total_amount × estimated_exchange_rate, derived at read time —
     never persisted (see design.md Decision 2). `null` when either input is
     unset or zero, not just when unset."""

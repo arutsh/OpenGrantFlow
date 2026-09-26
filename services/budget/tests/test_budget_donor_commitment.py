@@ -11,6 +11,7 @@ route (matching test_budget_services.py's end_date tests).
 """
 
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from unittest.mock import patch, AsyncMock
 from uuid import uuid4
 
@@ -20,7 +21,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from app.api.budget_routes import get_validated_user
-from tests.factories.user import make_valid_user
+from tests.factories.user import ValidUserFactory
 from tests.factories.budget import BudgetFactory
 from app.core.exceptions import DomainError
 from app.schemas.budget_schema import BudgetCreate, BudgetStatus, BudgetUpdate
@@ -34,7 +35,7 @@ client = TestClient(app)
 
 
 def _valid_user():
-    return make_valid_user(user_id=USER_ID, customer_id=CUSTOMER_ID)
+    return ValidUserFactory(user_id=USER_ID, customer_id=CUSTOMER_ID)
 
 
 def _payload(**kwargs):
@@ -61,7 +62,7 @@ class TestColumnRoundTrip:
             local_currency="EUR",
             actual_currency="USD",
             donor_total_amount=10000,
-            estimated_exchange_rate=0.8,
+            estimated_exchange_rate=Decimal("0.8"),
             confirmed_at=confirmed_at,
         )
         session.add(budget)
@@ -70,7 +71,7 @@ class TestColumnRoundTrip:
 
         reloaded = session.query(BudgetModel).filter(BudgetModel.id == budget.id).one()
         assert reloaded.donor_total_amount == 10000
-        assert reloaded.estimated_exchange_rate == 0.8
+        assert reloaded.estimated_exchange_rate == Decimal("0.8")
         # sqlite drops tzinfo on round-trip (unlike Postgres); compare naive.
         assert reloaded.confirmed_at.replace(tzinfo=timezone.utc) == confirmed_at
 
@@ -122,7 +123,7 @@ class TestMetadataLockOnConfirmed:
         mock_update.assert_called_once()
         assert mock_update.call_args.kwargs["donor_total_amount"] == 10000
         assert mock_update.call_args.kwargs["donor_total_amount_set"] is True
-        assert mock_update.call_args.kwargs["estimated_exchange_rate"] == 0.8
+        assert mock_update.call_args.kwargs["estimated_exchange_rate"] == Decimal("0.8")
         assert mock_update.call_args.kwargs["estimated_exchange_rate_set"] is True
 
     def test_donor_commitment_edit_rejected_on_confirmed_budget(self):
@@ -280,7 +281,7 @@ class TestClearingDonorFields:
 
         assert result.name == "Renamed"
         assert result.donor_total_amount == 10000
-        assert result.estimated_exchange_rate == 0.8
+        assert result.estimated_exchange_rate == Decimal("0.8")
 
 
 async def _run_update(budget_id, payload, db):
@@ -554,7 +555,7 @@ class TestEstimatedLocalCap:
 
     @pytest.fixture(autouse=True)
     def override_auth(self):
-        app.dependency_overrides[get_validated_user] = lambda: make_valid_user(
+        app.dependency_overrides[get_validated_user] = lambda: ValidUserFactory(
             user_id=USER_ID, customer_id=CUSTOMER_ID
         )
         yield

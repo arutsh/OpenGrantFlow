@@ -1,12 +1,13 @@
 from pydantic import BaseModel
 from typing import Any
 from uuid import UUID
+from shared.schemas.money import Money, Rate
 
 
 class BudgetLineInput(BaseModel):
     category_name: str
     description: str
-    amount: float
+    amount: Money
     extra_fields: dict[str, Any] | None = None
 
 
@@ -17,8 +18,8 @@ class CreateBudgetWithLinesRequest(BaseModel):
     duration_months: int | None = None
     local_currency: str | None = None
     actual_currency: str | None = None
-    donor_total_amount: float | None = None
-    estimated_exchange_rate: float | None = None
+    donor_total_amount: Money | None = None
+    estimated_exchange_rate: Rate | None = None
     lines: list[BudgetLineInput]
     # Excel-import provenance, set only by chat's /chat/import-excel orchestration.
     donor_template_id: int | None = None

@@ -1,11 +1,12 @@
 from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 from datetime import date, datetime
+from shared.schemas.money import Money
 
 
 class FundingReceiptBase(BaseModel):
     budget_id: UUID | None = None
-    amount: float | None = None
+    amount: Money | None = None
     received_at: date | None = None
     created_by: UUID | None = None
     updated_by: UUID | None = None
@@ -15,7 +16,7 @@ class FundingReceiptBase(BaseModel):
 
 class FundingReceiptCreate(FundingReceiptBase):
     budget_id: UUID
-    amount: float
+    amount: Money
     received_at: date
 
 
@@ -26,8 +27,8 @@ class FundingReceipt(FundingReceiptBase):
 
 class CurrencyConversionBase(BaseModel):
     budget_id: UUID | None = None
-    donor_amount: float | None = None
-    local_amount: float | None = None
+    donor_amount: Money | None = None
+    local_amount: Money | None = None
     converted_at: date | None = None
     created_by: UUID | None = None
     updated_by: UUID | None = None
@@ -37,8 +38,8 @@ class CurrencyConversionBase(BaseModel):
 
 class CurrencyConversionCreate(CurrencyConversionBase):
     budget_id: UUID
-    donor_amount: float
-    local_amount: float
+    donor_amount: Money
+    local_amount: Money
     converted_at: date
 
 
@@ -54,6 +55,6 @@ class LedgerBalance(BaseModel):
 
     budget_id: UUID
     actual_currency: str | None
-    donor_balance: float
+    donor_balance: Money
     local_currency: str | None
-    local_balance: float
+    local_balance: Money

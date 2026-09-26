@@ -3,6 +3,7 @@ from pydantic import BaseModel, field_validator
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from shared.schemas.audit_mixin import AuditMixinBase
+from shared.schemas.money import Money
 
 
 # Budget Line schema
@@ -40,7 +41,7 @@ class BudgetLineBase(BaseModel):
 
     budget_id: UUID
     description: str
-    amount: float
+    amount: Money
     extra_fields: Optional[Dict[str, Any]] = None
     category_id: Optional[UUID] = None
 
@@ -52,7 +53,7 @@ class BudgetLineCreate(BudgetLineBase):
 class BudgetLineUpdate(BaseModel):
     budget_id: UUID
     description: str | None = None
-    amount: Optional[float] = None
+    amount: Optional[Money] = None
     extra_fields: Optional[Dict[str, Any]] = None
     category_id: Optional[UUID] = None
 

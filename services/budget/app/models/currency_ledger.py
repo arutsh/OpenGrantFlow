@@ -2,7 +2,8 @@
 from __future__ import annotations
 import uuid
 from datetime import date
-from sqlalchemy import ForeignKey, Float, Date
+from decimal import Decimal
+from sqlalchemy import ForeignKey, Numeric, Date
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.utils.db import GUID
 
@@ -23,7 +24,7 @@ class FundingReceiptModel(Base, AuditMixin):
         GUID(), primary_key=True, index=True, default=lambda: uuid.uuid4()
     )
     budget_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("budgets.id"), nullable=False)
-    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     received_at: Mapped[date] = mapped_column(Date, nullable=False)
 
     budget: Mapped["BudgetModel"] = relationship("BudgetModel")
@@ -36,8 +37,8 @@ class CurrencyConversionModel(Base, AuditMixin):
         GUID(), primary_key=True, index=True, default=lambda: uuid.uuid4()
     )
     budget_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("budgets.id"), nullable=False)
-    donor_amount: Mapped[float] = mapped_column(Float, nullable=False)
-    local_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    donor_amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    local_amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     converted_at: Mapped[date] = mapped_column(Date, nullable=False)
 
     budget: Mapped["BudgetModel"] = relationship("BudgetModel")
@@ -63,7 +64,7 @@ class ReportLineConversionAllocationModel(Base, AuditMixin):
     conversion_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("currency_conversions.id"), nullable=False
     )
-    amount_allocated: Mapped[float] = mapped_column(Float, nullable=False)
+    amount_allocated: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 
     report_line: Mapped["ReportLineModel"] = relationship(
         "ReportLineModel", back_populates="allocations"

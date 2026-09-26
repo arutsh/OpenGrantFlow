@@ -1,3 +1,4 @@
+from decimal import Decimal
 import factory
 from uuid import uuid4
 from datetime import date
@@ -34,7 +35,7 @@ class ReportLineFactory(factory.Factory):
     report_id = factory.LazyFunction(uuid4)
     budget_line_id = factory.LazyFunction(uuid4)
     description = factory.Faker("sentence", nb_words=4)
-    amount = 250.0
+    amount = Decimal("250.0")
     expense_date = date(2026, 6, 15)
     extra_fields = None
     created_by = factory.LazyFunction(uuid4)

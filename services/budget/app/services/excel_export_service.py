@@ -1,6 +1,7 @@
 import io
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from uuid import UUID
 
 from openpyxl import Workbook
@@ -9,7 +10,7 @@ from openpyxl.utils import get_column_letter
 
 from app.crud.budget_category_crud import list_budget_categories
 from app.crud.budget_line_crud import list_budget_lines
-from app.crud.currency_conversion_crud import FLOAT_EPSILON, list_currency_conversions
+from app.crud.currency_conversion_crud import list_currency_conversions
 from app.crud.excel_export_crud import ReportLineExpense, get_report_line_expenses
 from app.crud.funding_receipt_crud import list_funding_receipts
 from app.models.budget import BudgetCategoryModel, BudgetLineModel, BudgetModel
@@ -172,18 +173,18 @@ class _ExpenseRow:
     budget_line_description: str | None
     category_name: str | None
     description: str | None
-    amount: float
-    rate: float | None
+    amount: Decimal
+    rate: Decimal | None
     is_estimated: bool
     conversion_date: date | None
 
 
-def _usable_rate(rate: float | None) -> float | None:
+def _usable_rate(rate: Decimal | None) -> Decimal | None:
     # A 0/negative rate would divide by zero or flip signs in Sheet 3's =E/G.
     return rate if rate and rate > 0 else None
 
 
-def _implied_rate(allocation) -> float | None:
+def _implied_rate(allocation) -> Decimal | None:
     if not allocation.conversion_donor_amount or not allocation.conversion_local_amount:
         return None
     return _usable_rate(allocation.conversion_local_amount / allocation.conversion_donor_amount)
@@ -193,7 +194,7 @@ def _build_expense_rows(
     lines: list[BudgetLineModel],
     categories: list[BudgetCategoryModel],
     expenses: list[ReportLineExpense],
-    estimated_exchange_rate: float | None,
+    estimated_exchange_rate: Decimal | None,
 ) -> list[_ExpenseRow]:
     """One row per allocation, plus one (estimated-rate-flagged) row per remainder."""
     lines_by_id = {line.id: line for line in lines}
@@ -205,7 +206,7 @@ def _build_expense_rows(
         budget_line_description = budget_line.description if budget_line else None
         category_id = budget_line.category_id if budget_line else None
         category_name = category_names.get(category_id) if category_id else None
-        allocated_total = 0.0
+        allocated_total = Decimal(0)
         for allocation in expense.allocations:
             allocated_total += allocation.amount_allocated
             rows.append(
@@ -223,7 +224,7 @@ def _build_expense_rows(
             )
         remainder = expense.amount - allocated_total
         # Rows must sum to expense.amount: keep refunds, zero amounts and over-allocation.
-        if not expense.allocations or abs(remainder) > FLOAT_EPSILON:
+        if not expense.allocations or remainder != 0:
             rows.append(
                 _ExpenseRow(
                     expense_date=expense.expense_date,
@@ -576,7 +577,7 @@ class OriginalBudgetSheet(_SheetWriter):
                 for i, key in enumerate(extra_keys):
                     value = (line.extra_fields or {}).get(key)
                     ws.cell(row=row, column=_DESCRIPTION_COL + 1 + i, value=value)
-                self._set_cell(row, amount_col, line.amount or 0.0, local_fmt)
+                self._set_cell(row, amount_col, line.amount or Decimal(0), local_fmt)
                 if has_rate:
                     self._set_cell(
                         row, estimate_col, f"={amount_letter}{row}/{rate_cell}", estimate_fmt
@@ -677,14 +678,14 @@ class DashboardSheet(_SheetWriter):
         estimated_exchange_rate = self.budget.estimated_exchange_rate
 
         approved_total = (
-            sum(line.amount or 0.0 for line in self.lines) / estimated_exchange_rate
+            sum(line.amount or Decimal(0) for line in self.lines) / estimated_exchange_rate
             if estimated_exchange_rate
             else None
         )
-        received_total = sum(receipt.amount for receipt in self.receipts)
-        converted_total = sum(conversion.donor_amount for conversion in self.conversions)
-        local_converted_total = sum(conversion.local_amount for conversion in self.conversions)
-        local_expenses_total = sum(row.amount for row in self.expense_rows)
+        received_total = sum((receipt.amount for receipt in self.receipts), Decimal(0))
+        converted_total = sum((c.donor_amount for c in self.conversions), Decimal(0))
+        local_converted_total = sum((c.local_amount for c in self.conversions), Decimal(0))
+        local_expenses_total = sum((row.amount for row in self.expense_rows), Decimal(0))
 
         self._write_approved_block(plan, approved_total)
         self._write_balance_block(
@@ -797,7 +798,7 @@ class DashboardSheet(_SheetWriter):
             "audit_row": audit_row,
         }
 
-    def _write_approved_block(self, plan: dict, approved_total: float | None) -> None:
+    def _write_approved_block(self, plan: dict, approved_total: Decimal | None) -> None:
         ws = self.ws
         donor_fmt = self._currency_format(self.budget.actual_currency)
 
@@ -815,10 +816,10 @@ class DashboardSheet(_SheetWriter):
     def _write_balance_block(
         self,
         plan: dict,
-        approved_total: float | None,
-        received_total: float,
-        converted_total: float,
-        local_balance: float,
+        approved_total: Decimal | None,
+        received_total: Decimal,
+        converted_total: Decimal,
+        local_balance: Decimal,
     ) -> None:
         ws = self.ws
         donor_fmt = self._currency_format(self.budget.actual_currency)
@@ -985,7 +986,7 @@ class DashboardSheet(_SheetWriter):
 
             line_rows = plan["detail_line_rows"][category_id]
             for line, row in zip(category_lines[category_id], line_rows):
-                planned = line.amount or 0.0
+                planned = line.amount or Decimal(0)
                 ws.cell(row=row, column=1, value=line.description)
                 self._set_cell(row, 3, planned, local_fmt)
                 ws.cell(row=row, column=8, value=str(line.id))

@@ -2,10 +2,11 @@
 from __future__ import annotations
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from sqlalchemy import (
     String,
     ForeignKey,
-    Float,
+    Numeric,
     JSON,
     Integer,
     Date,
@@ -54,14 +55,14 @@ class BudgetModel(Base, AuditMixin):
     donor_template_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("donor_templates.id"), nullable=True
     )
-    total_amount: Mapped[float | None] = mapped_column(
-        Float, nullable=True, default=0, server_default=text("0")
+    total_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 4), nullable=True, default=0, server_default=text("0")
     )
     # Donor's stated commitment (in actual_currency) and the grantee's own
     # planning-time rate estimate — distinct from the currency-ledger's real,
     # bank-derived rate. See budget-report-iteration-2/design.md Decisions 1-4.
-    donor_total_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
-    estimated_exchange_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    donor_total_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    estimated_exchange_rate: Mapped[Decimal | None] = mapped_column(Numeric(20, 10), nullable=True)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # TODO: this is not correct approach, not a blocker for now
     # but it should be revisited, the imported budget can be modified and if still have to be
@@ -95,7 +96,7 @@ class BudgetLineModel(Base, AuditMixin):
         GUID(), ForeignKey("budget_categories.id", ondelete="SET NULL"), nullable=True
     )
     description: Mapped[str | None] = mapped_column(String, nullable=True)
-    amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
 
     # store arbitrary metadata (JSON column, default empty dict)
     extra_fields: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)

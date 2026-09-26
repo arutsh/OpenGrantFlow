@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from dataclasses import dataclass, field
 from uuid import UUID
 
@@ -14,10 +15,10 @@ class ReportLineAllocationDetail:
     """One allocation (subline) of a report-line expense: its own conversion
     date/amounts, oldest-first (FIFO consumption order)."""
 
-    amount_allocated: float
+    amount_allocated: Decimal
     converted_at: date
-    conversion_donor_amount: float
-    conversion_local_amount: float
+    conversion_donor_amount: Decimal
+    conversion_local_amount: Decimal
 
 
 @dataclass
@@ -27,7 +28,7 @@ class ReportLineExpense:
     report_line_id: UUID
     budget_line_id: UUID
     description: str | None
-    amount: float
+    amount: Decimal
     expense_date: date
     allocations: list[ReportLineAllocationDetail] = field(default_factory=list)
 
@@ -55,7 +56,7 @@ async def get_report_line_expenses(
             report_line_id=report_line_id,
             budget_line_id=budget_line_id,
             description=description,
-            amount=amount or 0.0,
+            amount=amount or Decimal(0),
             expense_date=expense_date,
         )
     if not expenses:
