@@ -35,7 +35,14 @@ class Settings(BaseSettings):
     # docker-compose.local.yml) — never set in .env.users.dev/.env.users.prod.
     # Lets e2e drive the real /auth/verify-email flow without a real inbox.
     EXPOSE_VERIFICATION_TOKEN_FOR_TESTS: bool = False
+    # Shared secret budget/ai/chat send on service-to-service calls (see
+    # shared/security/internal_service.py); empty means "reject everything".
+    INTERNAL_SERVICE_TOKEN: str = ""
     model_config = SettingsConfigDict(env_file=ENV_FILE, case_sensitive=False, extra="ignore")
 
 
 settings = Settings()  # type: ignore[call-arg]
+
+# pydantic-settings reads env_file into this object only, not into os.environ —
+# shared/security/internal_service.py reads the raw env var, so export it here.
+os.environ.setdefault("INTERNAL_SERVICE_TOKEN", settings.INTERNAL_SERVICE_TOKEN)

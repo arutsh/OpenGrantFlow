@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     RABBITMQ_EXCHANGE: str
     RABBITMQ_QUEUE: str
     LOG_LEVEL: str
+    # Sent as X-Internal-Service-Token to the users service (see
+    # shared/security/internal_service.py).
+    INTERNAL_SERVICE_TOKEN: str = ""
 
     model_config = SettingsConfigDict(env_file=ENV_FILE, case_sensitive=False, extra="ignore")
 

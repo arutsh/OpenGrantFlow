@@ -8,10 +8,10 @@ We confirmed that the users service leaks its whole user directory to anonymous 
 
 ## What Changes
 
-- Deny `/api/v1/users/by_ids*` and `/api/v1/customers/by_ids*` at the gateway in **all three** configs (Caddyfile, `nginx/nginx.conf`, `nginx/nginx-dev.conf`).
+- Deny `/api/v1/users/by_ids*` at the gateway in **all three** configs (Caddyfile, `nginx/nginx.conf`, `nginx/nginx-dev.conf`). `customers/by_ids` stays gateway-reachable — the browser calls it directly for cross-tenant donor/grantee name resolution — and is authenticated at the service instead.
 - An empty id list returns an empty result for both `by_ids` endpoints.
 - `GET /api/users/{user_id}` requires authentication. It is allowed for the user themself, an admin of the same company, or a caller holding the internal service credential. Everyone else gets 404.
-- Add a shared internal-service credential. Services send an `X-Internal-Service-Token` header, users-side routes verify it with a constant-time comparison, and they fail closed when it is unset. Require it on both `by_ids` endpoints. Update the budget service callers (`user_client.py`, `customer_client.py`) to send it.
+- Add a shared internal-service credential. Services send an `X-Internal-Service-Token` header, users-side routes verify it with a constant-time comparison, and they fail closed when it is unset. `POST /users/by_ids/` requires it; `POST /customers/by_ids/` accepts it or an authenticated user token. Update the budget service callers (`user_client.py`, `customer_client.py`) to send it.
 - Correct the misleading gateway-exclusion comment in `budget_routes.py`.
 
 ## Capabilities

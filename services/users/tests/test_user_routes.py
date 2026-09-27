@@ -11,6 +11,8 @@ from sqlalchemy.pool import StaticPool
 from app.models.base import Base
 from app.models.customer import CustomerModel
 from app.models.user import UserModel
+from shared.security.internal_service import INTERNAL_SERVICE_HEADER
+from shared.security.jwt_utils import create_access_token
 from tests.factories.user import CustomerFactory, UserModelFactory
 
 
@@ -236,3 +238,129 @@ class TestSelfUpdateIsSelfOnly:
         response = client.patch(f"/api/users/{target.id}/", json={"first_name": "Hijacked"})
 
         assert response.status_code == 403
+
+
+def _strip_auth_overrides(client):
+    # get_validated_user_or_internal_service calls get_current_user/get_validated_user
+    # directly, not through FastAPI's DI, so make_client's overrides don't reach it.
+    app = client.app
+    from app.utils.security import get_current_user
+    from shared.security.dependencies import get_validated_user
+    from shared.security.internal_service import get_validated_user_or_internal_service
+
+    for dep in (get_current_user, get_validated_user, get_validated_user_or_internal_service):
+        app.dependency_overrides.pop(dep, None)
+
+
+def _bearer(user_id, role="user", customer_id=None):
+    claims = {"user_id": str(user_id), "role": role, "email_verified": True}
+    if customer_id is not None:
+        claims["customer_id"] = str(customer_id)
+    return {"Authorization": f"Bearer {create_access_token(claims)}"}
+
+
+@pytest.mark.anyio
+class TestGetUser:
+    async def test_anonymous_is_401(self, make_client, db):
+        target = await _make_pending_user(db)
+        client = make_client(db=db)
+        _strip_auth_overrides(client)
+
+        response = client.get(f"/api/users/{target.id}")
+
+        assert response.status_code == 401
+
+    async def test_cross_tenant_is_404(self, make_client, db):
+        customer_a, admin_a = await _make_company_admin(db, "Company A")
+        customer_b, target_b = await _make_company_admin(db, "Company B")
+        client = make_client(db=db)
+        _strip_auth_overrides(client)
+
+        response = client.get(
+            f"/api/users/{target_b.id}",
+            headers=_bearer(admin_a.id, role="admin", customer_id=customer_a.id),
+        )
+
+        assert response.status_code == 404
+
+    async def test_self_is_200(self, make_client, db):
+        target = await _make_pending_user(db)
+        client = make_client(db=db)
+        _strip_auth_overrides(client)
+
+        response = client.get(f"/api/users/{target.id}", headers=_bearer(target.id))
+
+        assert response.status_code == 200
+        assert response.json()["id"] == str(target.id)
+
+    async def test_same_company_admin_is_200(self, make_client, db):
+        customer, admin = await _make_company_admin(db)
+        colleague = await _make_pending_user(db, customer_id=customer.id)
+        client = make_client(db=db)
+        _strip_auth_overrides(client)
+
+        response = client.get(
+            f"/api/users/{colleague.id}",
+            headers=_bearer(admin.id, role="admin", customer_id=customer.id),
+        )
+
+        assert response.status_code == 200
+        assert response.json()["id"] == str(colleague.id)
+
+    async def test_unknown_user_is_404(self, make_client, db):
+        client = make_client(db=db)
+        _strip_auth_overrides(client)
+
+        response = client.get(f"/api/users/{uuid4()}", headers=_bearer(uuid4()))
+
+        assert response.status_code == 404
+
+    async def test_internal_service_credential_grants_access(self, make_client, db, monkeypatch):
+        monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "shared-secret")
+        target = await _make_pending_user(db)
+        client = make_client(db=db)
+        _strip_auth_overrides(client)
+
+        response = client.get(
+            f"/api/users/{target.id}", headers={INTERNAL_SERVICE_HEADER: "shared-secret"}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["id"] == str(target.id)
+
+    async def test_wrong_internal_service_token_is_401(self, make_client, db, monkeypatch):
+        monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "shared-secret")
+        target = await _make_pending_user(db)
+        client = make_client(db=db)
+        _strip_auth_overrides(client)
+
+        response = client.get(
+            f"/api/users/{target.id}", headers={INTERNAL_SERVICE_HEADER: "wrong"}
+        )
+
+        assert response.status_code == 401
+
+
+@pytest.mark.anyio
+class TestGetUsersByIds:
+    async def test_empty_list_returns_empty(self, make_client, db, monkeypatch):
+        monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "shared-secret")
+        await _make_pending_user(db)
+        client = make_client(db=db)
+
+        response = client.post(
+            "/api/users/by_ids/",
+            json=[],
+            headers={INTERNAL_SERVICE_HEADER: "shared-secret"},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    async def test_missing_internal_service_token_is_401(self, make_client, db, monkeypatch):
+        monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "shared-secret")
+        client = make_client(db=db)
+
+        response = client.post("/api/users/by_ids/", json=[])
+
+        assert response.status_code == 401
