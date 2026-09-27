@@ -3,6 +3,12 @@
 	email admin@opengrantflow.com
 }
 
+# Retry dial failures while a deploy swaps an upstream container, instead of returning 502.
+(upstream_retry) {
+	lb_try_duration 15s
+	lb_try_interval 500ms
+}
+
 api.opengrantflow.com {
 	@allowed_apex header Origin https://opengrantflow.com
 	@allowed_www header Origin https://www.opengrantflow.com
@@ -30,108 +36,145 @@ api.opengrantflow.com {
 	# without one)
 	handle /api/v1/users/me/ai-settings {
 		rewrite * /api/users/me/ai-settings
-		reverse_proxy users:8000
+		reverse_proxy users:8000 {
+			import upstream_retry
+		}
 	}
 
 	handle_path /api/v1/users/me/ai-settings/* {
 		rewrite * /api/users/me/ai-settings{uri}
-		reverse_proxy users:8000
+		reverse_proxy users:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- AUTH SERVICE ----
 	handle_path /api/v1/auth/* {
 		rewrite * /api/auth{uri}
-		reverse_proxy users:8000
+		reverse_proxy users:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- USER REGISTRATION ----
 	# No {uri} here — this is a single fixed endpoint, not a path prefix.
 	handle_path /api/v1/register* {
 		rewrite * /api/register
-		reverse_proxy users:8000
+		reverse_proxy users:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- USERS SERVICE (health) ----
 	# Most specific path first — a single fixed endpoint, not a path prefix.
 	handle_path /api/v1/users/health* {
 		rewrite * /health
-		reverse_proxy users:8000
+		reverse_proxy users:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- USERS SERVICE ----
 	handle_path /api/v1/users/* {
 		rewrite * /api/users{uri}
-		reverse_proxy users:8000
+		reverse_proxy users:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- DONOR-GRANTEE RELATIONSHIPS ----
 	handle_path /api/v1/donor-grantees/* {
 		rewrite * /api/donor-grantees{uri}
-		reverse_proxy users:8000
+		reverse_proxy users:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- CUSTOMERS ----
 	handle_path /api/v1/customers/* {
 		rewrite * /api/customers{uri}
-		reverse_proxy users:8000
+		reverse_proxy users:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- BUG REPORTS ----
 	handle_path /api/v1/bug-reports/* {
 		rewrite * /api/bug-reports{uri}
-		reverse_proxy users:8000
+		reverse_proxy users:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- BUDGET SERVICE (health) ----
 	# Most specific path first — a single fixed endpoint, not a path prefix.
 	handle_path /api/v1/budgets/health* {
 		rewrite * /health
-		reverse_proxy budget:8000
+		reverse_proxy budget:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- BUDGET SERVICE ----
 	handle /api/v1/budgets/* {
-		reverse_proxy budget:8000
+		reverse_proxy budget:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- BUDGET LINES SERVICE ----
 	handle /api/v1/budget-lines/* {
-		reverse_proxy budget:8000
+		reverse_proxy budget:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- BUDGET CATEGORIES SERVICE ----
 	handle /api/v1/budget-categories/* {
-		reverse_proxy budget:8000
+		reverse_proxy budget:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- REPORTS SERVICE ----
 	handle /api/v1/reports/* {
-		reverse_proxy budget:8000
+		reverse_proxy budget:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- REPORT LINES SERVICE ----
 	handle /api/v1/report-lines/* {
-		reverse_proxy budget:8000
+		reverse_proxy budget:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- ATTACHMENTS SERVICE ----
 	handle /api/v1/attachments/* {
-		reverse_proxy budget:8000
+		reverse_proxy budget:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- FUNDING RECEIPTS SERVICE ----
 	handle /api/v1/funding-receipts/* {
-		reverse_proxy budget:8000
+		reverse_proxy budget:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- CURRENCY CONVERSIONS SERVICE ----
 	handle /api/v1/currency-conversions/* {
-		reverse_proxy budget:8000
+		reverse_proxy budget:8000 {
+			import upstream_retry
+		}
 	}
 
 	# ---- AI SERVICE ----
 	handle /api/v1/ai/* {
 		reverse_proxy ai:8000 {
+			import upstream_retry
 			flush_interval -1
 		}
 	}
@@ -140,11 +183,14 @@ api.opengrantflow.com {
 	# Most specific path first — a single fixed endpoint, not a path prefix.
 	handle_path /api/v1/chat/health* {
 		rewrite * /health
-		reverse_proxy chat:8000
+		reverse_proxy chat:8000 {
+			import upstream_retry
+		}
 	}
 
 	handle /api/v1/chat/* {
 		reverse_proxy chat:8000 {
+			import upstream_retry
 			flush_interval -1
 		}
 	}

@@ -2,7 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change gdpr-iso27001-priority-1. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Password Complexity Policy
 The system SHALL enforce a minimum password strength (minimum length, not entirely numeric, not identical to the account's email or name) on registration and on any password change. Registration attempts SHALL also be subject to per-source-IP rate limiting, independent of password strength validation.
 
@@ -53,3 +55,20 @@ The system SHALL limit the rate of registration attempts per source IP, using th
 - **WHEN** a single source IP submits more registration attempts than the configured threshold within the configured window
 - **THEN** the system rejects further registration attempts from that source with a 429 response until the lockout window elapses
 
+### Requirement: No anonymous account-creation path accepts privileged attributes
+The system SHALL NOT expose any unauthenticated endpoint that creates a user account with a caller-supplied `role`, `status`, or company membership. `POST /api/register` SHALL be the only anonymous account-creation path, and every account it creates SHALL have role `user`, status `pending`, and no company.
+
+#### Scenario: Legacy generic user-creation endpoint is gone
+- **WHEN** an unauthenticated caller sends `POST /api/users/` with `role: superuser` and `status: active`
+- **THEN** the request is rejected (the route does not exist) and no user row is created
+
+#### Scenario: Verification never yields a privileged token for a self-created account
+- **WHEN** an attacker registers an address they control, requests a verification email, and completes `POST /auth/verify-email`
+- **THEN** the issued access token carries `role: user` and no `customer_id`
+
+### Requirement: Registration ignores client-supplied company membership
+`POST /api/register` SHALL NOT attach the new account to any existing company, whatever `customer_id` the request body contains. Joining an existing company SHALL only be possible through an admin invitation (`company-user-administration`) or a superuser-authorized operation.
+
+#### Scenario: Registration with another company's id
+- **WHEN** a caller registers with a body containing `customer_id` of an existing company
+- **THEN** the account is created with no `customer_id`, and the token issued at verification carries no `customer_id`

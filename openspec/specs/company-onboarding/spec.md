@@ -2,7 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change new-company-user-admin. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Founder becomes admin of a newly created company
 When a non-superuser completes onboarding by supplying `new_customer_name` on `PATCH /users/{user_id}/` while their account status is `pending`, the system SHALL create the new company (customer), attach the user to it, activate the account, and SHALL set the user's role to `admin` as part of the same update. The newly created company SHALL have `is_ngo` set to `true`.
 
@@ -29,13 +31,6 @@ Once a founder holds `role: admin`, every existing capability already gated on `
 - **WHEN** a company admin wants to add a teammate to their company
 - **THEN** the admin uses the invitation mechanism defined by the `company-user-administration` capability, rather than requiring a superuser to assign the teammate's `customer_id`/`role` directly
 
-### Requirement: Joining an existing company does not change role
-When a user attaches to an already-existing company by supplying `customer_id` (rather than `new_customer_name`) during onboarding, the system SHALL leave their role unchanged.
-
-#### Scenario: Joining an existing company keeps the default role
-- **WHEN** a pending, non-superuser account submits `PATCH /users/{user_id}/` with `customer_id` pointing at an existing company (no `new_customer_name`)
-- **THEN** the user's `customer_id` is set to that company and their `role` remains whatever it was before the request (the registration default, `user`)
-
 ### Requirement: Promotion is scoped to admin, not superuser
 The role assigned to a company founder SHALL be exactly `admin`, and the system SHALL NOT grant `superuser` through this or any other self-service onboarding path.
 
@@ -43,3 +38,21 @@ The role assigned to a company founder SHALL be exactly `admin`, and the system 
 - **WHEN** any non-superuser account creates a new company via `new_customer_name` during onboarding
 - **THEN** the resulting role is `admin`, never `superuser`, regardless of any role value the client may have sent in the request body
 
+### Requirement: Self-service profile edits cannot change membership, role, or status
+`PATCH /users/{user_id}/` SHALL be callable only by the user identified by `user_id`. It SHALL accept only `first_name`, `last_name`, and (for founder onboarding while `pending`) `new_customer_name`. It SHALL reject requests that set `customer_id`, `role`, `status`, or `email`. A field omitted from the request SHALL leave the stored value unchanged. In particular, the user's existing `customer_id` and `role` SHALL be preserved.
+
+#### Scenario: Profile edit preserves membership
+- **WHEN** an active admin of company A submits `PATCH /users/{own_id}/` with only `first_name`
+- **THEN** their `first_name` changes and their `customer_id` (A) and `role` (admin) are unchanged
+
+#### Scenario: Admin cannot move themselves into another company
+- **WHEN** an admin of company A submits `PATCH /users/{own_id}/` with `customer_id` set to company B
+- **THEN** the request is rejected and the user remains an admin of A with no relationship to B
+
+#### Scenario: User cannot self-activate or self-promote
+- **WHEN** a user submits `PATCH /users/{own_id}/` with `status: active` or `role: admin`
+- **THEN** the request is rejected and neither field changes
+
+#### Scenario: No caller edits another user through the generic profile endpoint
+- **WHEN** any caller, including a superuser or an impersonation token, submits `PATCH /users/{other_id}/`
+- **THEN** the request is rejected as forbidden

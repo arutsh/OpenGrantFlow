@@ -3,6 +3,15 @@ name: Deploy to VPS
 on:
   push:
     branches: [main]
+    # Each deploy recreates containers (brief 502s) — skip pushes that can't change the backend.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "openspec/**"
+      - "frontend-typescript/**"
+      - "terraform/**"
+      - ".claude/**"
+      - ".agents/**"
   workflow_dispatch:
 
 # Two pushes to main close together (e.g. merging two PRs back-to-back) would
