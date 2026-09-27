@@ -74,6 +74,12 @@ api.opengrantflow.com {
 		}
 	}
 
+	# ---- USERS SERVICE (deny internal-only batch lookup) ----
+	# by_ids is for service-to-service calls on the Docker network only, never public.
+	handle_path /api/v1/users/by_ids* {
+		respond 404
+	}
+
 	# ---- USERS SERVICE ----
 	handle_path /api/v1/users/* {
 		rewrite * /api/users{uri}

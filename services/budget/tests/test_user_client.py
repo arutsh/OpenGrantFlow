@@ -5,7 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.config import settings
 from app.services.user_client import get_customers_by_ids, get_users_by_ids
+from shared.security.internal_service import INTERNAL_SERVICE_HEADER
 
 
 @pytest.mark.anyio
@@ -34,3 +36,31 @@ async def test_get_customers_by_ids_serializes_uuid_objects():
 
     assert result == {str(customer_id): {"id": str(customer_id), "name": "Test NGO"}}
     assert mock_client.post.call_args.kwargs["json"] == [str(customer_id)]
+
+
+@pytest.mark.anyio
+async def test_get_users_by_ids_sends_internal_service_header(monkeypatch):
+    monkeypatch.setattr(settings, "INTERNAL_SERVICE_TOKEN", "shared-secret")
+    mock_response = MagicMock()
+    mock_response.json.return_value = []
+
+    with patch("app.services.user_client._client") as mock_client:
+        mock_client.post = AsyncMock(return_value=mock_response)
+        await get_users_by_ids([uuid.uuid4()], "token")
+
+    sent_headers = mock_client.post.call_args.kwargs["headers"]
+    assert sent_headers[INTERNAL_SERVICE_HEADER] == "shared-secret"
+
+
+@pytest.mark.anyio
+async def test_get_customers_by_ids_sends_internal_service_header(monkeypatch):
+    monkeypatch.setattr(settings, "INTERNAL_SERVICE_TOKEN", "shared-secret")
+    mock_response = MagicMock()
+    mock_response.json.return_value = []
+
+    with patch("app.services.user_client._client") as mock_client:
+        mock_client.post = AsyncMock(return_value=mock_response)
+        await get_customers_by_ids([uuid.uuid4()], "token")
+
+    sent_headers = mock_client.post.call_args.kwargs["headers"]
+    assert sent_headers[INTERNAL_SERVICE_HEADER] == "shared-secret"

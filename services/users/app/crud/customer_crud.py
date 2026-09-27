@@ -59,6 +59,8 @@ async def create_customer(
 
 
 async def get_customers_by_ids(session: AsyncSession, customer_ids: list[UUID]):
+    if not customer_ids:
+        return []
     result = await session.execute(select(CustomerModel).where(CustomerModel.id.in_(customer_ids)))
     return list(result.scalars().all())
 

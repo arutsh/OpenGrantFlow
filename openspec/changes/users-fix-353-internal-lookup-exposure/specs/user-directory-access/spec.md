@@ -4,19 +4,15 @@ Defines who may read user and customer records from the users service, how inter
 
 ## ADDED Requirements
 
-### Requirement: Internal lookup endpoints are not publicly routed
-The public API gateway (every deployed gateway configuration) SHALL NOT route requests to the users service's internal batch-lookup endpoints (`users/by_ids`, `customers/by_ids`).
+### Requirement: The user batch-lookup endpoint is not publicly routed
+The public API gateway (every deployed gateway configuration) SHALL NOT route requests to the users service's internal batch user-lookup endpoint (`users/by_ids`). It carries no browser caller and returns user PII (email, role, status).
 
 #### Scenario: Anonymous internet caller hits the batch user lookup
 - **WHEN** a caller on the public internet sends `POST /api/v1/users/by_ids/` through the gateway
 - **THEN** the gateway rejects the request (404 or 403) without forwarding it to the users service
 
-#### Scenario: Anonymous internet caller hits the batch customer lookup
-- **WHEN** a caller on the public internet sends `POST /api/v1/customers/by_ids/` through the gateway
-- **THEN** the gateway rejects the request without forwarding it
-
-### Requirement: Internal lookup endpoints require a service credential
-The users service SHALL reject any request to an internal batch-lookup endpoint that does not carry a valid internal service credential. When no credential is configured, the endpoint SHALL reject every request (fail closed).
+### Requirement: The user batch-lookup endpoint requires a service credential
+The users service SHALL reject any request to `POST /api/users/by_ids/` that does not carry a valid internal service credential. When no credential is configured, the endpoint SHALL reject every request (fail closed).
 
 #### Scenario: Missing credential on the internal network
 - **WHEN** a request reaches `POST /api/users/by_ids/` directly (bypassing the gateway) with no service credential
@@ -24,6 +20,21 @@ The users service SHALL reject any request to an internal batch-lookup endpoint 
 
 #### Scenario: Legitimate service caller
 - **WHEN** the budget service calls `POST /api/users/by_ids/` with a valid service credential and a list of ids
+- **THEN** the service returns exactly the records for those ids
+
+### Requirement: The customer batch-lookup endpoint requires authentication, not gateway exclusion
+`POST /api/customers/by_ids/` is called directly by the browser for cross-tenant donor/grantee name resolution, so it SHALL stay reachable through the public gateway. The users service SHALL reject any request to it that carries neither a valid internal service credential nor an authenticated user token. When no service credential is configured, the service-credential path SHALL reject every request (fail closed); the user-token path is unaffected. No further tenant scoping is required, matching `GET /customers/`.
+
+#### Scenario: Anonymous internet caller hits the batch customer lookup
+- **WHEN** a caller on the public internet sends `POST /api/v1/customers/by_ids/` through the gateway with no credential
+- **THEN** the service responds 401 and returns no records
+
+#### Scenario: Authenticated user caller
+- **WHEN** an authenticated user sends `POST /api/v1/customers/by_ids/` with a valid user token and a list of ids
+- **THEN** the service returns exactly the records for those ids, with no tenant restriction
+
+#### Scenario: Legitimate service caller
+- **WHEN** the budget service calls `POST /api/customers/by_ids/` with a valid service credential and a list of ids
 - **THEN** the service returns exactly the records for those ids
 
 ### Requirement: Empty id lists return no records

@@ -5,6 +5,7 @@ import httpx
 from app.core.config import settings
 from fastapi import status
 from app.core.exceptions import DomainError
+from shared.security.internal_service import INTERNAL_SERVICE_HEADER
 
 CUSTOMER_SERVICE_URL = settings.customer_service_url
 _client: httpx.AsyncClient = httpx.AsyncClient(base_url=CUSTOMER_SERVICE_URL)
@@ -34,9 +35,12 @@ async def close_urls():
 
 
 async def get_customer(customer_id: str | uuid.UUID) -> dict:
-    """No-auth by_ids/ endpoint: this is a service-to-service call, no user token to forward."""
+    """Service-to-service call: no user token to forward, only the internal-service credential."""
     try:
-        resp = await _client.post(f"{CUSTOMER_SERVICE_URL}by_ids/", json=[str(customer_id)])
+        headers = {INTERNAL_SERVICE_HEADER: settings.INTERNAL_SERVICE_TOKEN}
+        resp = await _client.post(
+            f"{CUSTOMER_SERVICE_URL}by_ids/", headers=headers, json=[str(customer_id)]
+        )
         resp.raise_for_status()
         items = resp.json()
     except httpx.HTTPError as e:

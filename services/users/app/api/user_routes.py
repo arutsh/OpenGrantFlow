@@ -2,7 +2,6 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from app.schemas.user_schema import User, UserSelfUpdate
@@ -37,6 +36,10 @@ from app.services.admin_management_services import (
 from app.services.budget_client import get_financial_record_refs
 from app.services.celery_client import enqueue_verification_email, enqueue_invite_email
 from shared.security.dependencies import get_validated_user
+from shared.security.internal_service import (
+    get_validated_user_or_internal_service,
+    require_internal_service,
+)
 from shared.security.jwt_utils import REFRESH_TOKEN_EXPIRE_DAYS
 from shared.security.session_revocation import mark_session_revoked
 from app.core.logging import get_logger
@@ -48,10 +51,29 @@ router = APIRouter()
 
 
 @router.get("/users/{user_id}", response_model=User)
-async def get_user_endpoint(user_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(UserModel).where(UserModel.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
+async def get_user_endpoint(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    valid_user: dict | None = Depends(get_validated_user_or_internal_service),
+):
+    user = await get_user(db, user_id)
+
+    if valid_user is None:
+        # Internal service credential: the calling service already vetted access.
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+
+    is_self = str(valid_user.get("user_id")) == str(user_id)
+    is_same_company_admin = (
+        valid_user.get("role") == "admin"
+        and valid_user.get("customer_id") is not None
+        and user is not None
+        and str(valid_user["customer_id"]) == str(user.customer_id)
+    )
+    # 404, not 403, for both "no such user" and "wrong company" — otherwise the
+    # response itself would confirm a user id exists in another company.
+    if not user or not (is_self or is_same_company_admin):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
@@ -81,15 +103,19 @@ async def list_users_endpoint(
     raise HTTPException(status_code=403, detail="Not authorized to list users")
 
 
-@router.post("/users/by_ids/", response_model=list[User])
+@router.post(
+    "/users/by_ids/",
+    response_model=list[User],
+    dependencies=[Depends(require_internal_service)],
+)
 async def get_users_by_ids_endpoint(
     user_ids: list[UUID],
     db: AsyncSession = Depends(get_db),
 ):
-    # NOTE: this end point is for internal service use only,
-    # hence no need to check current_user permissions
-    # calling service should ensure proper authorization
-
+    # Internal service use only: the gateway blocks this route from the public
+    # internet, and the calling service is responsible for id-level authorization.
+    if not user_ids:
+        return []
     result = await db.execute(build_users_select(user_ids))
     return list(result.scalars().all())
 

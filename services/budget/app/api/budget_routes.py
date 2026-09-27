@@ -221,7 +221,7 @@ async def get_budgets_by_creator_endpoint(
     db: AsyncSession = Depends(get_db),
     valid_user=Depends(get_validated_user),
 ):
-    # Unlike /customers/by_ids/, no gateway exclusion protects this path — this is the only guard.
+    # Self-only: the check below is this endpoint's only guard.
     if str(valid_user["user_id"]) != str(user_id):
         raise HTTPException(status_code=403, detail="Not authorized to view this user's budgets")
     budgets = await get_budgets_by_creator(db, user_id)

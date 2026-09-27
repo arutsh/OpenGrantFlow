@@ -2,6 +2,7 @@ from app.core.config import settings
 import uuid
 import httpx
 from typing import List, Dict
+from shared.security.internal_service import INTERNAL_SERVICE_HEADER
 from shared.utils.gateway_wrapper import service_call_exception_handler
 
 USER_SERVICE_URL = settings.user_all_services_url
@@ -29,6 +30,7 @@ async def get_users_by_ids(ids: List[str | uuid.UUID], token: str) -> Dict[str, 
     if not ids:
         return {}
     headers = {"Authorization": f"Bearer {token}"} if token else {}
+    headers[INTERNAL_SERVICE_HEADER] = settings.INTERNAL_SERVICE_TOKEN
 
     # call a batch endpoint if available (recommended)
     r = await _client.post(
@@ -44,6 +46,7 @@ async def get_customers_by_ids(ids: List[str | uuid.UUID], token: str) -> Dict[s
     if not ids:
         return {}
     headers = {"Authorization": f"Bearer {token}"} if token else {}
+    headers[INTERNAL_SERVICE_HEADER] = settings.INTERNAL_SERVICE_TOKEN
 
     # call a batch endpoint if available (recommended)
     r = await _client.post(
