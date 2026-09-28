@@ -88,12 +88,15 @@ def _check_member_allowlist(zf: zipfile.ZipFile) -> None:
 def _iter_raw_member_bytes(zf: zipfile.ZipFile, info: zipfile.ZipInfo):
     """Yields a member's raw compressed bytes straight from the archive —
     bypasses `ZipExtFile`'s read-truncation to the (possibly forged) declared size."""
-    zf.fp.seek(info.header_offset)
-    fname_len, extra_len = struct.unpack("<HH", zf.fp.read(30)[26:30])
-    zf.fp.seek(info.header_offset + 30 + fname_len + extra_len)
+    fp = zf.fp
+    if fp is None:
+        raise InvalidWorkbookError("invalid_workbook", "archive is closed")
+    fp.seek(info.header_offset)
+    fname_len, extra_len = struct.unpack("<HH", fp.read(30)[26:30])
+    fp.seek(info.header_offset + 30 + fname_len + extra_len)
     remaining = info.compress_size
     while remaining > 0:
-        chunk = zf.fp.read(min(remaining, DECOMPRESS_CHUNK_SIZE))
+        chunk = fp.read(min(remaining, DECOMPRESS_CHUNK_SIZE))
         if not chunk:
             break
         remaining -= len(chunk)
@@ -147,8 +150,7 @@ def _worksheet_paths(zf: zipfile.ZipFile) -> list[str]:
             if relationship.get("TargetMode") == "External" or not target:
                 raise InvalidWorkbookError("invalid_workbook", "invalid worksheet target")
             path = posixpath.normpath(
-                target.lstrip("/") if target.startswith("/")
-                else posixpath.join(source_dir, target)
+                target.lstrip("/") if target.startswith("/") else posixpath.join(source_dir, target)
             )
             if path.startswith("../") or path not in names:
                 raise InvalidWorkbookError("invalid_workbook", "missing worksheet target")
