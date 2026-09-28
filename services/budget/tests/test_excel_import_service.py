@@ -1,4 +1,6 @@
+import asyncio
 import io
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,6 +54,30 @@ class TestPrepareExcelImport:
         assert "Total Personnel" not in sent_text
         assert "Total Project" not in sent_text
         assert "Salaries" in sent_text
+
+    async def test_parse_runs_off_the_event_loop(self, db):
+        """A slow parse must not block other coroutines (see design.md Decision 4)."""
+        upload = _upload_file(_build_workbook_bytes())
+
+        def _slow_parse(data):
+            time.sleep(0.3)
+            return [["Category", "Salaries", "100"]]
+
+        with (
+            patch("app.services.excel_import_service._guard_detect_and_extract_grid", _slow_parse),
+            patch("app.services.excel_import_service.storage_client.save"),
+        ):
+            parse_task = asyncio.create_task(
+                prepare_excel_import_service(db, ValidUserFactory(), upload)
+            )
+            start = time.monotonic()
+            await asyncio.sleep(0.01)
+            unrelated_tick_elapsed = time.monotonic() - start
+            await parse_task
+
+        # If the parse blocked the loop, this unrelated tick couldn't have
+        # completed until the whole 0.3s "parse" was done.
+        assert unrelated_tick_elapsed < 0.2
 
     async def test_rejects_non_xlsx_file(self, db):
         upload = _upload_file(b"not a real workbook", filename="notes.xlsx")
