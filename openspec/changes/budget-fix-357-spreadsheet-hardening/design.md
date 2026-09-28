@@ -23,9 +23,11 @@
    Starting caps: 10k rows, 500 columns, 1M cells. Real donor templates are well under 1k × 50. The caps are constants and can be tuned.
 3. **After passing the guard, the existing openpyxl flow is safe as is.** Its used range is bounded by the verified max row and column. No rewrite of the detector is needed. Also add `defusedxml` so openpyxl enables its hardened parser.
 4. **`anyio.to_thread.run_sync` plus a module-level `CapacityLimiter(2)`** wraps guard, detection and grid building. A thread can't be killed. That is acceptable because the guard makes the work bounded.
+5. **Zip-member allowlist**, checked in the same zip stage as decision 2. Every member's path must match one of the expected `.xlsx` package prefixes (`[Content_Types].xml`, `_rels/`, `xl/`, `docProps/`, `customXml/`, `docMetadata/`); anything else (e.g. a smuggled executable hidden in the same archive) is rejected before the file ever reaches openpyxl or storage. *Trade-off:* an unusual-but-legitimate xlsx producer that adds a nonstandard part would be rejected too — acceptable since no real donor template needs one; the allowlist is a constant and can be extended.
 
 ## Risks / Trade-offs
 
 - [A real template exceeds a cap] → the 400 message names the limit, and the constants are easy to raise. Check against the stored templates in `budget-imports/` on dev before merging.
 - [iterparse on a hostile XML] → `defusedxml.ElementTree.iterparse` is used for the scan too.
 - [A missed export write site] → the cell-walk test in decision 1 is the safety net.
+- [A legitimate xlsx uses a nonstandard extra part] → rejected with a named limit; the allowlist is a constant and easy to extend.

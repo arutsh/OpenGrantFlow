@@ -11,6 +11,7 @@ We verified two problems in the budget service's spreadsheet handling:
 - Import checks the uploaded archive before opening it with openpyxl:
   - caps on total uncompressed size, per-member size, compression ratio and member count
   - a streaming scan of each worksheet's cell references that aborts when rows, columns or populated cells exceed the caps, without building the used range
+  - rejects any archive containing a member outside the expected xlsx package parts (defense against a "polyglot" file that parses fine as a spreadsheet but smuggles an unrelated payload in the same zip container)
 - Workbook parsing runs in a worker thread behind a small per-process concurrency limit, so it never blocks the event loop.
 - Add `defusedxml` so openpyxl uses its hardened XML parser.
 - Oversized or malformed files are rejected with a clear 400 message and are not stored.

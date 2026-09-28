@@ -1,4 +1,5 @@
 import io
+import re
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
@@ -12,6 +13,8 @@ from app.models.budget import BudgetCategoryModel, BudgetLineModel, BudgetModel
 from app.schemas.budget_schema import BudgetStatus
 from app.schemas.export_template_schema import TemplateVisibility
 from app.services.excel_export_service import (
+    SHEET1_TITLE,
+    SHEET2_TITLE,
     SHEET3_TITLE,
     DashboardSheet,
     ExpenseListSheet,
@@ -1319,6 +1322,147 @@ class TestGenerateBudgetExportWorkbook:
         assert rows[9] == ("Contingency", "=B15", None)
         assert rows[13] == ("Contingency", None, None)
         assert rows[14] == ("Subtotal", 0.0, None)
+
+
+def _formula_cell_coordinates(ws) -> set[str]:
+    return {cell.coordinate for row in ws.iter_rows() for cell in row if cell.data_type == "f"}
+
+
+class TestExportFormulaInjectionHardening:
+    """A budget line, category, name etc. that looks like a formula must never
+    become a live formula in the exported workbook (see design.md Decision 1)."""
+
+    MALICIOUS = {
+        "org": "=1+1",
+        "donor": "+2+2",
+        "project": "-3+3",
+        "currency": "@EVIL()",
+        "category": '=HYPERLINK("https://evil.example","click")',
+        "description": "=cmd|' /C calc'!A0",
+        "extra_key": '=WEBSERVICE("https://evil.example")',
+        "extra_value": "@evil_extra_value",
+        "expense_description": "+evil_expense_description",
+        "exported_by": "-evil@example.com",
+    }
+    BENIGN = {
+        "org": "Test Org",
+        "donor": "Test Donor",
+        "project": "Test Project",
+        "currency": "USD",
+        "category": "Personnel",
+        "description": "Salaries",
+        "extra_key": "Notes",
+        "extra_value": "Approved",
+        "expense_description": "Rent",
+        "exported_by": "exporter@example.com",
+    }
+
+    def _build(self, values: dict):
+        budget = BudgetFactory.build(
+            name=values["project"],
+            local_currency="GBP",
+            actual_currency=values["currency"],
+            estimated_exchange_rate=Decimal("2.0"),
+        )
+        category = BudgetCategoryFactory.build(
+            budget=budget, budget_id=budget.id, name=values["category"]
+        )
+        line = BudgetLineFactory.build(
+            budget=budget,
+            budget_id=budget.id,
+            category=category,
+            category_id=category.id,
+            description=values["description"],
+            amount=Decimal("1000.0"),
+            extra_fields={values["extra_key"]: values["extra_value"]},
+        )
+        expense = ReportLineExpense(
+            report_line_id=uuid4(),
+            budget_line_id=line.id,
+            description=values["expense_description"],
+            amount=Decimal("500.0"),
+            expense_date=date(2026, 3, 1),
+            allocations=[
+                ReportLineAllocationDetail(
+                    amount_allocated=Decimal("500.0"),
+                    converted_at=date(2026, 2, 1),
+                    conversion_donor_amount=Decimal("250.0"),
+                    conversion_local_amount=Decimal("500.0"),
+                )
+            ],
+        )
+        data = generate_budget_export_workbook(
+            budget,
+            [category],
+            [line],
+            expenses=[expense],
+            organisation_name=values["org"],
+            donor_name=values["donor"],
+            exported_by=values["exported_by"],
+            exported_at=datetime(2026, 9, 22, 14, 30, tzinfo=timezone.utc),
+        )
+        return load_workbook(io.BytesIO(data))
+
+    def test_malicious_fields_saved_as_text_not_formulas(self):
+        wb = self._build(self.MALICIOUS)
+        remaining = set(self.MALICIOUS.values())
+        for ws in wb.worksheets:
+            for row in ws.iter_rows():
+                for cell in row:
+                    if not isinstance(cell.value, str):
+                        continue
+                    matches = [payload for payload in remaining if payload in cell.value]
+                    for payload in matches:
+                        assert cell.data_type == "s", (
+                            f"{ws.title}!{cell.coordinate} evaluates {payload!r} as a formula"
+                        )
+                        assert payload in cell.value
+                    remaining -= set(matches)
+        assert not remaining, f"payload(s) never written to the export: {remaining}"
+
+    def test_formula_cell_set_matches_benign_equivalent(self):
+        """Every generated formula depends only on row/column counts, never on
+        the text itself — so a missed write site would show up as a diff here."""
+        malicious_wb = self._build(self.MALICIOUS)
+        benign_wb = self._build(self.BENIGN)
+        for sheet_title in (SHEET1_TITLE, SHEET2_TITLE, SHEET3_TITLE):
+            malicious_formulas = _formula_cell_coordinates(malicious_wb[sheet_title])
+            benign_formulas = _formula_cell_coordinates(benign_wb[sheet_title])
+            assert malicious_formulas == benign_formulas, sheet_title
+
+    def test_generated_formulas_still_reference_expected_cells(self):
+        wb = self._build(self.BENIGN)
+        ws1 = wb[SHEET1_TITLE]
+
+        def find_row(label: str) -> int:
+            return next(row[0].row for row in ws1.iter_rows() if row[0].value == label)
+
+        def formula_at(row: int, col_letter: str) -> str:
+            cell = ws1[f"{col_letter}{row}"]
+            assert cell.data_type == "f", f"{col_letter}{row} is not a formula"
+            return cell.value
+
+        # One extra_fields key in the fixture shifts Amount/Estimate one column right (to C/D).
+        amount_col = "C"
+        subtotal_row = find_row("Subtotal")
+        assert re.fullmatch(
+            rf"=SUM\({amount_col}\d+:{amount_col}\d+\)", formula_at(subtotal_row, amount_col)
+        )
+
+        footer_row = find_row("Total expenditures")
+        footer_formula = formula_at(footer_row, amount_col)
+        assert set(re.findall(rf"{amount_col}(\d+)", footer_formula)) == {str(subtotal_row)}
+
+        ws2 = wb[SHEET2_TITLE]
+        actuals_pattern = re.compile(
+            rf"=SUMIF\('{re.escape(SHEET3_TITLE)}'!\$I:\$I,\$H\d+,"
+            rf"'{re.escape(SHEET3_TITLE)}'!\$E:\$E\)"
+        )
+        assert any(
+            cell.data_type == "f" and actuals_pattern.fullmatch(cell.value)
+            for row in ws2.iter_rows()
+            for cell in row
+        ), "no cross-sheet actuals SUMIF formula found referencing List of Expenses"
 
 
 async def _make_budget(db, owner_id=OWNER_ID, funding_customer_id=None):

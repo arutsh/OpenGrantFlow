@@ -21,3 +21,14 @@ Budget service SHALL parse uploaded workbooks outside the request event loop, wi
 #### Scenario: Concurrent request during a parse
 - **WHEN** a large but within-limits workbook is being parsed
 - **THEN** an unrelated budget API request on the same instance is served without waiting for the parse to finish
+
+### Requirement: Archives with unexpected members are rejected
+Budget service's `prepare-import` step SHALL reject an upload whose zip archive contains any member outside the expected `.xlsx` package parts (`[Content_Types].xml`, `_rels/`, `xl/`, `docProps/`, `customXml/`, `docMetadata/`, and their standard subpaths). A rejected upload SHALL receive a 400 response and SHALL NOT be stored.
+
+#### Scenario: Polyglot file with a hidden extra member
+- **WHEN** a user uploads a workbook that parses as a valid `.xlsx` but its zip archive also contains an unrelated file (e.g. `payload.exe`)
+- **THEN** the service rejects it with 400 before storing it
+
+#### Scenario: Realistic donor template
+- **WHEN** a user uploads a typical donor `.xlsx` template produced by Excel or LibreOffice, including SharePoint/OneDrive metadata or a sensitivity label
+- **THEN** its member list passes the check and it is processed as before
