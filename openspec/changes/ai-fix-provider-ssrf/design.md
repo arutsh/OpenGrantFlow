@@ -13,7 +13,7 @@
 
 **Non-Goals:**
 - Network-level egress controls (a Docker network split or firewall). Worth doing, but that is infra and belongs in a separate change.
-- Allowing arbitrary tenant-supplied public URLs. That is deferred until a tenant needs it. The connect-time guard built here is the precondition for it.
+- Allowing arbitrary tenant-supplied public URLs. That is deferred until a tenant needs it. The connect-time guard built here is the precondition for it. See decision 7 for the planned extension point.
 
 ## Decisions
 
@@ -22,6 +22,8 @@
 3. **Pinned-address transport for public-only origins.** A custom `httpx.AsyncHTTPTransport` subclass (or httpcore network backend) resolves the host, validates every returned address with `ipaddress` (`is_global` plus explicit blocks for `100.64/10`, `169.254/16`, `fc00::/7`, IPv4-mapped IPv6), and connects to the first valid IP while keeping the `Host` header and TLS SNI set to the original hostname. It is passed to `OpenAIProvider(http_client=httpx.AsyncClient(transport=…, follow_redirects=False))`. *Alternative:* resolve-then-connect by hostname. Rejected because it is open to rebinding.
 4. **Private-allowed origins skip the address check but still skip redirects.** The operator vouched for the host, not for wherever it redirects.
 5. **The UI switches to a picker.** The provider catalog response adds `approved_endpoints` (origin plus label) for key-less providers. The free-text input is removed. If only one endpoint is approved, it is preselected.
+6. **Per-mode defaults, all private-allowed.** `dev.sh` runs services on the host (`http://localhost:11434`); `docker-compose.local.yml` runs `ai` in a container, where `localhost` is the container itself, so it uses `http://host.docker.internal:11434` with `host-gateway`. Prod uses the operator's tailnet origin, which must be `allow_private` because tailnet addresses sit in `100.64/10`.
+7. **Leave room for tenant-supplied origins, don't build them.** A later change may add an operator flag (e.g. `AI_PROVIDER_ALLOW_TENANT_ORIGINS`) accepting tenant URLs that are https-only, public-only through the pinned transport, and carry tenant auth headers stored encrypted like API keys. `is_approved` returns an `ApprovedOrigin` (not a bool) so that mode can return a synthesized public-only origin without changing callers.
 
 ## Risks / Trade-offs
 

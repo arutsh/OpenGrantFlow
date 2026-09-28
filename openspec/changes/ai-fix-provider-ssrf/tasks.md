@@ -9,7 +9,8 @@ Workflow rule: one task group = one GitHub sub-issue (of this change's parent is
 - [ ] 1.2 Add `AI_PROVIDER_APPROVED_ORIGINS` to AI settings and an `egress_policy` module (parse, normalize, `is_approved(url) -> ApprovedOrigin | None`, reject non-http(s) schemes and userinfo); verify with unit tests covering case, default ports, trailing slashes, userinfo, and `file://`/`gopher://` schemes.
 - [ ] 1.3 Enforce it in `POST /ai/settings/keys` (422 for unapproved origins or a `base_url` on providers that don't take one) and replace `_DEFAULT_OLLAMA_BASE_URL` with the configured default; verify with route tests for `http://users:8000`, `http://169.254.169.254`, and an approved origin.
 - [ ] 1.4 Enforce it in `OllamaAdapter.build` (return `None` and log `ai_egress_denied`) and pass an `httpx.AsyncClient(follow_redirects=False)` via `http_client`; verify with tests that a stored unapproved row resolves to "no provider" and, using `respx`, that a 302 to an internal address is not followed.
-- [ ] 1.5 Add the variable to AI env templates and CI; ask the user to set the prod values. Run `pytest services/ai` and `flake8 --max-line-length=100` clean; PR merged.
+- [ ] 1.5 Ship per-deployment-mode defaults for `AI_PROVIDER_APPROVED_ORIGINS`, all `allow_private: true`: `http://localhost:11434` for `dev.sh` (host-run services); `http://host.docker.internal:11434` for `docker-compose.local.yml`, adding `extra_hosts: ["host.docker.internal:host-gateway"]` to its `ai` service; the operator tailnet origin for prod (tailnet `100.64/10` addresses fail the public-only check). Hand the env-file values to the user to set (private env files are not read directly); verify by saving an Ollama config and chatting in both local modes.
+- [ ] 1.6 Add the variable to CI. Run `pytest services/ai` and `flake8 --max-line-length=100` clean; PR merged.
 
 ## 2. Connect-time address pinning and endpoint picker — ticket depends on 1
 
