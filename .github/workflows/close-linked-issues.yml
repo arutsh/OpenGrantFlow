@@ -1,0 +1,48 @@
+name: Close Linked Issues
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  close-issues:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+    steps:
+      - name: Extract sub-issue number from branch name
+        id: branch
+        run: |
+          # <Service>/<type>/Issue-<sub-issue>/<description>, see docs/development/WORKFLOW.md §2
+          if [[ ! "$BRANCH" =~ ^[A-Z][A-Za-z]*/(feat|fix|chore|refactor)/Issue-([0-9]+)/.+$ ]]; then
+            echo "'$BRANCH' isn't a flow.py branch; nothing to close"
+            echo "issue=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "issue=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+
+      - name: Close the sub-issue, and the parent if it was the last one open
+        if: steps.branch.outputs.issue != ''
+        run: |
+          issue="${{ steps.branch.outputs.issue }}"
+          gh issue close "$issue" --repo "$REPO" --reason completed
+
+          # A GitHub sub-issue relationship, not this repo's tasks.md — survives archiving.
+          parent=$(gh api "repos/$REPO/issues/$issue/parent" --jq '.number' 2>/dev/null || echo "")
+          if [[ -z "$parent" ]]; then
+            echo "issue #$issue has no parent"
+            exit 0
+          fi
+
+          summary=$(gh api "repos/$REPO/issues/$parent" --jq '.sub_issues_summary')
+          total=$(jq -r '.total' <<<"$summary")
+          completed=$(jq -r '.completed' <<<"$summary")
+          echo "parent #$parent: $completed/$total sub-issues closed"
+          if [[ "$completed" == "$total" ]]; then
+            gh issue close "$parent" --repo "$REPO" --reason completed
+          fi
