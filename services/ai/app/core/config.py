@@ -1,4 +1,5 @@
 import os
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
@@ -23,6 +24,9 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str  # 32-byte base64-encoded secret for AES-256-GCM
     OLLAMA_URL: str | None = None
     OLLAMA_MODEL: str = "llama3.2"
+    # JSON list of {"origin": "http://host:port", "allow_private": bool} — see
+    # app/services/egress_policy.py. Operator-set only, never tenant-facing.
+    AI_PROVIDER_APPROVED_ORIGINS: str | None = None
     AI_RATE_LIMIT_PER_HOUR: int = 100
     # Separate, much tighter cap on the GrantFlow-funded Excel-import
     # fallback specifically (see budget-export-from-excel design.md Decision
@@ -30,6 +34,15 @@ class Settings(BaseSettings):
     # general BYOK-covered AI_RATE_LIMIT_PER_HOUR above. Starting value, not
     # yet informed by real usage data.
     AI_EXCEL_IMPORT_PLATFORM_RATE_LIMIT_PER_HOUR: int = 10
+
+    @field_validator("AI_PROVIDER_APPROVED_ORIGINS")
+    @classmethod
+    def _validate_approved_origins(cls, raw: str | None) -> str | None:
+        # Fail at startup rather than 500 on every request.
+        from app.services.egress_policy import parse_approved_origins
+
+        parse_approved_origins(raw)
+        return raw
 
     model_config = SettingsConfigDict(env_file=ENV_FILE, case_sensitive=False, extra="ignore")
 

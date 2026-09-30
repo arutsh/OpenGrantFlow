@@ -8,6 +8,7 @@ from app.crud.ai_provider_model import exists_for_provider as model_exists_for_p
 from app.crud.customer_ai_defaults import get as get_customer_ai_defaults, set_platform_fallback
 from app.crud.user_provider_key import create, delete, list_for_customer, set_default
 from app.db.session import AsyncSessionLocal
+from app.services import egress_policy
 from app.services.provider import _REGISTRY
 from app.utils.encryption import decrypt, encrypt
 from app.utils.security import get_validated_user, resolve_customer_id
@@ -15,7 +16,6 @@ from app.utils.security import get_validated_user, resolve_customer_id
 router = APIRouter(prefix="/ai/settings", tags=["AI Settings"])
 
 _ADMIN_ROLES = {"superuser", "admin"}
-_DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 
 
 async def get_db():
@@ -49,9 +49,15 @@ class ProviderKeyConfig(BaseModel):
     is_default: bool
 
 
+class ApprovedEndpoint(BaseModel):
+    origin: str
+    label: str
+
+
 class SettingsResponse(BaseModel):
     configs: list[ProviderKeyConfig]
     platform_fallback_enabled: bool
+    approved_endpoints: list[ApprovedEndpoint]
 
 
 class CreateKeyRequest(BaseModel):
@@ -69,6 +75,23 @@ class DeleteKeyRequest(BaseModel):
 
 class PlatformFallbackRequest(BaseModel):
     enabled: bool
+
+
+def _resolve_and_validate_base_url(provider, requested_base_url: str | None) -> str | None:
+    """Enforce the operator's approved-origin policy for key-less providers
+    (e.g. Ollama); reject a base_url on providers that require a key."""
+    if provider.key_prefix:
+        if requested_base_url:
+            raise HTTPException(
+                status_code=422, detail=f"{provider.name} does not accept a base_url"
+            )
+        return None
+    base_url = requested_base_url or settings.OLLAMA_URL
+    if base_url:
+        approved = egress_policy.parse_approved_origins(settings.AI_PROVIDER_APPROVED_ORIGINS)
+        if egress_policy.is_approved(base_url, approved) is None:
+            raise HTTPException(status_code=422, detail="base_url is not an approved endpoint")
+    return base_url
 
 
 async def _validate_key_with_provider(
@@ -108,9 +131,13 @@ async def _build_settings_response(customer_id: str, db: AsyncSession) -> Settin
             )
         )
     defaults = await get_customer_ai_defaults(customer_id, db)
+    approved = egress_policy.parse_approved_origins(settings.AI_PROVIDER_APPROVED_ORIGINS)
     return SettingsResponse(
         configs=items,
         platform_fallback_enabled=bool(defaults and defaults.platform_fallback_enabled),
+        approved_endpoints=[
+            ApprovedEndpoint(origin=o.origin, label=o.label or o.origin) for o in approved
+        ],
     )
 
 
@@ -141,9 +168,7 @@ async def create_ai_key(
         )
     await _validate_key_with_provider(provider.name, provider.key_prefix, body.key)
     encrypted = encrypt(body.key, settings.ENCRYPTION_KEY) if body.key else None
-    base_url = body.base_url
-    if not provider.key_prefix and not base_url:
-        base_url = _DEFAULT_OLLAMA_BASE_URL
+    base_url = _resolve_and_validate_base_url(provider, body.base_url)
     user_id = str(valid_user["user_id"])
     customer_id = resolve_customer_id(valid_user)
     await create(

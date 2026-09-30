@@ -48,6 +48,9 @@ class TestResolveModel:
         with patch("app.core.config.settings") as mock_settings:
             mock_settings.OLLAMA_URL = "http://localhost:11434"
             mock_settings.ENCRYPTION_KEY = "key"
+            mock_settings.AI_PROVIDER_APPROVED_ORIGINS = (
+                '[{"origin": "http://localhost:11434", "allow_private": true}]'
+            )
             resolved = resolve_model(user_key=user_key)
         assert resolved is not None
         assert resolved.provider_name == "ollama"
