@@ -33,8 +33,8 @@ jobs:
           gh issue close "$issue" --repo "$REPO" --reason completed
 
           # A GitHub sub-issue relationship, not this repo's tasks.md — survives archiving.
-          parent=$(gh api "repos/$REPO/issues/$issue/parent" --jq '.number' 2>/dev/null || echo "")
-          if [[ -z "$parent" ]]; then
+          # A failed lookup writes its error body to stdout too, so check the exit code.
+          if ! parent=$(gh api "repos/$REPO/issues/$issue/parent" --jq '.number' 2>/dev/null); then
             echo "issue #$issue has no parent"
             exit 0
           fi
