@@ -10,9 +10,15 @@ export interface ProviderKeyConfig {
   is_default: boolean;
 }
 
+export interface ApprovedEndpoint {
+  origin: string;
+  label: string;
+}
+
 export interface AiSettings {
   configs: ProviderKeyConfig[];
   platform_fallback_enabled: boolean;
+  approved_endpoints: ApprovedEndpoint[];
 }
 
 export const getAiSettings = async (): Promise<AiSettings> => {

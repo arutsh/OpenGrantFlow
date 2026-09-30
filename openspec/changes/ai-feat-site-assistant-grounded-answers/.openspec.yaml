@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-09-29
+author: Norair Arutshyan
+priority: medium
+depends_on:
+  - ai-feat-site-assistant-retrieval-evals
+  - frontend-feat-public-site-content

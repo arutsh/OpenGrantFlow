@@ -33,6 +33,7 @@ jobs:
       AI_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/grandflow_ai
       LOG_LEVEL: INFO
       PYTHONPATH: ${{ github.workspace }}/services/ai:${{ github.workspace }}
+      AI_PROVIDER_APPROVED_ORIGINS: '[{"origin": "http://ollama:11434", "allow_private": true}]'
     steps:
       - uses: actions/checkout@v4
 
