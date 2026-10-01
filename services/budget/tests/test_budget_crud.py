@@ -1,8 +1,13 @@
 import uuid
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
-from app.crud.budget_crud import create_budget, update_budget
+from app.crud.budget_crud import create_budget, delete_budget, update_budget
+from app.crud.budget_category_crud import create_budget_category
+from app.crud.budget_line_crud import create_budget_line, delete_budget_line
+from app.models.budget import BudgetModel
 from shared.security.current_user_context import reset_current_user_id, set_current_user_id
 from tests.factories.user import ValidUserFactory
 
@@ -67,3 +72,48 @@ class TestUpdateBudgetAuditTrail:
             reset_current_user_id(token)
 
         assert updated.updated_by == editor_id
+
+
+async def _budget_with_orphaned_category(db) -> BudgetModel:
+    """A budget with a line added then removed, leaving its
+    auto-created category behind (see #295's failure mode)."""
+    user = ValidUserFactory()
+    budget = await create_budget(
+        session=db, user_id=user["user_id"], name="Cascade", owner_id=user["customer_id"]
+    )
+    category = await create_budget_category(
+        session=db, user_id=user["user_id"], budget_id=budget.id, name="Travel"
+    )
+    line = await create_budget_line(
+        session=db,
+        user_id=user["user_id"],
+        budget_id=budget.id,
+        category_id=category.id,
+        description="Flight",
+        amount=100.0,
+    )
+    await delete_budget_line(session=db, budget_line=line)
+    return budget
+
+
+@pytest.mark.anyio
+class TestDeleteBudgetCascadesOrphanedCategory:
+    async def test_delete_succeeds_with_categories_unloaded(self, db):
+        budget = await _budget_with_orphaned_category(db)
+
+        assert await delete_budget(session=db, budget=budget) is True
+
+    async def test_delete_succeeds_with_categories_already_loaded(self, db):
+        # Distinguishes cascade+passive_deletes from passive_deletes alone,
+        # which only fixes the unloaded case.
+        budget = await _budget_with_orphaned_category(db)
+
+        result = await db.execute(
+            select(BudgetModel)
+            .where(BudgetModel.id == budget.id)
+            .options(selectinload(BudgetModel.categories))
+        )
+        loaded_budget = result.scalar_one()
+        assert len(list(loaded_budget.categories)) == 1
+
+        assert await delete_budget(session=db, budget=loaded_budget) is True

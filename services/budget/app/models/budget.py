@@ -81,7 +81,10 @@ class BudgetModel(Base, AuditMixin):
     )
     reports: Mapped[list["ReportModel"]] = relationship("ReportModel", back_populates="budget")
     categories: Mapped[list["BudgetCategoryModel"]] = relationship(
-        "BudgetCategoryModel", back_populates="budget"
+        "BudgetCategoryModel",
+        back_populates="budget",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
 
