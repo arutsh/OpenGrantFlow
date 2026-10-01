@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
+import PublicLayout from "@/components/site/PublicLayout";
 import LandingPage from "./LandingPage";
 
 function renderAt(path: string) {
@@ -9,7 +10,9 @@ function renderAt(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<LandingPage />} />
+          </Route>
           <Route path="/dashboard" element={<div>Dashboard Page</div>} />
         </Routes>
       </AuthProvider>
@@ -37,14 +40,14 @@ describe("LandingPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers a Request Demo CTA in the nav that points to the contact section", () => {
+  it("offers a Request Demo CTA in the shared nav that points to the contact page", () => {
     renderAt("/");
 
     const requestDemoLinks = screen.getAllByRole("link", {
       name: "Request Demo",
     });
     expect(requestDemoLinks.length).toBeGreaterThan(0);
-    expect(requestDemoLinks[0]).toHaveAttribute("href", "#contact");
+    expect(requestDemoLinks[0]).toHaveAttribute("href", "/contact");
   });
 
   it("renders the product demo embed", () => {

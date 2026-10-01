@@ -8,21 +8,10 @@ import {
   FileText,
   ShieldCheck,
   ArrowRight,
-  Github,
-  Linkedin,
   User,
 } from "lucide-react";
-import ogfIcon from "@/assets/logos/ogf-icon.svg";
 import productMockup from "@/assets/logos/opengrantflow-mockup.png";
 import { brand } from "@/lib/brand";
-
-const NAV_LINKS = [
-  { href: "#vision", label: "Vision" },
-  { href: "#platform", label: "Platform" },
-  { href: "#founding-partners", label: "Founding Partners" },
-  { href: "#about", label: "About" },
-  { href: "#contact", label: "Contact" },
-];
 
 const TONE_COLORS = {
   grey: { border: "#94A3B8", text: "#64748B" },
@@ -155,45 +144,6 @@ function Kicker({ children }: { children: React.ReactNode }) {
     >
       {children}
     </p>
-  );
-}
-
-function Nav() {
-  return (
-    <header className="border-b border-slate-200">
-      <div className="max-w-5xl mx-auto flex items-center justify-between px-6 py-5">
-        <div className="flex items-center gap-2">
-          <img src={ogfIcon} alt="" className="h-8 w-auto shrink-0" />
-          <span
-            className="text-lg sm:text-xl font-bold whitespace-nowrap"
-            style={{ color: brand.slate }}
-          >
-            Open Grant <span style={{ color: brand.teal }}>Flow</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-3 sm:gap-6">
-          <nav className="hidden sm:flex gap-6">
-            {NAV_LINKS.map(({ href, label }) => (
-              <a
-                key={href}
-                href={href}
-                className="text-sm font-medium hover:opacity-70"
-                style={{ color: brand.slate }}
-              >
-                {label}
-              </a>
-            ))}
-          </nav>
-          <a
-            href="#contact"
-            className="rounded-lg px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm font-medium text-white transition-opacity hover:opacity-90 whitespace-nowrap"
-            style={{ backgroundColor: brand.navy }}
-          >
-            Request Demo
-          </a>
-        </div>
-      </div>
-    </header>
   );
 }
 
@@ -508,7 +458,7 @@ function OpenSourceSection() {
   );
 }
 
-function FounderSection() {
+export function FounderSection() {
   return (
     <section id="about" className="max-w-3xl mx-auto px-6 py-16">
       <Kicker>About</Kicker>
@@ -605,7 +555,7 @@ function PartnerSection() {
   );
 }
 
-function ContactSection() {
+export function ContactSection() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(false);
@@ -790,52 +740,6 @@ function ContactSection() {
   );
 }
 
-function Footer() {
-  return (
-    <footer className="border-t border-slate-200 px-6 py-10">
-      <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between gap-6">
-        <div>
-          <p className="font-bold" style={{ color: brand.slate }}>
-            Open Grant Flow
-          </p>
-          <p className="text-sm text-slate-500">
-            Open-source grant financial management platform.
-          </p>
-        </div>
-        <div className="flex flex-col sm:items-end gap-3">
-          <div className="flex gap-4">
-            <a
-              href="https://github.com/arutsh/GrantFlow"
-              className="text-slate-500 hover:opacity-70"
-              aria-label="GitHub"
-            >
-              <Github size={20} />
-            </a>
-            <a
-              href="https://www.linkedin.com/in/norair-arutshyan"
-              className="text-slate-500 hover:opacity-70"
-              aria-label="LinkedIn"
-            >
-              <Linkedin size={20} />
-            </a>
-          </div>
-          <div className="flex gap-4 text-sm text-slate-500">
-            <a href="/legal#privacy" className="hover:opacity-70">
-              Privacy Policy
-            </a>
-            <a href="/legal#terms" className="hover:opacity-70">
-              Terms
-            </a>
-          </div>
-          <p className="text-xs text-slate-400">
-            © {new Date().getFullYear()} Open Grant Flow
-          </p>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
 export default function LandingPage() {
   const { isAuthenticated, loading } = useAuth();
 
@@ -843,8 +747,7 @@ export default function LandingPage() {
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: brand.offWhite }}>
-      <Nav />
+    <>
       <Hero />
       <DemoSection />
       <AudienceSection />
@@ -855,7 +758,6 @@ export default function LandingPage() {
       <FounderSection />
       <PartnerSection />
       <ContactSection />
-      <Footer />
-    </div>
+    </>
   );
 }
