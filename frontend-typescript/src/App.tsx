@@ -2,9 +2,9 @@ import { Routes, Route, Navigate, BrowserRouter, Outlet } from "react-router-dom
 import { useAuth, AuthProvider } from "./context/AuthContext";
 import { AiChatProvider } from "./context/AiChatContext";
 import Login from "./pages/Login";
-import LandingPage from "./pages/LandingPage";
 import LegalPage from "./pages/Legal";
 import PublicLayout from "./components/site/PublicLayout";
+import HomePage from "./pages/site/Home";
 import HowItWorksPage from "./pages/site/HowItWorks";
 import SecurityPage from "./pages/site/Security";
 import AboutPage from "./pages/site/About";
@@ -50,7 +50,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<PublicLayout />}>
-              <Route path="/" element={<LandingPage />} />
+              <Route path="/" element={<HomePage />} />
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/how-it-works" element={<HowItWorksPage />} />
               <Route path="/security" element={<SecurityPage />} />

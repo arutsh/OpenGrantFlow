@@ -1,7 +1,9 @@
 import type { ComponentType } from "react";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { AuthProvider } from "@/context/AuthContext";
 import { buildSiteContent, getSection, type SitePage } from "@/lib/siteContent";
+import HomePage from "./Home";
 import HowItWorksPage from "./HowItWorks";
 import SecurityPage from "./Security";
 import AboutPage from "./About";
@@ -18,6 +20,7 @@ const files = import.meta.glob(
 ) as Record<string, string>;
 const sections = [...buildSiteContent(files).sections.values()];
 const PAGES: Partial<Record<SitePage, ComponentType>> = {
+  home: HomePage,
   "how-it-works": HowItWorksPage,
   security: SecurityPage,
   about: AboutPage,
@@ -35,7 +38,7 @@ describe.each(sections)("$id publication lifecycle", (section) => {
     vi.mocked(getSection).mockImplementation(buildSiteContent(changed, { isProd }).getSection);
     const Page = PAGES[section.page];
     if (!Page) throw new Error(`No page component mapped for "${section.page}"`);
-    render(<MemoryRouter><Page /></MemoryRouter>);
+    render(<MemoryRouter><AuthProvider><Page /></AuthProvider></MemoryRouter>);
 
     if (isProd) {
       expect(document.getElementById(section.anchor)).not.toBeInTheDocument();

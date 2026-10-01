@@ -17,6 +17,7 @@ export interface SiteContentItem {
   quote?: string;
   body?: string;
   attribution?: string;
+  href?: string;
   [key: string]: unknown;
 }
 
