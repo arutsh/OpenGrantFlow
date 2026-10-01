@@ -1,0 +1,30 @@
+# Tasks
+
+## 1. Data model and ingestion
+
+- [ ] 1.1 Add `SiteChunkModel` (`content_id`, `url`, `page_title`, `heading`, `personas`, `text`, `content_version`, generated `tsvector`) and an Alembic migration with a GIN index on the `tsvector` column; verify `alembic upgrade head` runs clean against a fresh ai database
+- [ ] 1.2 Add `pyyaml` to the ai service's dependencies; verify it imports in the service's venv
+- [ ] 1.3 Implement the site-content ingester: parse frontmatter from `frontend-typescript/src/content/site/**/*.md`, skip `status: draft`, upsert `site_chunks` by `content_id` using a hash-based `content_version`, delete rows for sources no longer published; add unit tests covering publish/draft/update/delete, and verify `pytest tests/test_site_content_ingestion.py -v` passes
+- [ ] 1.4 Implement the guide-doc ingester: split `docs/user-guide/*.md` and `docs/PRODUCT.md` by H2 heading into chunks with `content_id`/`url` per design.md Decision 1, feeding the same upsert/delete path as 1.3; add unit tests and verify `pytest tests/test_guide_doc_ingestion.py -v` passes
+- [ ] 1.5 Wire ingestion into FastAPI startup (idempotent, both sources) and update `Dockerfile` to `COPY` `frontend-typescript/src/content/site` and `docs/user-guide` (+ `docs/PRODUCT.md`) into the image; verify the service starts locally and `site_chunks` is populated
+
+## 2. Retrieval service
+
+- [ ] 2.1 Implement the retrieval function: `ts_rank_cd`-ranked query against `site_chunks.tsvector`, bounded by `top_k`; add unit tests for ranking and the `top_k` bound, and verify `pytest tests/test_site_retrieval.py -v` passes
+- [ ] 2.2 Add the persona boost per design.md Decision 4; add a unit test asserting a persona-matching chunk outranks an equal-scoring untagged chunk, and verify it passes
+
+## 3. Guide-doc public route
+
+- [ ] 3.1 Add the `/guides/<slug>` frontend route that reads a `docs/user-guide/<slug>.md` file via `?raw` import and renders it with the existing section-body markdown renderer; verify `npm run build` succeeds and the route renders both guide docs locally
+- [ ] 3.2 Verify (manually or with a Playwright check if the e2e suite already covers similar routes) that `/guides/ngo-guide#<heading-slug>` and `/guides/donor-guide#<heading-slug>` anchors land on the right section
+
+## 4. Golden dataset and eval harness
+
+- [ ] 4.1 Write `services/ai/tests/evals/data/golden_dataset.yaml` with ~50 entries per design.md Decision 5, covering every persona/category and including unanswerable entries; verify it loads and validates against the expected schema in a quick script/test
+- [ ] 4.2 Implement the eval harness (`services/ai/tests/evals/test_retrieval_evals.py`): compute Recall@1/3/5 and MRR per category, unanswerable accuracy via the score threshold, and the full-context token baseline; verify it runs end-to-end against a seeded test database and prints a per-category report
+- [ ] 4.3 Run the harness against the real ingested corpus, record the resulting metrics, and write `services/ai/tests/evals/baseline.yaml` with the floor per metric (including the unanswerable-score threshold) per design.md Decision 7; verify `pytest services/ai/tests/evals/ -v` passes against this baseline
+
+## 5. CI gate wiring
+
+- [ ] 5.1 Add `frontend-typescript/src/content/site/**`, `docs/user-guide/**`, and `docs/PRODUCT.md` to `ai.yml`'s `paths-filter`; verify a content-only diff triggers the `ai-test` job in a draft PR
+- [ ] 5.2 Add `.github/workflows/reindex-content.yml` triggering on push to `main` for the same three paths, restarting the `ai` container over SSH per design.md Decision 8; verify the workflow's YAML is valid (`actionlint` or equivalent) and document the manual verification step (watch the next content-only merge restart the container) in the PR description
