@@ -129,7 +129,6 @@ async def register_endpoint(
             password=req.password,
             first_name=req.first_name,
             last_name=req.last_name,
-            customer_id=req.customer_id,
             consent_data_processing=req.consent_data_processing,
             consent_marketing=req.consent_marketing,
         )

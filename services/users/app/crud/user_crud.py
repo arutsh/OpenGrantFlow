@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
-from sqlalchemy import or_, func, select, Select
+from sqlalchemy import false, or_, func, select, Select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import UserModel
@@ -50,15 +50,11 @@ async def get_user_by_email(session: AsyncSession, email: str):
     return result.scalar_one_or_none()
 
 
-async def is_superuser(session: AsyncSession, user_id: UUID) -> bool:
-    user = await get_user(session, user_id)
-    return user is not None and user.role == "superuser"
-
-
 def build_users_select(user_ids: list[UUID] | None = None) -> Select:
+    """`None` means unfiltered (all users); `[]` must match nothing, not everything."""
     stmt = select(UserModel)
-    if user_ids:
-        stmt = stmt.where(UserModel.id.in_(user_ids))
+    if user_ids is not None:
+        stmt = stmt.where(UserModel.id.in_(user_ids) if user_ids else false())
     return stmt
 
 

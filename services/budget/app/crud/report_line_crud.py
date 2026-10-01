@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.report import ReportLineModel
@@ -11,7 +12,7 @@ async def create_report_line(
     report_id: UUID,
     budget_line_id: UUID,
     description: str,
-    amount: float,
+    amount: Decimal,
     expense_date: date,
     extra_fields: dict | None = None,
 ) -> ReportLineModel:
@@ -51,7 +52,7 @@ async def update_report_line(
     session: AsyncSession,
     report_line: ReportLineModel,
     description: str | None = None,
-    amount: float | None = None,
+    amount: Decimal | None = None,
     expense_date: date | None = None,
     extra_fields: dict | None = None,
 ) -> ReportLineModel:

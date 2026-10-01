@@ -4,7 +4,10 @@ import json
 import os
 import uuid
 import re
+from decimal import Decimal, InvalidOperation
 
+import anyio
+import structlog
 from fastapi import UploadFile, status
 from sqlalchemy import select
 
@@ -17,10 +20,31 @@ from app.services.template_detection.spreadsheet_reader import (
     ExcelStructureDetector,
     to_extraction_grid,
 )
+from app.services.template_detection.workbook_limits import (
+    MAX_CELLS,
+    MAX_COLUMNS,
+    MAX_ROWS,
+    InvalidWorkbookError,
+    WorkbookTooLargeError,
+    check_workbook_limits,
+)
+
+logger = structlog.get_logger(__name__)
 
 MAX_IMPORT_SIZE = 10 * 1024 * 1024  # under nginx's 20MB body cap, generous for a budget sheet
 
 _AMOUNT_CLEAN_PATTERN = re.compile(r"[^\d.\-]")
+
+# Bounds concurrent CPU-bound parses so a burst of uploads can't starve the
+# process's thread pool for unrelated requests (see design.md Decision 4).
+_PARSE_LIMITER = anyio.CapacityLimiter(2)
+
+# Zip-level caps fall back to a generic message; their numbers only help tune a zip bomb.
+_TOO_LARGE_MESSAGES = {
+    "max_rows": f"Sheet has more than {MAX_ROWS:,} rows",
+    "max_columns": f"Sheet has more than {MAX_COLUMNS:,} columns",
+    "max_cells": f"Workbook has more than {MAX_CELLS:,} cells",
+}
 
 
 def compute_structure_fingerprint(grid: list[list[str | None]]) -> str:
@@ -31,15 +55,15 @@ def compute_structure_fingerprint(grid: list[list[str | None]]) -> str:
     return hashlib.sha256(json.dumps(skeleton).encode()).hexdigest()
 
 
-def _parse_amount(text: str | None) -> float | None:
+def _parse_amount(text: str | None) -> Decimal | None:
     if not text:
         return None
     cleaned = _AMOUNT_CLEAN_PATTERN.sub("", text)
     if not cleaned or cleaned in ("-", "."):
         return None
     try:
-        return float(cleaned)
-    except ValueError:
+        return Decimal(cleaned)
+    except InvalidOperation:
         return None
 
 
@@ -84,6 +108,14 @@ def _extract_via_template(
     return lines, currency
 
 
+def _guard_detect_and_extract_grid(data: bytes) -> list[list[str | None]]:
+    """CPU-bound: safety guard, structure detection and grid extraction, run
+    off the event loop by `prepare_excel_import_service`."""
+    check_workbook_limits(data)
+    reader = ExcelStructureDetector(io.BytesIO(data))
+    return to_extraction_grid(reader.detect_structure())
+
+
 async def prepare_excel_import_service(
     db,
     valid_user: dict,
@@ -108,14 +140,22 @@ async def prepare_excel_import_service(
         raise DomainError("File is not a valid Excel workbook", status.HTTP_400_BAD_REQUEST)
 
     try:
-        reader = ExcelStructureDetector(io.BytesIO(data))
-        cleaned_df = reader.detect_structure()
+        grid = await anyio.to_thread.run_sync(
+            _guard_detect_and_extract_grid, data, limiter=_PARSE_LIMITER
+        )
+    except WorkbookTooLargeError as exc:
+        message = _TOO_LARGE_MESSAGES.get(exc.reason, "File is too large to process")
+        raise DomainError(message, status.HTTP_400_BAD_REQUEST) from exc
+    except InvalidWorkbookError as exc:
+        logger.warning("prepare_excel_import: workbook rejected", error=str(exc))
+        raise DomainError(
+            "File is not a valid Excel workbook", status.HTTP_400_BAD_REQUEST
+        ) from exc
     except Exception as exc:
         raise DomainError(
             "File is not a valid Excel workbook", status.HTTP_400_BAD_REQUEST
         ) from exc
 
-    grid = to_extraction_grid(cleaned_df)
     if not grid:
         raise DomainError("No data rows found in the uploaded file", status.HTTP_400_BAD_REQUEST)
 

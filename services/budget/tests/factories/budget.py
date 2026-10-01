@@ -1,3 +1,4 @@
+from decimal import Decimal
 import factory
 from uuid import uuid4
 from app.models.budget import BudgetModel, BudgetLineModel, BudgetCategoryModel
@@ -47,7 +48,7 @@ class BudgetLineFactory(factory.Factory):
     budget_id = factory.SelfAttribute("budget.id")
     category_id = factory.LazyFunction(uuid4)
     description = factory.Faker("sentence", nb_words=4)
-    amount = 1000.0
+    amount = Decimal("1000.0")
     extra_fields = None
     created_by = factory.LazyFunction(uuid4)
     updated_by = factory.LazyFunction(uuid4)

@@ -1,6 +1,7 @@
 import io
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from uuid import UUID
 
 from openpyxl import Workbook
@@ -9,7 +10,7 @@ from openpyxl.utils import get_column_letter
 
 from app.crud.budget_category_crud import list_budget_categories
 from app.crud.budget_line_crud import list_budget_lines
-from app.crud.currency_conversion_crud import FLOAT_EPSILON, list_currency_conversions
+from app.crud.currency_conversion_crud import list_currency_conversions
 from app.crud.excel_export_crud import ReportLineExpense, get_report_line_expenses
 from app.crud.funding_receipt_crud import list_funding_receipts
 from app.models.budget import BudgetCategoryModel, BudgetLineModel, BudgetModel
@@ -172,18 +173,18 @@ class _ExpenseRow:
     budget_line_description: str | None
     category_name: str | None
     description: str | None
-    amount: float
-    rate: float | None
+    amount: Decimal
+    rate: Decimal | None
     is_estimated: bool
     conversion_date: date | None
 
 
-def _usable_rate(rate: float | None) -> float | None:
+def _usable_rate(rate: Decimal | None) -> Decimal | None:
     # A 0/negative rate would divide by zero or flip signs in Sheet 3's =E/G.
     return rate if rate and rate > 0 else None
 
 
-def _implied_rate(allocation) -> float | None:
+def _implied_rate(allocation) -> Decimal | None:
     if not allocation.conversion_donor_amount or not allocation.conversion_local_amount:
         return None
     return _usable_rate(allocation.conversion_local_amount / allocation.conversion_donor_amount)
@@ -193,7 +194,7 @@ def _build_expense_rows(
     lines: list[BudgetLineModel],
     categories: list[BudgetCategoryModel],
     expenses: list[ReportLineExpense],
-    estimated_exchange_rate: float | None,
+    estimated_exchange_rate: Decimal | None,
 ) -> list[_ExpenseRow]:
     """One row per allocation, plus one (estimated-rate-flagged) row per remainder."""
     lines_by_id = {line.id: line for line in lines}
@@ -205,7 +206,7 @@ def _build_expense_rows(
         budget_line_description = budget_line.description if budget_line else None
         category_id = budget_line.category_id if budget_line else None
         category_name = category_names.get(category_id) if category_id else None
-        allocated_total = 0.0
+        allocated_total = Decimal(0)
         for allocation in expense.allocations:
             allocated_total += allocation.amount_allocated
             rows.append(
@@ -223,7 +224,7 @@ def _build_expense_rows(
             )
         remainder = expense.amount - allocated_total
         # Rows must sum to expense.amount: keep refunds, zero amounts and over-allocation.
-        if not expense.allocations or abs(remainder) > FLOAT_EPSILON:
+        if not expense.allocations or remainder != 0:
             rows.append(
                 _ExpenseRow(
                     expense_date=expense.expense_date,
@@ -306,7 +307,7 @@ class _SheetWriter:
         )
         for row, (label, value) in enumerate(fields, start=1):
             self.ws.cell(row=row, column=1, value=label)
-            self.ws.cell(row=row, column=2, value=value)
+            self._write_text(row, 2, value)
             self._bold_row(row)
 
         return f"$B${_RATE_ROW}"
@@ -331,13 +332,29 @@ class _SheetWriter:
                 )
 
     def _set_cell(self, row: int, column: int, value, number_format: str):
+        """Numeric/date literals only — never a raw user string (use `_write_text`)."""
         cell = self.ws.cell(row=row, column=column, value=value)
         cell.number_format = number_format
         return cell
 
+    def _write_text(self, row: int, column: int, value):
+        """The only path for user/tenant-supplied values — never evaluated as a formula."""
+        cell = self.ws.cell(row=row, column=column, value=value)
+        if isinstance(value, str):
+            cell.data_type = "s"
+        return cell
+
+    def _write_formula(self, row: int, column: int, formula: str, number_format: str | None = None):
+        """The only path for application-generated formulas."""
+        cell = self.ws.cell(row=row, column=column, value=formula)
+        cell.data_type = "f"
+        if number_format:
+            cell.number_format = number_format
+        return cell
+
     def _write_audit_footer(self, row: int) -> None:
         audit_line = _audit_line(self.exported_by, self.exported_at)
-        cell = self.ws.cell(row=row, column=1, value=audit_line)
+        cell = self._write_text(row, 1, audit_line)
         cell.font = _AUDIT_FONT
 
 
@@ -512,7 +529,7 @@ class OriginalBudgetSheet(_SheetWriter):
         header_row = plan["summary_header_row"]
         ws.cell(row=header_row, column=1, value="BUDGET SUMMARY")
         for i, key in enumerate(extra_keys):
-            ws.cell(row=header_row, column=_DESCRIPTION_COL + 1 + i, value=key)
+            self._write_text(header_row, _DESCRIPTION_COL + 1 + i, key)
         ws.cell(row=header_row, column=amount_col, value=amount_header)
         ws.cell(row=header_row, column=estimate_col, value=estimate_header)
         self._bold_row(header_row)
@@ -520,10 +537,12 @@ class OriginalBudgetSheet(_SheetWriter):
         for category_id in ordered_category_ids:
             row = plan["summary_rows"][category_id]
             detail_subtotal_row = plan["detail_subtotal_rows"][category_id]
-            ws.cell(row=row, column=1, value=category_names[category_id])
-            self._set_cell(row, amount_col, f"={amount_letter}{detail_subtotal_row}", local_fmt)
+            self._write_text(row, 1, category_names[category_id])
+            self._write_formula(
+                row, amount_col, f"={amount_letter}{detail_subtotal_row}", local_fmt
+            )
             if has_rate:
-                self._set_cell(
+                self._write_formula(
                     row, estimate_col, f"={estimate_letter}{detail_subtotal_row}", estimate_fmt
                 )
         if ordered_category_ids:
@@ -537,10 +556,12 @@ class OriginalBudgetSheet(_SheetWriter):
             first_row = plan["summary_rows"][ordered_category_ids[0]]
             last_row = plan["summary_rows"][ordered_category_ids[-1]]
             amount_range = f"{amount_letter}{first_row}:{amount_letter}{last_row}"
-            self._set_cell(total_row, amount_col, f"=SUM({amount_range})", local_fmt)
+            self._write_formula(total_row, amount_col, f"=SUM({amount_range})", local_fmt)
             if has_rate:
                 estimate_range = f"{estimate_letter}{first_row}:{estimate_letter}{last_row}"
-                self._set_cell(total_row, estimate_col, f"=SUM({estimate_range})", estimate_fmt)
+                self._write_formula(
+                    total_row, estimate_col, f"=SUM({estimate_range})", estimate_fmt
+                )
         else:
             self._set_cell(total_row, amount_col, 0.0, local_fmt)
         self._bold_row(total_row)
@@ -567,18 +588,18 @@ class OriginalBudgetSheet(_SheetWriter):
 
         for category_id in ordered_category_ids:
             header_row = plan["detail_header_rows"][category_id]
-            ws.cell(row=header_row, column=1, value=category_names[category_id])
+            self._write_text(header_row, 1, category_names[category_id])
             self._bold_row(header_row)
 
             line_rows = plan["detail_line_rows"][category_id]
             for line, row in zip(category_lines[category_id], line_rows):
-                ws.cell(row=row, column=1, value=line.description)
+                self._write_text(row, 1, line.description)
                 for i, key in enumerate(extra_keys):
                     value = (line.extra_fields or {}).get(key)
-                    ws.cell(row=row, column=_DESCRIPTION_COL + 1 + i, value=value)
-                self._set_cell(row, amount_col, line.amount or 0.0, local_fmt)
+                    self._write_text(row, _DESCRIPTION_COL + 1 + i, value)
+                self._set_cell(row, amount_col, line.amount or Decimal(0), local_fmt)
                 if has_rate:
-                    self._set_cell(
+                    self._write_formula(
                         row, estimate_col, f"={amount_letter}{row}/{rate_cell}", estimate_fmt
                     )
             if line_rows:
@@ -588,19 +609,19 @@ class OriginalBudgetSheet(_SheetWriter):
             ws.cell(row=subtotal_row, column=1, value="Subtotal")
             if line_rows:
                 amount_range = f"{amount_letter}{line_rows[0]}:{amount_letter}{line_rows[-1]}"
-                self._set_cell(subtotal_row, amount_col, f"=SUM({amount_range})", local_fmt)
+                self._write_formula(subtotal_row, amount_col, f"=SUM({amount_range})", local_fmt)
                 if has_rate:
                     estimate_range = (
                         f"{estimate_letter}{line_rows[0]}:{estimate_letter}{line_rows[-1]}"
                     )
-                    self._set_cell(
+                    self._write_formula(
                         subtotal_row, estimate_col, f"=SUM({estimate_range})", estimate_fmt
                     )
             else:
                 self._set_cell(subtotal_row, amount_col, 0.0, local_fmt)
                 if has_rate:
                     formula = f"={amount_letter}{subtotal_row}/{rate_cell}"
-                    self._set_cell(subtotal_row, estimate_col, formula, estimate_fmt)
+                    self._write_formula(subtotal_row, estimate_col, formula, estimate_fmt)
             self._bold_row(subtotal_row)
 
     def _write_footer(
@@ -621,10 +642,10 @@ class OriginalBudgetSheet(_SheetWriter):
         if ordered_category_ids:
             subtotal_rows = [plan["detail_subtotal_rows"][cid] for cid in ordered_category_ids]
             c_formula = "=" + "+".join(f"{amount_letter}{r}" for r in subtotal_rows)
-            self._set_cell(total_row, amount_col, c_formula, local_fmt)
+            self._write_formula(total_row, amount_col, c_formula, local_fmt)
             if has_rate:
                 d_formula = "=" + "+".join(f"{estimate_letter}{r}" for r in subtotal_rows)
-                self._set_cell(total_row, estimate_col, d_formula, estimate_fmt)
+                self._write_formula(total_row, estimate_col, d_formula, estimate_fmt)
         else:
             self._set_cell(total_row, amount_col, 0.0, local_fmt)
         for cell in ws[total_row]:
@@ -677,14 +698,14 @@ class DashboardSheet(_SheetWriter):
         estimated_exchange_rate = self.budget.estimated_exchange_rate
 
         approved_total = (
-            sum(line.amount or 0.0 for line in self.lines) / estimated_exchange_rate
+            sum(line.amount or Decimal(0) for line in self.lines) / estimated_exchange_rate
             if estimated_exchange_rate
             else None
         )
-        received_total = sum(receipt.amount for receipt in self.receipts)
-        converted_total = sum(conversion.donor_amount for conversion in self.conversions)
-        local_converted_total = sum(conversion.local_amount for conversion in self.conversions)
-        local_expenses_total = sum(row.amount for row in self.expense_rows)
+        received_total = sum((receipt.amount for receipt in self.receipts), Decimal(0))
+        converted_total = sum((c.donor_amount for c in self.conversions), Decimal(0))
+        local_converted_total = sum((c.local_amount for c in self.conversions), Decimal(0))
+        local_expenses_total = sum((row.amount for row in self.expense_rows), Decimal(0))
 
         self._write_approved_block(plan, approved_total)
         self._write_balance_block(
@@ -797,7 +818,7 @@ class DashboardSheet(_SheetWriter):
             "audit_row": audit_row,
         }
 
-    def _write_approved_block(self, plan: dict, approved_total: float | None) -> None:
+    def _write_approved_block(self, plan: dict, approved_total: Decimal | None) -> None:
         ws = self.ws
         donor_fmt = self._currency_format(self.budget.actual_currency)
 
@@ -815,10 +836,10 @@ class DashboardSheet(_SheetWriter):
     def _write_balance_block(
         self,
         plan: dict,
-        approved_total: float | None,
-        received_total: float,
-        converted_total: float,
-        local_balance: float,
+        approved_total: Decimal | None,
+        received_total: Decimal,
+        converted_total: Decimal,
+        local_balance: Decimal,
     ) -> None:
         ws = self.ws
         donor_fmt = self._currency_format(self.budget.actual_currency)
@@ -828,7 +849,7 @@ class DashboardSheet(_SheetWriter):
         ws.cell(row=received_row, column=1, value="Received Total")
         self._set_cell(received_row, 2, received_total, donor_fmt)
         if approved_total:
-            self._set_cell(
+            self._write_formula(
                 received_row, 3, f"=B{received_row}/B{plan['approved_total_row']}", _PERCENT_FORMAT
             )
 
@@ -836,16 +857,18 @@ class DashboardSheet(_SheetWriter):
         ws.cell(row=converted_row, column=1, value="Converted Total")
         self._set_cell(converted_row, 2, converted_total, donor_fmt)
         if received_total:
-            self._set_cell(converted_row, 3, f"=B{converted_row}/B{received_row}", _PERCENT_FORMAT)
+            self._write_formula(
+                converted_row, 3, f"=B{converted_row}/B{received_row}", _PERCENT_FORMAT
+            )
 
         header_row = plan["balance_header_row"]
         ws.cell(row=header_row, column=1, value="Current Balance")
-        ws.cell(row=header_row, column=2, value=self.budget.actual_currency or "Donor")
-        ws.cell(row=header_row, column=3, value=self.budget.local_currency or "Local")
+        self._write_text(header_row, 2, self.budget.actual_currency or "Donor")
+        self._write_text(header_row, 3, self.budget.local_currency or "Local")
         self._bold_row(header_row)
 
         value_row = plan["balance_value_row"]
-        self._set_cell(value_row, 2, f"=B{received_row}-B{converted_row}", donor_fmt)
+        self._write_formula(value_row, 2, f"=B{received_row}-B{converted_row}", donor_fmt)
         self._set_cell(value_row, 3, local_balance, local_fmt)
 
     def _write_ledger(
@@ -885,14 +908,14 @@ class DashboardSheet(_SheetWriter):
                 self._set_cell(row, 3, obj.donor_amount, donor_fmt)
                 self._set_cell(row, 4, obj.local_amount, local_fmt)
                 if obj.donor_amount:
-                    self._set_cell(row, 5, f"=D{row}/C{row}", _RATE_FORMAT)
+                    self._write_formula(row, 5, f"=D{row}/C{row}", _RATE_FORMAT)
 
         total_row = plan["ledger_total_row"]
         ws.cell(row=total_row, column=1, value="TOTAL")
         if events:
             first_row, last_row = plan["ledger_data_start_row"], row
-            self._set_cell(total_row, 3, f"=SUM(C{first_row}:C{last_row})", donor_fmt)
-            self._set_cell(total_row, 4, f"=SUM(D{first_row}:D{last_row})", local_fmt)
+            self._write_formula(total_row, 3, f"=SUM(C{first_row}:C{last_row})", donor_fmt)
+            self._write_formula(total_row, 4, f"=SUM(D{first_row}:D{last_row})", local_fmt)
         else:
             self._set_cell(total_row, 3, 0.0, donor_fmt)
             self._set_cell(total_row, 4, 0.0, local_fmt)
@@ -928,12 +951,12 @@ class DashboardSheet(_SheetWriter):
         for category_id in ordered_category_ids:
             row = plan["report_summary_rows"][category_id]
             subtotal_row = plan["detail_subtotal_rows"][category_id]
-            ws.cell(row=row, column=1, value=category_names[category_id])
-            self._set_cell(row, 2, f"=B{subtotal_row}", donor_fmt)
-            self._set_cell(row, 3, f"=C{subtotal_row}", local_fmt)
-            self._set_cell(row, 4, f"=D{subtotal_row}", local_fmt)
-            self._set_cell(row, 5, f"=E{subtotal_row}", donor_fmt)
-            self._set_cell(row, 6, f"=F{subtotal_row}", donor_fmt)
+            self._write_text(row, 1, category_names[category_id])
+            self._write_formula(row, 2, f"=B{subtotal_row}", donor_fmt)
+            self._write_formula(row, 3, f"=C{subtotal_row}", local_fmt)
+            self._write_formula(row, 4, f"=D{subtotal_row}", local_fmt)
+            self._write_formula(row, 5, f"=E{subtotal_row}", donor_fmt)
+            self._write_formula(row, 6, f"=F{subtotal_row}", donor_fmt)
         if ordered_category_ids:
             first_summary_row = plan["report_summary_rows"][ordered_category_ids[0]]
             last_summary_row = plan["report_summary_rows"][ordered_category_ids[-1]]
@@ -953,7 +976,7 @@ class DashboardSheet(_SheetWriter):
             last_row = plan["report_summary_rows"][ordered_category_ids[-1]]
             for column, fmt in column_formats:
                 letter = get_column_letter(column)
-                self._set_cell(
+                self._write_formula(
                     total_row, column, f"=SUM({letter}{first_row}:{letter}{last_row})", fmt
                 )
         else:
@@ -980,16 +1003,16 @@ class DashboardSheet(_SheetWriter):
 
         for category_id in ordered_category_ids:
             header_row = plan["detail_category_header_rows"][category_id]
-            ws.cell(row=header_row, column=1, value=category_names[category_id])
+            self._write_text(header_row, 1, category_names[category_id])
             self._bold_row(header_row)
 
             line_rows = plan["detail_line_rows"][category_id]
             for line, row in zip(category_lines[category_id], line_rows):
-                planned = line.amount or 0.0
-                ws.cell(row=row, column=1, value=line.description)
+                planned = line.amount or Decimal(0)
+                self._write_text(row, 1, line.description)
                 self._set_cell(row, 3, planned, local_fmt)
                 ws.cell(row=row, column=8, value=str(line.id))
-                self._set_cell(
+                self._write_formula(
                     row,
                     4,
                     f"=SUMIF('{SHEET3_TITLE}'!$I:$I,$H{row},'{SHEET3_TITLE}'!$E:$E)",
@@ -997,7 +1020,7 @@ class DashboardSheet(_SheetWriter):
                 )
                 if has_rate and estimated_exchange_rate:
                     self._set_cell(row, 2, planned / estimated_exchange_rate, donor_fmt)
-                    cell = self._set_cell(
+                    cell = self._write_formula(
                         row,
                         5,
                         f"=SUMIF('{SHEET3_TITLE}'!$I:$I,$H{row},'{SHEET3_TITLE}'!$F:$F)",
@@ -1008,7 +1031,7 @@ class DashboardSheet(_SheetWriter):
                         cell.fill = _ESTIMATE_CELL_FILL
                         ws.cell(row=row, column=7, value="*").font = _ROW_FLAG_FONT
                         has_estimated_cells = True
-                    self._set_cell(row, 6, f"=B{row}-E{row}", donor_fmt)
+                    self._write_formula(row, 6, f"=B{row}-E{row}", donor_fmt)
             if line_rows:
                 self._apply_box_border(line_rows[0], line_rows[-1], 6)
 
@@ -1016,19 +1039,27 @@ class DashboardSheet(_SheetWriter):
             ws.cell(row=subtotal_row, column=1, value="Subtotal")
             if line_rows:
                 first_row, last_row = line_rows[0], line_rows[-1]
-                self._set_cell(subtotal_row, 3, f"=SUM(C{first_row}:C{last_row})", local_fmt)
-                self._set_cell(subtotal_row, 4, f"=SUM(D{first_row}:D{last_row})", local_fmt)
+                self._write_formula(subtotal_row, 3, f"=SUM(C{first_row}:C{last_row})", local_fmt)
+                self._write_formula(subtotal_row, 4, f"=SUM(D{first_row}:D{last_row})", local_fmt)
                 if has_rate:
-                    self._set_cell(subtotal_row, 2, f"=SUM(B{first_row}:B{last_row})", donor_fmt)
-                    self._set_cell(subtotal_row, 5, f"=SUM(E{first_row}:E{last_row})", donor_fmt)
-                    self._set_cell(subtotal_row, 6, f"=SUM(F{first_row}:F{last_row})", donor_fmt)
+                    self._write_formula(
+                        subtotal_row, 2, f"=SUM(B{first_row}:B{last_row})", donor_fmt
+                    )
+                    self._write_formula(
+                        subtotal_row, 5, f"=SUM(E{first_row}:E{last_row})", donor_fmt
+                    )
+                    self._write_formula(
+                        subtotal_row, 6, f"=SUM(F{first_row}:F{last_row})", donor_fmt
+                    )
             else:
                 self._set_cell(subtotal_row, 3, 0.0, local_fmt)
                 self._set_cell(subtotal_row, 4, 0.0, local_fmt)
                 if has_rate:
                     self._set_cell(subtotal_row, 2, 0.0, donor_fmt)
                     self._set_cell(subtotal_row, 5, 0.0, donor_fmt)
-                    self._set_cell(subtotal_row, 6, f"=B{subtotal_row}-E{subtotal_row}", donor_fmt)
+                    self._write_formula(
+                        subtotal_row, 6, f"=B{subtotal_row}-E{subtotal_row}", donor_fmt
+                    )
             self._bold_row(subtotal_row)
             self._apply_box_border(subtotal_row, subtotal_row, 6)
 
@@ -1039,7 +1070,7 @@ class DashboardSheet(_SheetWriter):
         donor_fmt = self._currency_format(self.budget.actual_currency)
 
         ws.cell(row=plan["refund_row"], column=1, value="Refund to donor:")
-        refund_cell = self._set_cell(
+        refund_cell = self._write_formula(
             plan["refund_row"],
             2,
             f"=B{plan['received_total_row']}-E{plan['report_summary_total_row']}",
@@ -1166,13 +1197,13 @@ class ExpenseListSheet(_SheetWriter):
         for expense_row in rows:
             row += 1
             ws.cell(row=row, column=1, value=expense_row.expense_date).number_format = _DATE_FORMAT
-            ws.cell(row=row, column=2, value=expense_row.category_name)
-            ws.cell(row=row, column=3, value=expense_row.budget_line_description)
-            ws.cell(row=row, column=4, value=expense_row.description)
+            self._write_text(row, 2, expense_row.category_name)
+            self._write_text(row, 3, expense_row.budget_line_description)
+            self._write_text(row, 4, expense_row.description)
             self._set_cell(row, 5, expense_row.amount, local_fmt)
             if expense_row.rate is not None:
                 self._set_cell(row, 7, expense_row.rate, _RATE_FORMAT)
-                self._set_cell(row, 6, f"=E{row}/G{row}", donor_fmt)
+                self._write_formula(row, 6, f"=E{row}/G{row}", donor_fmt)
             if expense_row.conversion_date is not None:
                 ws.cell(row=row, column=8, value=expense_row.conversion_date).number_format = (
                     _DATE_FORMAT
@@ -1192,13 +1223,13 @@ class ExpenseListSheet(_SheetWriter):
         ws.cell(row=total_row, column=1, value="Total")
         if rows:
             first_row, last_row = plan["data_start_row"], plan["last_row"]
-            self._set_cell(total_row, 5, f"=SUM(E{first_row}:E{last_row})", local_fmt)
+            self._write_formula(total_row, 5, f"=SUM(E{first_row}:E{last_row})", local_fmt)
             if any(expense_row.rate is not None for expense_row in rows):
-                self._set_cell(total_row, 6, f"=SUM(F{first_row}:F{last_row})", donor_fmt)
+                self._write_formula(total_row, 6, f"=SUM(F{first_row}:F{last_row})", donor_fmt)
                 # A blended rate is only meaningful when every row has one; otherwise
                 # it'd divide all-local (E) by only-rated (F), fabricating a rate.
                 if all(expense_row.rate is not None for expense_row in rows):
-                    self._set_cell(total_row, 7, f"=E{total_row}/F{total_row}", _RATE_FORMAT)
+                    self._write_formula(total_row, 7, f"=E{total_row}/F{total_row}", _RATE_FORMAT)
         else:
             self._set_cell(total_row, 5, 0.0, local_fmt)
         self._bold_row(total_row)

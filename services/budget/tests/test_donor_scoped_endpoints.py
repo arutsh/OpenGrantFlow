@@ -8,6 +8,7 @@ itself, including that a budget funded by a different donor is excluded.
 """
 
 import uuid
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -199,6 +200,7 @@ class TestFundedBudgetsCrud:
             "total_budgets": 2,
             "total_allocated_by_currency": [{"currency": "GBP", "total_allocated": 1500.0}],
         }
+        assert isinstance(summary["total_allocated_by_currency"][0]["total_allocated"], Decimal)
 
     async def test_summary_zero_for_donor_with_no_funded_budgets(self, sqlite_session):
         from app.crud.budget_crud import get_funded_budgets_summary

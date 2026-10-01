@@ -27,6 +27,10 @@ Upload your existing `.xlsx` budget file directly. The platform recognises previ
 
 > **Note:** Excel extraction uses your organisation's own AI key if you've configured one (see [Settings → AI Integrations](./README.md#24-ai-integrations-bring-your-own-key)), and otherwise falls back to a platform-funded model automatically — you're never blocked from importing just because AI isn't set up yet.
 
+### Grouped vs. List view
+
+Above the Budget Lines table, toggle between **Grouped** (lines rolled up under their category, with an inline rename control next to each category name) and **List** (a flat view of every line — rename isn't available here, since a category can span more than one place in the list). On mobile, lines are always shown grouped by category regardless of this toggle.
+
 ## 3. Budget statuses
 
 | Status | Meaning |
@@ -73,6 +77,16 @@ When a report is complete, submit it. This moves it from Draft to Submitted and 
 ## 6. Reports directory
 
 The **"Reports"** item in the sidebar gives you a single cross-budget view of every report you own — with its budget, donor, period, and status — filterable by status, budget, and donor, so you don't have to open each budget individually to check where things stand.
+
+## 7. Exporting to Excel
+
+From a budget's detail view, click the export icon to download it as a formatted `.xlsx` workbook. It's available to whoever can already view the budget — its owner and its funder — and reflects the budget's data at the moment you download it (it isn't a live-synced file, so re-export to get a later snapshot).
+
+The workbook has three sheets:
+
+- **Original Budget** — the budget as planned, by category and line, with totals as live formulas rather than fixed numbers — open it in Excel or LibreOffice and edit the exchange-rate cell to see every total recalculate.
+- **Budget vs. Report Dashboard** — a donor-currency view of what's been received, converted, and spent against what was approved, plus the current balance. Any figure that blends a real bank-conversion rate with your estimated rate (because not every expense has been converted yet) is flagged with an asterisk and a footnote, never blended in silently.
+- **List of Expenses** — every reported expense, one row per report line (or one row per currency-conversion lot it drew from, when it drew from more than one) — the same lot-by-lot trace described in [§4](#4-understanding-the-currencies-on-a-budget), laid out for offline reference.
 
 ---
 

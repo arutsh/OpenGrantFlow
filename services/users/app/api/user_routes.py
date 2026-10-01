@@ -2,10 +2,9 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import uuid4, UUID
-from app.schemas.user_schema import User, UserCreate, UserUpdate
+from uuid import UUID
+from app.schemas.user_schema import User, UserSelfUpdate
 from app.schemas.consent_schema import ConsentState, ConsentUpdateRequest, EmailChangeRequest
 from app.schemas.admin_management_schema import (
     AcceptInviteRequest,
@@ -15,11 +14,9 @@ from app.schemas.admin_management_schema import (
     RoleUpdateRequest,
 )
 from app.models.user import UserModel
-from app.models.customer import CustomerModel
 from app.db.session import get_db
 from app.crud.user_crud import (
     build_users_select,
-    is_superuser,
     update_user,
     get_user,
     get_consent_state,
@@ -28,7 +25,6 @@ from app.crud.user_crud import (
     set_pending_email_verification_token,
     get_user_by_verification_token,
     accept_invite,
-    _publish_user_event,
 )
 from app.crud.customer_crud import create_customer, get_customer
 from app.crud.sessions_curd import revoke_all_sessions_for_user
@@ -40,9 +36,12 @@ from app.services.admin_management_services import (
 from app.services.budget_client import get_financial_record_refs
 from app.services.celery_client import enqueue_verification_email, enqueue_invite_email
 from shared.security.dependencies import get_validated_user
+from shared.security.internal_service import (
+    get_validated_user_or_internal_service,
+    require_internal_service,
+)
 from shared.security.jwt_utils import REFRESH_TOKEN_EXPIRE_DAYS
 from shared.security.session_revocation import mark_session_revoked
-from app.utils.dict_tools import filter_dict_keys
 from app.core.logging import get_logger
 from app.core.config import settings
 
@@ -51,27 +50,30 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.post("/users/", response_model=User)
-async def create_user_endpoint(user: UserCreate, db: AsyncSession = Depends(get_db)):
-    if user.customer_id:
-        result = await db.execute(select(CustomerModel).where(CustomerModel.id == user.customer_id))
-        if result.scalar_one_or_none() is None:
-            raise HTTPException(status_code=400, detail="Invalid customer_id")
-
-    db_user = UserModel(id=str(uuid4()), **user.model_dump())
-    db.add(db_user)
-    await db.commit()
-
-    await _publish_user_event("user.created", db_user)
-
-    return db_user
-
-
 @router.get("/users/{user_id}", response_model=User)
-async def get_user_endpoint(user_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(UserModel).where(UserModel.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
+async def get_user_endpoint(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    valid_user: dict | None = Depends(get_validated_user_or_internal_service),
+):
+    user = await get_user(db, user_id)
+
+    if valid_user is None:
+        # Internal service credential: the calling service already vetted access.
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+
+    is_self = str(valid_user.get("user_id")) == str(user_id)
+    is_same_company_admin = (
+        valid_user.get("role") == "admin"
+        and valid_user.get("customer_id") is not None
+        and user is not None
+        and str(valid_user["customer_id"]) == str(user.customer_id)
+    )
+    # 404, not 403, for both "no such user" and "wrong company" — otherwise the
+    # response itself would confirm a user id exists in another company.
+    if not user or not (is_self or is_same_company_admin):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
@@ -101,15 +103,19 @@ async def list_users_endpoint(
     raise HTTPException(status_code=403, detail="Not authorized to list users")
 
 
-@router.post("/users/by_ids/", response_model=list[User])
+@router.post(
+    "/users/by_ids/",
+    response_model=list[User],
+    dependencies=[Depends(require_internal_service)],
+)
 async def get_users_by_ids_endpoint(
     user_ids: list[UUID],
     db: AsyncSession = Depends(get_db),
 ):
-    # NOTE: this end point is for internal service use only,
-    # hence no need to check current_user permissions
-    # calling service should ensure proper authorization
-
+    # Internal service use only: the gateway blocks this route from the public
+    # internet, and the calling service is responsible for id-level authorization.
+    if not user_ids:
+        return []
     result = await db.execute(build_users_select(user_ids))
     return list(result.scalars().all())
 
@@ -117,55 +123,33 @@ async def get_users_by_ids_endpoint(
 @router.patch("/users/{user_id}/", response_model=User)
 async def update_user_endpoint(
     user_id: UUID,
-    user_update: UserUpdate,
+    user_update: UserSelfUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_validated_user),
 ):
-    is_current_user_superuser = await is_superuser(db, current_user["user_id"])
-
-    if str(current_user["user_id"]) != str(user_id) and not is_current_user_superuser:
+    # Self-only, even for superusers: cross-user edits belong to audited superuser endpoints.
+    if str(current_user["user_id"]) != str(user_id):
         raise HTTPException(status_code=403, detail="Not authorized to update this user")
 
     db_user = await get_user(db, user_id)
-    current_user = await get_user(db, current_user["user_id"])
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    allowed_fields = set()
-    if is_current_user_superuser:
-        allowed_fields = {"first_name", "last_name", "email", "status", "customer_id", "role"}
-    else:
-        # Password changes go through POST /auth/change-password (requires
-        # the current password + strength validation) — not this generic
-        # PATCH, which has no way to verify the caller actually knows the
-        # existing password.
-        allowed_fields = {"first_name", "last_name", "status"}
-
-    update_data = user_update.model_dump(exclude_unset=True)
+    # exclude_unset: an omitted field must never overwrite (e.g. wipe customer_id).
+    update_data = user_update.model_dump(exclude_unset=True, exclude={"new_customer_name"})
     customer = None
-    promote_founder_to_admin = False
     if (
-        not is_current_user_superuser
-        and user_update.new_customer_name
+        user_update.new_customer_name
         and db_user.status == "pending"
+        and db_user.customer_id is None
     ):
         customer = await create_customer(db, user_update.new_customer_name)
-        update_data["status"] = "active"
-        promote_founder_to_admin = True
+        update_data.update(status="active", role="admin", customer_id=customer.id)
 
-    elif user_update.customer_id:
-        customer = await get_customer(session=db, customer_id=user_update.customer_id)
-        if not customer:
-            raise HTTPException(status_code=400, detail="Invalid customer_id")
-
-    filtered_update_data = filter_dict_keys(update_data, allowed_fields)
-    filtered_update_data["customer_id"] = customer.id if customer else None
-    if promote_founder_to_admin:
-        filtered_update_data["role"] = "admin"
-    await update_user(db, db_user, filtered_update_data)
-    # expire_on_commit=False (required for async) means db_user.customer stays
-    # whatever was loaded before the commit above; sync it explicitly.
-    db_user.customer = customer
+    await update_user(db, db_user, update_data)
+    if customer is not None:
+        # expire_on_commit=False keeps the pre-commit relationship; sync it explicitly.
+        db_user.customer = customer
 
     return db_user
 

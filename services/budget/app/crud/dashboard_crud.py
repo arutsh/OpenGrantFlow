@@ -1,3 +1,4 @@
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -30,7 +31,7 @@ async def count_budgets_by_status(
 
 async def sum_committed_by_currency(
     session: AsyncSession, customer_id: UUID
-) -> list[tuple[str, float]]:
+) -> list[tuple[str, Decimal]]:
     """Per design.md Decision 8: committed is built lines (total_amount)
     converted back to the donor's currency via the grantee's own estimated
     rate — never the flat donor_total_amount promise, which can overstate
@@ -41,7 +42,7 @@ async def sum_committed_by_currency(
         select(
             BudgetModel.actual_currency,
             func.sum(
-                func.coalesce(BudgetModel.total_amount, 0.0) / BudgetModel.estimated_exchange_rate
+                func.coalesce(BudgetModel.total_amount, 0) / BudgetModel.estimated_exchange_rate
             ),
         )
         .where(
@@ -53,16 +54,16 @@ async def sum_committed_by_currency(
         .group_by(BudgetModel.actual_currency)
     )
     rows = result.all()
-    return [(currency, amount or 0.0) for currency, amount in rows]
+    return [(currency, amount or Decimal(0)) for currency, amount in rows]
 
 
 async def sum_received_by_currency(
     session: AsyncSession, customer_id: UUID
-) -> list[tuple[str, float]]:
+) -> list[tuple[str, Decimal]]:
     result = await session.execute(
         select(
             BudgetModel.actual_currency,
-            func.coalesce(func.sum(FundingReceiptModel.amount), 0.0),
+            func.coalesce(func.sum(FundingReceiptModel.amount), 0),
         )
         .join(FundingReceiptModel, FundingReceiptModel.budget_id == BudgetModel.id)
         .where(*_owned_confirmed_clause(customer_id), BudgetModel.actual_currency.isnot(None))
@@ -74,14 +75,14 @@ async def sum_received_by_currency(
 
 async def sum_converted_by_currency(
     session: AsyncSession, customer_id: UUID
-) -> list[tuple[str, float]]:
+) -> list[tuple[str, Decimal]]:
     """Donor-currency side of each conversion (CurrencyConversion.donor_amount),
     grouped the same way as received-by-currency, so the two are directly
     comparable as a conversion-progress percentage."""
     result = await session.execute(
         select(
             BudgetModel.actual_currency,
-            func.coalesce(func.sum(CurrencyConversionModel.donor_amount), 0.0),
+            func.coalesce(func.sum(CurrencyConversionModel.donor_amount), 0),
         )
         .join(CurrencyConversionModel, CurrencyConversionModel.budget_id == BudgetModel.id)
         .where(*_owned_confirmed_clause(customer_id), BudgetModel.actual_currency.isnot(None))
@@ -93,7 +94,7 @@ async def sum_converted_by_currency(
 
 async def budget_breakdown(
     session: AsyncSession, customer_id: UUID
-) -> list[tuple[BudgetModel, float, float]]:
+) -> list[tuple[BudgetModel, Decimal, Decimal]]:
     """One row per confirmed budget this customer owns: (budget, converted,
     spent), both in local_currency. Reuses the same building blocks
     get_ledger_balance_service composes (CurrencyConversion.local_amount and
@@ -125,12 +126,14 @@ async def budget_breakdown(
     result = await session.execute(
         select(
             BudgetModel,
-            func.coalesce(converted_sq.c.converted, 0.0),
-            func.coalesce(spent_sq.c.spent, 0.0),
+            func.coalesce(converted_sq.c.converted, 0),
+            func.coalesce(spent_sq.c.spent, 0),
         )
         .outerjoin(converted_sq, converted_sq.c.budget_id == BudgetModel.id)
         .outerjoin(spent_sq, spent_sq.c.budget_id == BudgetModel.id)
         .where(*_owned_confirmed_clause(customer_id))
     )
     rows = result.all()
-    return [(budget, converted or 0.0, spent or 0.0) for budget, converted, spent in rows]
+    return [
+        (budget, converted or Decimal(0), spent or Decimal(0)) for budget, converted, spent in rows
+    ]

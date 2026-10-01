@@ -8,6 +8,7 @@ so this file overrides conftest's module-level `db` fixture with a wider one.
 """
 
 from datetime import date
+from decimal import Decimal
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -177,6 +178,7 @@ class TestCommittedByCurrency:
         figure = result.committed_by_currency[0]
         assert figure.currency == "EUR"
         assert figure.total_allocated == pytest.approx(7500.0)  # 6000 / 0.8
+        assert isinstance(figure.total_allocated, Decimal)
 
     async def test_excludes_budgets_missing_a_usable_rate(self, db):
         await _make_budget(
@@ -247,6 +249,8 @@ class TestReceivedAndConversionProgress:
         assert progress.received == 10000.0
         assert progress.converted == 4000.0
         assert progress.percent == pytest.approx(40.0)
+        assert isinstance(progress.received, Decimal)
+        assert isinstance(progress.converted, Decimal)
 
     async def test_conversion_progress_zero_percent_when_nothing_received(self, db):
         budget = await _make_budget(db, actual_currency="EUR")
@@ -286,6 +290,7 @@ class TestBudgetBreakdown:
         assert row.converted == 800.0
         assert row.spent == 300.0
         assert row.remaining == 500.0
+        assert isinstance(row.remaining, Decimal)
 
     async def test_confirmed_budget_with_no_conversions_or_spend_shows_zeroes(self, db):
         budget = await _make_budget(db)

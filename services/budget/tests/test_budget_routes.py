@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -44,16 +45,44 @@ def test_create_budget_endpoint():
 def test_get_budget_endpoint_found():
     budget_id = str(uuid.uuid4())
 
-    with patch(
-        "app.api.budget_routes.get_viewable_budget_service",
-        AsyncMock(return_value={"id": budget_id, "name": "Test Budget"}),
-    ), patch("app.api.budget_routes.get_viewable_budget_lines_service", return_value=[]):
+    with (
+        patch(
+            "app.api.budget_routes.get_viewable_budget_service",
+            AsyncMock(return_value={"id": budget_id, "name": "Test Budget"}),
+        ),
+        patch("app.api.budget_routes.get_viewable_budget_lines_service", return_value=[]),
+    ):
         response = client.get(f"/api/v1/budgets/{budget_id}")
 
     assert response.status_code == 200
     body = response.json()
     assert body["name"] == "Test Budget"
     assert body["lines"] == []
+
+
+def test_get_budget_endpoint_money_fields_are_json_numbers():
+    budget_id = str(uuid.uuid4())
+    budget = {
+        "id": budget_id,
+        "name": "Test Budget",
+        "total_amount": Decimal("1500.5"),
+        "donor_total_amount": Decimal("2000"),
+        "estimated_exchange_rate": Decimal("0.0073125"),
+    }
+
+    with (
+        patch(
+            "app.api.budget_routes.get_viewable_budget_service",
+            AsyncMock(return_value=budget),
+        ),
+        patch("app.api.budget_routes.get_viewable_budget_lines_service", return_value=[]),
+    ):
+        response = client.get(f"/api/v1/budgets/{budget_id}")
+
+    assert response.status_code == 200
+    assert '"total_amount":1500.5' in response.text
+    assert '"estimated_exchange_rate":0.0073125' in response.text
+    assert response.json()["donor_total_amount"] == 2000
 
 
 def test_get_budget_endpoint_sets_budget_id_span_attribute():

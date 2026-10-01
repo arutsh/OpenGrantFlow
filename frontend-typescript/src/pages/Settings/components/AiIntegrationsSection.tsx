@@ -7,6 +7,7 @@ import {
   setDefaultAiKey,
   deleteAiKey,
   setPlatformFallback,
+  ApprovedEndpoint,
   ProviderKeyConfig,
 } from "@/api/aiSettingsApi";
 import { useAuth } from "@/context/AuthContext";
@@ -69,10 +70,12 @@ function AddKeyModal({
   isOpen,
   onClose,
   isFirstKey,
+  approvedEndpoints,
 }: {
   isOpen: boolean;
   onClose: () => void;
   isFirstKey: boolean;
+  approvedEndpoints: ApprovedEndpoint[];
 }) {
   const queryClient = useQueryClient();
   const [provider, setProvider] = useState(PROVIDERS[0].name);
@@ -80,12 +83,15 @@ function AddKeyModal({
   const [label, setLabel] = useState("");
   const [keyInput, setKeyInput] = useState("");
   const [showKey, setShowKey] = useState(false);
-  const [urlInput, setUrlInput] = useState("http://localhost:11434");
+  const [selectedOrigin, setSelectedOrigin] = useState(approvedEndpoints[0]?.origin ?? "");
   const [makeDefault, setMakeDefault] = useState(isFirstKey);
 
   useEffect(() => {
-    if (isOpen) setMakeDefault(isFirstKey);
-  }, [isOpen, isFirstKey]);
+    if (isOpen) {
+      setMakeDefault(isFirstKey);
+      setSelectedOrigin(approvedEndpoints[0]?.origin ?? "");
+    }
+  }, [isOpen, isFirstKey, approvedEndpoints]);
 
   const providerMeta = providerMetaFor(provider);
   const availableModels = MODELS_BY_PROVIDER[provider] ?? [];
@@ -102,20 +108,22 @@ function AddKeyModal({
         label: label.trim() || null,
         key: providerMeta.requires_key ? keyInput : null,
         model,
-        base_url: providerMeta.requires_key ? null : urlInput || null,
+        base_url: providerMeta.requires_key ? null : selectedOrigin || null,
         is_default: makeDefault,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-settings"] });
       setLabel("");
       setKeyInput("");
-      setUrlInput("http://localhost:11434");
+      setSelectedOrigin(approvedEndpoints[0]?.origin ?? "");
       setMakeDefault(false);
       onClose();
     },
   });
 
-  const canSave = providerMeta.requires_key ? keyInput.trim().length > 0 : true;
+  const canSave = providerMeta.requires_key
+    ? keyInput.trim().length > 0
+    : selectedOrigin.length > 0;
   const help = PROVIDER_HELP[provider];
 
   return (
@@ -196,14 +204,24 @@ function AddKeyModal({
           </div>
         ) : (
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Base URL</label>
-            <input
-              type="text"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="http://localhost:11434"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Endpoint</label>
+            {approvedEndpoints.length > 0 ? (
+              <select
+                value={selectedOrigin}
+                onChange={(e) => setSelectedOrigin(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {approvedEndpoints.map((endpoint) => (
+                  <option key={endpoint.origin} value={endpoint.origin}>
+                    {endpoint.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-gray-500">
+                No approved endpoints are configured. Contact your operator.
+              </p>
+            )}
           </div>
         )}
 
@@ -489,6 +507,7 @@ export function AiIntegrationsSection() {
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         isFirstKey={(data?.configs.length ?? 0) === 0}
+        approvedEndpoints={data?.approved_endpoints ?? []}
       />
 
       {data && deletingConfig && (

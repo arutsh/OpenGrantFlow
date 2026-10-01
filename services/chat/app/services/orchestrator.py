@@ -66,7 +66,7 @@ async def run_turn(
     except ValidationError as exc:
         return TurnResult(reply=_clarify_message(exc))
 
-    params = validated.model_dump(exclude_none=True)
+    params = validated.model_dump(mode="json", exclude_none=True)
     if name in registry.targeted_tools:
         params[registry.resource_id_param] = context_id
 

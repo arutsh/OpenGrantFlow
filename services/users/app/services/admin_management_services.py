@@ -146,10 +146,10 @@ async def update_company_service(
 
 
 async def deactivate_company_service(session: AsyncSession, valid_user: dict, customer_id: UUID):
-    is_superuser_acting = (
-        valid_user.get("role") == "superuser" or valid_user.get("is_impersonating") is True
-    )
-    if not is_superuser_acting:
+    # Impersonation tokens are "admin of X" only; the stored superuser role never widens them.
+    if valid_user.get("is_impersonating") is True:
+        _require_same_company(valid_user, customer_id)
+    elif valid_user.get("role") != "superuser":
         raise DomainError("Superuser role required", status.HTTP_403_FORBIDDEN)
 
     customer = await get_customer(session, customer_id)

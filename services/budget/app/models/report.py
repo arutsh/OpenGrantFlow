@@ -2,10 +2,11 @@
 from __future__ import annotations
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from sqlalchemy import (
     String,
     ForeignKey,
-    Float,
+    Numeric,
     Integer,
     JSON,
     Date,
@@ -71,7 +72,7 @@ class ReportLineModel(Base, AuditMixin):
         GUID(), ForeignKey("budget_lines.id"), nullable=False
     )
     description: Mapped[str | None] = mapped_column(String, nullable=True)
-    amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     # The real-world date the expense happened — distinct from AuditMixin's
     # created_at (when the row was written). A receipt entered today for a
     # purchase 10 days ago must record the 10-days-ago date here.

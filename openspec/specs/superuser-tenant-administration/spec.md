@@ -2,7 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change admin-management-page. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Superuser manages any company's users via impersonation
 A `superuser` SHALL be able to invite, remove, and promote/demote users, and update company details, for any company by first starting an impersonation session for that company's `customer_id` (per the `customer-impersonation` capability) and then using the same `company-user-administration` endpoints an admin of that company would use. No dedicated superuser-scoped endpoints exist for these actions.
 
@@ -15,7 +17,7 @@ A `superuser` SHALL be able to invite, remove, and promote/demote users, and upd
 - **THEN** the request is rejected, per the `customer-impersonation` capability's scoping rules
 
 ### Requirement: Superuser can deactivate any company
-A `superuser` SHALL be able to deactivate (soft-delete) any company, whether acting with their own `superuser` role directly or through an active impersonation session for that company. A company's own `admin`, acting without an active impersonation session, SHALL NOT be able to deactivate their own company.
+A `superuser` SHALL be able to deactivate (soft-delete) any company when acting with their own `superuser` role directly (no impersonation session). Through an impersonation session, a superuser SHALL be able to deactivate only the company that session is scoped to. A company's own `admin`, acting without an active impersonation session, SHALL NOT be able to deactivate their own company.
 
 #### Scenario: Superuser deactivates a company directly
 - **WHEN** a superuser with no impersonation session requests deactivation of any company by `customer_id`
@@ -23,7 +25,11 @@ A `superuser` SHALL be able to deactivate (soft-delete) any company, whether act
 
 #### Scenario: Superuser deactivates a company while impersonating it
 - **WHEN** a superuser impersonating a target company requests deactivation of that same company
-- **THEN** the request succeeds, because deactivation accepts either `role == "superuser"` or `is_impersonating == true`, not `role == "admin"` alone
+- **THEN** the request succeeds
+
+#### Scenario: Impersonation session cannot deactivate a different company
+- **WHEN** a superuser impersonating company A requests deactivation of company B
+- **THEN** the request is rejected as forbidden and B remains active
 
 #### Scenario: Company's own admin cannot deactivate their own company
 - **WHEN** a user with `role: admin`, not impersonating, requests deactivation of their own company

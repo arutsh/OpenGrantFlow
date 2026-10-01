@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,17 +8,13 @@ from uuid import UUID
 from app.models.currency_ledger import CurrencyConversionModel, ReportLineConversionAllocationModel
 from app.models.report import ReportLineModel, ReportModel
 
-# Guards against float rounding noise being treated as a real remaining
-# balance (e.g. -1e-14 after several float subtractions).
-FLOAT_EPSILON = 1e-9
-
 
 async def create_currency_conversion(
     session: AsyncSession,
     user_id: UUID,
     budget_id: UUID,
-    donor_amount: float,
-    local_amount: float,
+    donor_amount: Decimal,
+    local_amount: Decimal,
     converted_at: date,
 ) -> CurrencyConversionModel:
     conversion = CurrencyConversionModel(
@@ -56,7 +53,7 @@ async def create_allocation(
     session: AsyncSession,
     report_line_id: UUID,
     conversion_id: UUID,
-    amount_allocated: float,
+    amount_allocated: Decimal,
 ) -> ReportLineConversionAllocationModel:
     allocation = ReportLineConversionAllocationModel(
         report_line_id=report_line_id,
@@ -81,7 +78,7 @@ async def delete_allocations_for_report_line(session: AsyncSession, report_line_
 
 async def list_unconsumed_lots(
     session: AsyncSession, budget_id: UUID
-) -> list[tuple[CurrencyConversionModel, float]]:
+) -> list[tuple[CurrencyConversionModel, Decimal]]:
     """This budget's currency conversions with remaining (unallocated)
     balance, oldest-converted first — the FIFO order expenses draw down
     against. One grouped-aggregate query, not one sum-query per conversion."""
@@ -94,7 +91,7 @@ async def list_unconsumed_lots(
         .subquery()
     )
     remaining = (
-        CurrencyConversionModel.local_amount - func.coalesce(allocated.c.allocated, 0.0)
+        CurrencyConversionModel.local_amount - func.coalesce(allocated.c.allocated, 0)
     ).label("remaining")
     result = await session.execute(
         select(CurrencyConversionModel, remaining)
@@ -103,10 +100,10 @@ async def list_unconsumed_lots(
         .order_by(CurrencyConversionModel.converted_at, CurrencyConversionModel.created_at)
     )
     rows = result.all()
-    return [(conversion, remaining) for conversion, remaining in rows if remaining > FLOAT_EPSILON]
+    return [(conversion, remaining) for conversion, remaining in rows if remaining > 0]
 
 
-async def sum_report_line_amounts(session: AsyncSession, budget_id: UUID) -> float:
+async def sum_report_line_amounts(session: AsyncSession, budget_id: UUID) -> Decimal:
     """Total of every report-line amount for this budget, regardless of
     allocation state — used to compute the ledger's unconsumed
     local-currency balance."""
@@ -117,12 +114,12 @@ async def sum_report_line_amounts(session: AsyncSession, budget_id: UUID) -> flo
             .where(ReportModel.budget_id == budget_id)
         )
     ).scalar()
-    return total or 0.0
+    return total or Decimal(0)
 
 
 async def list_unsatisfied_report_lines(
     session: AsyncSession, budget_id: UUID
-) -> list[tuple[ReportLineModel, float]]:
+) -> list[tuple[ReportLineModel, Decimal]]:
     """This budget's report lines whose amount isn't yet fully covered by
     existing allocations, oldest-created first — walked to retroactively
     backfill allocations when a new conversion is recorded (see design.md's
@@ -136,7 +133,7 @@ async def list_unsatisfied_report_lines(
         .group_by(ReportLineConversionAllocationModel.report_line_id)
         .subquery()
     )
-    remaining = (ReportLineModel.amount - func.coalesce(allocated.c.allocated, 0.0)).label(
+    remaining = (ReportLineModel.amount - func.coalesce(allocated.c.allocated, 0)).label(
         "remaining"
     )
     result = await session.execute(
@@ -147,4 +144,4 @@ async def list_unsatisfied_report_lines(
         .order_by(ReportLineModel.created_at, ReportLineModel.id)
     )
     rows = result.all()
-    return [(line, remaining) for line, remaining in rows if remaining > FLOAT_EPSILON]
+    return [(line, remaining) for line, remaining in rows if remaining > 0]

@@ -7,7 +7,7 @@ These tests verify the schema layer rejects invalid roles before they reach the 
 import pytest
 from pydantic import ValidationError
 
-from shared.schemas.user_schema import UserRole, UserCreate, UserStatus
+from shared.schemas.user_schema import UserBase, UserRole, UserStatus
 
 
 def _valid_payload(**overrides) -> dict:
@@ -39,23 +39,23 @@ class TestUserRoleEnum:
             UserRole("Superuser")
 
 
-class TestUserCreateRoleValidation:
+class TestUserBaseRoleValidation:
     def test_valid_user_role_accepted(self):
-        user = UserCreate(**_valid_payload(role="user"))
+        user = UserBase(**_valid_payload(role="user"))
         assert user.role == UserRole.user
 
     def test_valid_superuser_role_accepted(self):
-        user = UserCreate(**_valid_payload(role="superuser"))
+        user = UserBase(**_valid_payload(role="superuser"))
         assert user.role == UserRole.superuser
 
     def test_valid_admin_role_accepted(self):
-        user = UserCreate(**_valid_payload(role="admin"))
+        user = UserBase(**_valid_payload(role="admin"))
         assert user.role == UserRole.admin
 
     def test_invalid_role_rejected_by_schema(self):
         with pytest.raises(ValidationError):
-            UserCreate(**_valid_payload(role="manager"))
+            UserBase(**_valid_payload(role="manager"))
 
     def test_invalid_role_empty_string_rejected(self):
         with pytest.raises(ValidationError):
-            UserCreate(**_valid_payload(role=""))
+            UserBase(**_valid_payload(role=""))

@@ -108,6 +108,35 @@ class TestGetAiSettings:
         response = client.get("/api/v1/ai/settings")
         assert response.status_code == 403
 
+    def test_exposes_approved_endpoints_with_label_fallback(self):
+        with (
+            patch(_LIST_FOR_CUSTOMER, new=AsyncMock(return_value=[])),
+            patch(_GET_CUSTOMER_AI_DEFAULTS, new=AsyncMock(return_value=None)),
+            patch(
+                "app.api.settings_routes.settings.AI_PROVIDER_APPROVED_ORIGINS",
+                '[{"origin": "http://ollama:11434", "allow_private": true, "label": "Local"},'
+                ' {"origin": "http://host.docker.internal:11434", "allow_private": true}]',
+            ),
+        ):
+            response = client.get("/api/v1/ai/settings")
+        endpoints = response.json()["approved_endpoints"]
+        assert endpoints == [
+            {"origin": "http://ollama:11434", "label": "Local"},
+            {
+                "origin": "http://host.docker.internal:11434",
+                "label": "http://host.docker.internal:11434",
+            },
+        ]
+
+    def test_no_approved_origins_returns_empty_endpoints(self):
+        with (
+            patch("app.api.settings_routes.settings.AI_PROVIDER_APPROVED_ORIGINS", None),
+            patch(_LIST_FOR_CUSTOMER, new=AsyncMock(return_value=[])),
+            patch(_GET_CUSTOMER_AI_DEFAULTS, new=AsyncMock(return_value=None)),
+        ):
+            response = client.get("/api/v1/ai/settings")
+        assert response.json()["approved_endpoints"] == []
+
 
 class TestCreateAiKey:
     def setup_method(self):
@@ -141,7 +170,7 @@ class TestCreateAiKey:
         assert response.status_code == 200
         mock_create.assert_awaited_once()
 
-    def test_ollama_key_without_base_url_defaults_to_localhost(self):
+    def test_ollama_key_without_base_url_defaults_to_configured_default(self):
         ollama_provider = _make_provider("ollama", has_key_prefix=False)
         with (
             patch(_GET_BY_NAME, new=AsyncMock(return_value=ollama_provider)),
@@ -150,13 +179,95 @@ class TestCreateAiKey:
             patch(_CREATE, new=AsyncMock()) as mock_create,
             patch(_LIST_FOR_CUSTOMER, new=AsyncMock(return_value=[])),
             patch(_GET_CUSTOMER_AI_DEFAULTS, new=AsyncMock(return_value=None)),
+            patch("app.api.settings_routes.settings.OLLAMA_URL", "http://ollama:11434"),
+            patch(
+                "app.api.settings_routes.settings.AI_PROVIDER_APPROVED_ORIGINS",
+                '[{"origin": "http://ollama:11434", "allow_private": true}]',
+            ),
         ):
             response = client.post(
                 "/api/v1/ai/settings/keys",
                 json={"provider": "ollama", "model": "llama3.2"},
             )
         assert response.status_code == 200
-        assert mock_create.await_args.kwargs["base_url"] == "http://localhost:11434"
+        assert mock_create.await_args.kwargs["base_url"] == "http://ollama:11434"
+
+    def test_ollama_key_with_unapproved_base_url_rejected(self):
+        ollama_provider = _make_provider("ollama", has_key_prefix=False)
+        with (
+            patch(_GET_BY_NAME, new=AsyncMock(return_value=ollama_provider)),
+            patch(_MODEL_EXISTS, new=AsyncMock(return_value=True)),
+            patch(
+                "app.api.settings_routes.settings.AI_PROVIDER_APPROVED_ORIGINS",
+                '[{"origin": "http://ollama:11434", "allow_private": true}]',
+            ),
+        ):
+            response = client.post(
+                "/api/v1/ai/settings/keys",
+                json={"provider": "ollama", "model": "llama3.2", "base_url": "http://users:8000"},
+            )
+        assert response.status_code == 422
+
+    def test_ollama_key_with_metadata_endpoint_rejected(self):
+        ollama_provider = _make_provider("ollama", has_key_prefix=False)
+        with (
+            patch(_GET_BY_NAME, new=AsyncMock(return_value=ollama_provider)),
+            patch(_MODEL_EXISTS, new=AsyncMock(return_value=True)),
+            patch(
+                "app.api.settings_routes.settings.AI_PROVIDER_APPROVED_ORIGINS",
+                '[{"origin": "http://ollama:11434", "allow_private": true}]',
+            ),
+        ):
+            response = client.post(
+                "/api/v1/ai/settings/keys",
+                json={
+                    "provider": "ollama",
+                    "model": "llama3.2",
+                    "base_url": "http://169.254.169.254",
+                },
+            )
+        assert response.status_code == 422
+
+    def test_ollama_key_with_approved_base_url_succeeds(self):
+        ollama_provider = _make_provider("ollama", has_key_prefix=False)
+        with (
+            patch(_GET_BY_NAME, new=AsyncMock(return_value=ollama_provider)),
+            patch(_MODEL_EXISTS, new=AsyncMock(return_value=True)),
+            patch(_VALIDATE, new=AsyncMock()),
+            patch(_CREATE, new=AsyncMock()) as mock_create,
+            patch(_LIST_FOR_CUSTOMER, new=AsyncMock(return_value=[])),
+            patch(_GET_CUSTOMER_AI_DEFAULTS, new=AsyncMock(return_value=None)),
+            patch(
+                "app.api.settings_routes.settings.AI_PROVIDER_APPROVED_ORIGINS",
+                '[{"origin": "http://ollama:11434", "allow_private": true}]',
+            ),
+        ):
+            response = client.post(
+                "/api/v1/ai/settings/keys",
+                json={
+                    "provider": "ollama",
+                    "model": "llama3.2",
+                    "base_url": "http://ollama:11434",
+                },
+            )
+        assert response.status_code == 200
+        assert mock_create.await_args.kwargs["base_url"] == "http://ollama:11434"
+
+    def test_base_url_rejected_for_key_requiring_provider(self):
+        with (
+            patch(_GET_BY_NAME, new=AsyncMock(return_value=_make_provider())),
+            patch(_MODEL_EXISTS, new=AsyncMock(return_value=True)),
+        ):
+            response = client.post(
+                "/api/v1/ai/settings/keys",
+                json={
+                    "provider": "anthropic",
+                    "key": "sk-ant-api03-x",
+                    "model": "claude-sonnet-4-6",
+                    "base_url": "http://ollama:11434",
+                },
+            )
+        assert response.status_code == 422
 
     def test_unknown_provider_returns_404(self):
         with patch(_GET_BY_NAME, new=AsyncMock(return_value=None)):

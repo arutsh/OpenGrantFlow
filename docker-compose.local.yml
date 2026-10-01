@@ -144,6 +144,8 @@ services:
       - ./services/ai/.env.ai.private.local
     environment:
       - PYTHONPATH=/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       grandflow-db:
         condition: service_healthy

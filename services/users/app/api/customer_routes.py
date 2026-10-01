@@ -14,6 +14,7 @@ from app.services.admin_management_services import (
     update_company_service,
 )
 from shared.security.dependencies import get_validated_user
+from shared.security.internal_service import get_validated_user_or_internal_service
 from uuid import UUID
 
 router = APIRouter()
@@ -80,6 +81,10 @@ async def deactivate_customer_endpoint(
 async def get_customers_by_ids_endpoint(
     customer_ids: list[UUID],
     db: AsyncSession = Depends(get_db),
+    valid_user: dict | None = Depends(get_validated_user_or_internal_service),
 ):
-    # NOTE: internal service endpoint — no auth needed, caller must ensure authorization
+    # Any authenticated user or service credential — same posture as
+    # GET /customers/, which is not tenant-scoped (see design.md non-goals).
+    if not customer_ids:
+        return []
     return await get_customers_by_ids(session=db, customer_ids=customer_ids)

@@ -6,6 +6,7 @@ from shared.schemas.budget_line_schema import BudgetLine
 from datetime import datetime, date
 
 from enum import Enum
+from shared.schemas.money import CalculatedMoney, Money, Rate
 
 
 class BudgetStatus(str, Enum):
@@ -26,12 +27,12 @@ class BudgetBase(BaseModel):
     status: BudgetStatus = BudgetStatus.draft
     duration_months: int | None = None
     external_funder_name: str | None = None
-    total_amount: float | None = None
+    total_amount: Money | None = None
     # Donor's stated commitment (in actual_currency) and the grantee's own
     # planning-time rate estimate, directly entered — never derived. Locked
     # once the budget is confirmed, same as local_currency/actual_currency.
-    donor_total_amount: float | None = None
-    estimated_exchange_rate: float | None = None
+    donor_total_amount: Money | None = None
+    estimated_exchange_rate: Rate | None = None
     created_by: UUID | None = None
     updated_by: UUID | None = None
     updated_at: datetime | None = None
@@ -61,7 +62,7 @@ class BudgetUpdate(BudgetBase):
     # donor-commitment edit doesn't leave the caller with a stale value until
     # it refetches (see budget_services._budget_update_response).
     confirmed_at: datetime | None = None
-    estimated_local_cap: float | None = None
+    estimated_local_cap: CalculatedMoney | None = None
     # Whether an optional "save as reusable template" prompt should be
     # offered — true only for a fresh AI-extracted Excel import (no
     # fingerprint match) whose lines haven't been edited since creation.
@@ -75,7 +76,7 @@ class Budget(BudgetBase):
     # time (donor_total_amount × estimated_exchange_rate) — never accepted
     # from BudgetCreate/BudgetUpdate payloads since they don't inherit these.
     confirmed_at: datetime | None = None
-    estimated_local_cap: float | None = None
+    estimated_local_cap: CalculatedMoney | None = None
     can_save_as_template: bool = False
     lines: list[BudgetLine] = []
     model_config = ConfigDict(from_attributes=True)
@@ -119,11 +120,11 @@ class BudgetWithLines(BaseModel):
     # formula (must match report_services.create_report_service's default
     # period_end: budget.start_date + relativedelta(months=duration_months)).
     end_date: date | None = None
-    total_amount: float | None = None
-    donor_total_amount: float | None = None
-    estimated_exchange_rate: float | None = None
+    total_amount: Money | None = None
+    donor_total_amount: Money | None = None
+    estimated_exchange_rate: Rate | None = None
     confirmed_at: datetime | None = None
-    estimated_local_cap: float | None = None
+    estimated_local_cap: CalculatedMoney | None = None
     can_save_as_template: bool = False
     owner: CustomerOut | None = None
     funder: CustomerOut | None = None
@@ -134,7 +135,7 @@ class BudgetWithLines(BaseModel):
 
 class CurrencyAmount(BaseModel):
     currency: str | None = None
-    total_allocated: float
+    total_allocated: CalculatedMoney
 
 
 class FundedBudgetsSummary(BaseModel):
@@ -154,12 +155,12 @@ class FundedBudgetListItem(BaseModel):
     id: UUID
     name: str
     status: BudgetStatus
-    total_amount: float | None = None
+    total_amount: Money | None = None
     local_currency: str | None = None
     actual_currency: str | None = None
-    donor_total_amount: float | None = None
-    estimated_exchange_rate: float | None = None
+    donor_total_amount: Money | None = None
+    estimated_exchange_rate: Rate | None = None
     confirmed_at: datetime | None = None
-    estimated_local_cap: float | None = None
+    estimated_local_cap: CalculatedMoney | None = None
     owner: CustomerOut | None = None
     model_config = ConfigDict(from_attributes=True)

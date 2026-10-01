@@ -85,7 +85,7 @@ async def _run_parse_agent(
             **llm_output.model_dump(),
             prompt_version=prompt_version,
         )
-        output_json = response.model_dump()
+        output_json = response.model_dump(mode="json")
         yield f"event: done\ndata: {response.model_dump_json()}\n\n"
 
     except Exception as exc:

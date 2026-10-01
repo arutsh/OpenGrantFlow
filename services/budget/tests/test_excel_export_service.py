@@ -1,5 +1,7 @@
 import io
+import re
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -11,6 +13,8 @@ from app.models.budget import BudgetCategoryModel, BudgetLineModel, BudgetModel
 from app.schemas.budget_schema import BudgetStatus
 from app.schemas.export_template_schema import TemplateVisibility
 from app.services.excel_export_service import (
+    SHEET1_TITLE,
+    SHEET2_TITLE,
     SHEET3_TITLE,
     DashboardSheet,
     ExpenseListSheet,
@@ -62,19 +66,19 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Rent",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=100.0,
+                    amount_allocated=Decimal("100.0"),
                     converted_at=date(2026, 2, 1),
-                    conversion_donor_amount=50.0,
-                    conversion_local_amount=100.0,
+                    conversion_donor_amount=Decimal("50.0"),
+                    conversion_local_amount=Decimal("100.0"),
                 )
             ],
         )
 
-        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=2.0)
+        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=Decimal("2.0"))
 
         assert len(rows) == 1
         assert rows[0].amount == 100.0
@@ -87,19 +91,19 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Trip",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=60.0,
+                    amount_allocated=Decimal("60.0"),
                     converted_at=date(2026, 2, 1),
-                    conversion_donor_amount=30.0,
-                    conversion_local_amount=60.0,
+                    conversion_donor_amount=Decimal("30.0"),
+                    conversion_local_amount=Decimal("60.0"),
                 )
             ],
         )
 
-        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=2.0)
+        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=Decimal("2.0"))
 
         assert len(rows) == 2
         assert rows[0].amount == 60.0
@@ -116,11 +120,11 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Fee",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
         )
 
-        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=2.0)
+        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=Decimal("2.0"))
 
         assert len(rows) == 1
         assert rows[0].amount == 100.0
@@ -134,7 +138,7 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Fee",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
         )
 
@@ -152,7 +156,7 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Trip",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
         )
 
@@ -166,11 +170,11 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Refund",
-            amount=-500.0,
+            amount=Decimal("-500.0"),
             expense_date=date(2026, 3, 1),
         )
 
-        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=2.0)
+        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=Decimal("2.0"))
 
         assert len(rows) == 1
         assert rows[0].amount == -500.0
@@ -183,7 +187,7 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Waived",
-            amount=0.0,
+            amount=Decimal("0.0"),
             expense_date=date(2026, 3, 1),
         )
 
@@ -198,19 +202,19 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Fee",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=120.0,
+                    amount_allocated=Decimal("120.0"),
                     converted_at=date(2026, 2, 1),
-                    conversion_donor_amount=60.0,
-                    conversion_local_amount=120.0,
+                    conversion_donor_amount=Decimal("60.0"),
+                    conversion_local_amount=Decimal("120.0"),
                 )
             ],
         )
 
-        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=2.0)
+        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=Decimal("2.0"))
 
         assert [row.amount for row in rows] == [120.0, -20.0]
         assert sum(row.amount for row in rows) == 100.0
@@ -221,19 +225,19 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Fee",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=100.0,
+                    amount_allocated=Decimal("100.0"),
                     converted_at=date(2026, 2, 1),
-                    conversion_donor_amount=50.0,
-                    conversion_local_amount=100.0,
+                    conversion_donor_amount=Decimal("50.0"),
+                    conversion_local_amount=Decimal("100.0"),
                 )
             ],
         )
 
-        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=2.0)
+        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=Decimal("2.0"))
 
         assert len(rows) == 1
 
@@ -243,11 +247,11 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Fee",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
         )
 
-        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=0.0)
+        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=Decimal("0.0"))
 
         assert rows[0].rate is None
         assert rows[0].is_estimated is False
@@ -258,19 +262,19 @@ class TestBuildExpenseRows:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Fee",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=100.0,
+                    amount_allocated=Decimal("100.0"),
                     converted_at=date(2026, 2, 1),
-                    conversion_donor_amount=50.0,
-                    conversion_local_amount=0.0,
+                    conversion_donor_amount=Decimal("50.0"),
+                    conversion_local_amount=Decimal("0.0"),
                 )
             ],
         )
 
-        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=2.0)
+        rows = _build_expense_rows([line], [], [expense], estimated_exchange_rate=Decimal("2.0"))
 
         assert len(rows) == 1
         assert rows[0].rate is None
@@ -313,7 +317,7 @@ class TestDashboardSheet:
         budget = BudgetFactory.build(
             local_currency="GBP",
             actual_currency="USD",
-            estimated_exchange_rate=2.0,
+            estimated_exchange_rate=Decimal("2.0"),
             confirmed_at=confirmed_at,
         )
         category = BudgetCategoryFactory.build(budget=budget, budget_id=budget.id, name="Personnel")
@@ -323,26 +327,28 @@ class TestDashboardSheet:
             category=category,
             category_id=category.id,
             description="Salaries",
-            amount=1000.0,
+            amount=Decimal("1000.0"),
         )
         expense = ReportLineExpense(
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Payroll",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 2, 1),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=100.0,
+                    amount_allocated=Decimal("100.0"),
                     converted_at=date(2026, 1, 20),
-                    conversion_donor_amount=50.0,
-                    conversion_local_amount=100.0,
+                    conversion_donor_amount=Decimal("50.0"),
+                    conversion_local_amount=Decimal("100.0"),
                 )
             ],
         )
-        receipt = FundingReceiptFactory.build(amount=600.0, received_at=date(2026, 1, 1))
+        receipt = FundingReceiptFactory.build(amount=Decimal("600.0"), received_at=date(2026, 1, 1))
         conversion = CurrencyConversionFactory.build(
-            donor_amount=300.0, local_amount=650.0, converted_at=date(2026, 1, 2)
+            donor_amount=Decimal("300.0"),
+            local_amount=Decimal("650.0"),
+            converted_at=date(2026, 1, 2),
         )
         exported_at = datetime(2026, 9, 22, 14, 30, tzinfo=timezone.utc)
 
@@ -446,7 +452,7 @@ class TestDashboardSheet:
 
     def test_partially_allocated_line_is_styled_as_estimate(self):
         budget = BudgetFactory.build(
-            local_currency="GBP", actual_currency="USD", estimated_exchange_rate=2.0
+            local_currency="GBP", actual_currency="USD", estimated_exchange_rate=Decimal("2.0")
         )
         category = BudgetCategoryFactory.build(budget=budget, budget_id=budget.id, name="Travel")
         line = BudgetLineFactory.build(
@@ -455,20 +461,20 @@ class TestDashboardSheet:
             category=category,
             category_id=category.id,
             description="Flights",
-            amount=500.0,
+            amount=Decimal("500.0"),
         )
         expense = ReportLineExpense(
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Trip",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=60.0,
+                    amount_allocated=Decimal("60.0"),
                     converted_at=date(2026, 2, 1),
-                    conversion_donor_amount=30.0,
-                    conversion_local_amount=60.0,
+                    conversion_donor_amount=Decimal("30.0"),
+                    conversion_local_amount=Decimal("60.0"),
                 )
             ],
         )
@@ -487,7 +493,7 @@ class TestDashboardSheet:
 
     def test_estimate_flag_adds_footnote_above_audit_line(self):
         budget = BudgetFactory.build(
-            local_currency="GBP", actual_currency="USD", estimated_exchange_rate=2.0
+            local_currency="GBP", actual_currency="USD", estimated_exchange_rate=Decimal("2.0")
         )
         category = BudgetCategoryFactory.build(budget=budget, budget_id=budget.id, name="Travel")
         line = BudgetLineFactory.build(
@@ -496,20 +502,20 @@ class TestDashboardSheet:
             category=category,
             category_id=category.id,
             description="Flights",
-            amount=500.0,
+            amount=Decimal("500.0"),
         )
         expense = ReportLineExpense(
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Trip",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=60.0,
+                    amount_allocated=Decimal("60.0"),
                     converted_at=date(2026, 2, 1),
-                    conversion_donor_amount=30.0,
-                    conversion_local_amount=60.0,
+                    conversion_donor_amount=Decimal("30.0"),
+                    conversion_local_amount=Decimal("60.0"),
                 )
             ],
         )
@@ -530,7 +536,7 @@ class TestDashboardSheet:
         """Fully-allocated line: no estimate anywhere, so the row/footnote stay absent
         and the audit line keeps its original (unshifted) position."""
         budget = BudgetFactory.build(
-            local_currency="GBP", actual_currency="USD", estimated_exchange_rate=2.0
+            local_currency="GBP", actual_currency="USD", estimated_exchange_rate=Decimal("2.0")
         )
         category = BudgetCategoryFactory.build(budget=budget, budget_id=budget.id, name="Travel")
         line = BudgetLineFactory.build(
@@ -539,20 +545,20 @@ class TestDashboardSheet:
             category=category,
             category_id=category.id,
             description="Flights",
-            amount=500.0,
+            amount=Decimal("500.0"),
         )
         expense = ReportLineExpense(
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Trip",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 3, 1),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=100.0,
+                    amount_allocated=Decimal("100.0"),
                     converted_at=date(2026, 2, 1),
-                    conversion_donor_amount=50.0,
-                    conversion_local_amount=100.0,
+                    conversion_donor_amount=Decimal("50.0"),
+                    conversion_local_amount=Decimal("100.0"),
                 )
             ],
         )
@@ -575,7 +581,7 @@ class TestDashboardSheet:
             category=category,
             category_id=category.id,
             description="Flights",
-            amount=500.0,
+            amount=Decimal("500.0"),
         )
 
         ws = self._write(budget, categories=[category], lines=[line])
@@ -605,7 +611,7 @@ class TestDashboardSheet:
 
     def test_no_approved_total_skips_received_percent(self):
         budget = BudgetFactory.build(local_currency="GBP", actual_currency="USD")
-        receipt = FundingReceiptFactory.build(amount=600.0, received_at=date(2026, 1, 1))
+        receipt = FundingReceiptFactory.build(amount=Decimal("600.0"), received_at=date(2026, 1, 1))
 
         ws = self._write(budget, receipts=[receipt])
 
@@ -650,7 +656,7 @@ class TestExpenseListSheet:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="June rent",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 6, 1),
         )
 
@@ -669,7 +675,15 @@ class TestExpenseListSheet:
             "Budget Line ID",
         )
         assert rows[1] == (
-            date(2026, 6, 1), None, "Travel", "June rent", 100.0, None, None, "*", str(line.id)
+            date(2026, 6, 1),
+            None,
+            "Travel",
+            "June rent",
+            100.0,
+            None,
+            None,
+            "*",
+            str(line.id),
         )
         assert rows[2] == ("Total", None, None, None, "=SUM(E2:E2)", None, None, None, None)
         assert rows[3] == (None,) * 9
@@ -695,14 +709,14 @@ class TestExpenseListSheet:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Flight",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 6, 2),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=100.0,
+                    amount_allocated=Decimal("100.0"),
                     converted_at=date(2026, 5, 30),
-                    conversion_donor_amount=50.0,
-                    conversion_local_amount=100.0,
+                    conversion_donor_amount=Decimal("50.0"),
+                    conversion_local_amount=Decimal("100.0"),
                 )
             ],
         )
@@ -722,7 +736,15 @@ class TestExpenseListSheet:
             str(line.id),
         )
         assert rows[2] == (
-            "Total", None, None, None, "=SUM(E2:E2)", "=SUM(F2:F2)", "=E3/F3", None, None
+            "Total",
+            None,
+            None,
+            None,
+            "=SUM(E2:E2)",
+            "=SUM(F2:F2)",
+            "=E3/F3",
+            None,
+            None,
         )
         assert ws.cell(row=2, column=1).border.top.style == "thin"
         assert ws.cell(row=2, column=8).border.bottom.style == "thin"
@@ -734,20 +756,20 @@ class TestExpenseListSheet:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Hotel",
-            amount=150.0,
+            amount=Decimal("150.0"),
             expense_date=date(2026, 6, 3),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=100.0,
+                    amount_allocated=Decimal("100.0"),
                     converted_at=date(2026, 5, 1),
-                    conversion_donor_amount=40.0,
-                    conversion_local_amount=100.0,
+                    conversion_donor_amount=Decimal("40.0"),
+                    conversion_local_amount=Decimal("100.0"),
                 ),
                 ReportLineAllocationDetail(
-                    amount_allocated=50.0,
+                    amount_allocated=Decimal("50.0"),
                     converted_at=date(2026, 5, 15),
-                    conversion_donor_amount=20.0,
-                    conversion_local_amount=50.0,
+                    conversion_donor_amount=Decimal("20.0"),
+                    conversion_local_amount=Decimal("50.0"),
                 ),
             ],
         )
@@ -779,7 +801,15 @@ class TestExpenseListSheet:
         )
         assert rows[1][4] + rows[2][4] == expense.amount
         assert rows[3] == (
-            "Total", None, None, None, "=SUM(E2:E3)", "=SUM(F2:F3)", "=E4/F4", None, None
+            "Total",
+            None,
+            None,
+            None,
+            "=SUM(E2:E3)",
+            "=SUM(F2:F3)",
+            "=E4/F4",
+            None,
+            None,
         )
 
     def test_single_partial_allocation_adds_unrated_remainder_row(self):
@@ -791,14 +821,14 @@ class TestExpenseListSheet:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Taxi",
-            amount=150.0,
+            amount=Decimal("150.0"),
             expense_date=date(2026, 6, 4),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=60.0,
+                    amount_allocated=Decimal("60.0"),
                     converted_at=date(2026, 5, 20),
-                    conversion_donor_amount=30.0,
-                    conversion_local_amount=60.0,
+                    conversion_donor_amount=Decimal("30.0"),
+                    conversion_local_amount=Decimal("60.0"),
                 )
             ],
         )
@@ -818,11 +848,27 @@ class TestExpenseListSheet:
             str(line.id),
         )
         assert rows[2] == (
-            date(2026, 6, 4), None, "Travel", "Taxi", 90.0, None, None, "*", str(line.id)
+            date(2026, 6, 4),
+            None,
+            "Travel",
+            "Taxi",
+            90.0,
+            None,
+            None,
+            "*",
+            str(line.id),
         )
         assert rows[1][4] + rows[2][4] == expense.amount
         assert rows[3] == (
-            "Total", None, None, None, "=SUM(E2:E3)", "=SUM(F2:F3)", None, None, None
+            "Total",
+            None,
+            None,
+            None,
+            "=SUM(E2:E3)",
+            "=SUM(F2:F3)",
+            None,
+            None,
+            None,
         )
         assert rows[4] == (None,) * 9
         assert rows[5] == (
@@ -844,21 +890,21 @@ class TestExpenseListSheet:
 
     def test_single_partial_allocation_remainder_uses_estimated_rate_when_available(self):
         budget = BudgetFactory.build(
-            local_currency="GBP", actual_currency="USD", estimated_exchange_rate=2.0
+            local_currency="GBP", actual_currency="USD", estimated_exchange_rate=Decimal("2.0")
         )
         line = BudgetLineFactory.build(budget=budget, budget_id=budget.id, description="Travel")
         expense = ReportLineExpense(
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Taxi",
-            amount=150.0,
+            amount=Decimal("150.0"),
             expense_date=date(2026, 6, 4),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=60.0,
+                    amount_allocated=Decimal("60.0"),
                     converted_at=date(2026, 5, 20),
-                    conversion_donor_amount=30.0,
-                    conversion_local_amount=60.0,
+                    conversion_donor_amount=Decimal("30.0"),
+                    conversion_local_amount=Decimal("60.0"),
                 )
             ],
         )
@@ -867,10 +913,26 @@ class TestExpenseListSheet:
         rows = list(ws.iter_rows(values_only=True))
 
         assert rows[2] == (
-            date(2026, 6, 4), None, "Travel", "Taxi", 90.0, "=E3/G3", 2.0, "*", str(line.id)
+            date(2026, 6, 4),
+            None,
+            "Travel",
+            "Taxi",
+            90.0,
+            "=E3/G3",
+            2.0,
+            "*",
+            str(line.id),
         )
         assert rows[3] == (
-            "Total", None, None, None, "=SUM(E2:E3)", "=SUM(F2:F3)", "=E4/F4", None, None
+            "Total",
+            None,
+            None,
+            None,
+            "=SUM(E2:E3)",
+            "=SUM(F2:F3)",
+            "=E4/F4",
+            None,
+            None,
         )
         assert rows[5] == (
             "*",
@@ -893,20 +955,20 @@ class TestExpenseListSheet:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Conference",
-            amount=300.0,
+            amount=Decimal("300.0"),
             expense_date=date(2026, 6, 5),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=100.0,
+                    amount_allocated=Decimal("100.0"),
                     converted_at=date(2026, 5, 1),
-                    conversion_donor_amount=40.0,
-                    conversion_local_amount=100.0,
+                    conversion_donor_amount=Decimal("40.0"),
+                    conversion_local_amount=Decimal("100.0"),
                 ),
                 ReportLineAllocationDetail(
-                    amount_allocated=80.0,
+                    amount_allocated=Decimal("80.0"),
                     converted_at=date(2026, 5, 15),
-                    conversion_donor_amount=32.0,
-                    conversion_local_amount=80.0,
+                    conversion_donor_amount=Decimal("32.0"),
+                    conversion_local_amount=Decimal("80.0"),
                 ),
             ],
         )
@@ -917,11 +979,27 @@ class TestExpenseListSheet:
         assert rows[1][4] == 100.0
         assert rows[2][4] == 80.0
         assert rows[3] == (
-            date(2026, 6, 5), None, "Travel", "Conference", 120.0, None, None, "*", str(line.id)
+            date(2026, 6, 5),
+            None,
+            "Travel",
+            "Conference",
+            120.0,
+            None,
+            None,
+            "*",
+            str(line.id),
         )
         assert rows[1][4] + rows[2][4] + rows[3][4] == expense.amount
         assert rows[4] == (
-            "Total", None, None, None, "=SUM(E2:E4)", "=SUM(F2:F4)", None, None, None
+            "Total",
+            None,
+            None,
+            None,
+            "=SUM(E2:E4)",
+            "=SUM(F2:F4)",
+            None,
+            None,
+            None,
         )
         assert rows[5] == (None,) * 9
         assert rows[6] == (
@@ -952,14 +1030,14 @@ class TestExpenseListSheet:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Trip",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 6, 1),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=100.0,
+                    amount_allocated=Decimal("100.0"),
                     converted_at=date(2026, 5, 30),
-                    conversion_donor_amount=50.0,
-                    conversion_local_amount=100.0,
+                    conversion_donor_amount=Decimal("50.0"),
+                    conversion_local_amount=Decimal("100.0"),
                 )
             ],
         )
@@ -982,7 +1060,7 @@ class TestExpenseListSheet:
 
     @pytest.mark.parametrize(
         "estimated_rate, local_amount",
-        [(0.0, 100.0), (2.0, 0.0)],
+        [(Decimal("0.0"), Decimal("100.0")), (Decimal("2.0"), Decimal("0.0"))],
         ids=["zero_estimated_rate", "zero_local_amount_conversion"],
     )
     def test_unusable_rate_writes_no_division_formula(self, estimated_rate, local_amount):
@@ -994,13 +1072,13 @@ class TestExpenseListSheet:
             report_line_id=uuid4(),
             budget_line_id=line.id,
             description="Flight",
-            amount=100.0,
+            amount=Decimal("100.0"),
             expense_date=date(2026, 6, 2),
             allocations=[
                 ReportLineAllocationDetail(
-                    amount_allocated=60.0,
+                    amount_allocated=Decimal("60.0"),
                     converted_at=date(2026, 5, 30),
-                    conversion_donor_amount=30.0,
+                    conversion_donor_amount=Decimal("30.0"),
                     conversion_local_amount=local_amount,
                 )
             ],
@@ -1010,7 +1088,7 @@ class TestExpenseListSheet:
 
         for converted, rate in ws.iter_rows(min_row=2, min_col=6, max_col=7, values_only=True):
             if isinstance(converted, str) and "/G" in converted:
-                assert isinstance(rate, float) and rate > 0
+                assert isinstance(rate, (float, Decimal)) and rate > 0
 
 
 class TestGenerateBudgetExportWorkbook:
@@ -1028,7 +1106,7 @@ class TestGenerateBudgetExportWorkbook:
 
     def test_full_layout_with_rate(self):
         budget = BudgetFactory.build(
-            local_currency="GBP", actual_currency="USD", estimated_exchange_rate=2.0
+            local_currency="GBP", actual_currency="USD", estimated_exchange_rate=Decimal("2.0")
         )
         cat1 = BudgetCategoryFactory.build(
             budget=budget, budget_id=budget.id, name="Personnel", created_at=datetime(2026, 1, 1)
@@ -1042,7 +1120,7 @@ class TestGenerateBudgetExportWorkbook:
             category=cat1,
             category_id=cat1.id,
             description="Salaries",
-            amount=1000.0,
+            amount=Decimal("1000.0"),
             created_at=datetime(2026, 1, 1),
         )
         line2 = BudgetLineFactory.build(
@@ -1051,7 +1129,7 @@ class TestGenerateBudgetExportWorkbook:
             category=cat2,
             category_id=cat2.id,
             description="Flights",
-            amount=200.0,
+            amount=Decimal("200.0"),
             created_at=datetime(2026, 1, 2),
         )
 
@@ -1140,7 +1218,7 @@ class TestGenerateBudgetExportWorkbook:
             category=category,
             category_id=category.id,
             description="Salaries",
-            amount=1000.0,
+            amount=Decimal("1000.0"),
         )
 
         data = generate_budget_export_workbook(budget, [category], [line])
@@ -1162,7 +1240,7 @@ class TestGenerateBudgetExportWorkbook:
             category=category,
             category_id=category.id,
             description="No extra",
-            amount=1000.0,
+            amount=Decimal("1000.0"),
             extra_fields=None,
             created_at=datetime(2026, 1, 1),
         )
@@ -1172,7 +1250,7 @@ class TestGenerateBudgetExportWorkbook:
             category=category,
             category_id=category.id,
             description="AAAAAAA",
-            amount=6000.0,
+            amount=Decimal("6000.0"),
             extra_fields={"Description custom": "Hello world"},
             created_at=datetime(2026, 1, 2),
         )
@@ -1198,7 +1276,7 @@ class TestGenerateBudgetExportWorkbook:
             category=category,
             category_id=category.id,
             description="Coordinator",
-            amount=500.0,
+            amount=Decimal("500.0"),
             extra_fields={"Notes": "Approved", "Vendor": "Acme"},
         )
 
@@ -1219,7 +1297,7 @@ class TestGenerateBudgetExportWorkbook:
             category=category,
             category_id=category.id,
             description="Salaries",
-            amount=1000.0,
+            amount=Decimal("1000.0"),
             extra_fields=None,
         )
 
@@ -1244,6 +1322,147 @@ class TestGenerateBudgetExportWorkbook:
         assert rows[9] == ("Contingency", "=B15", None)
         assert rows[13] == ("Contingency", None, None)
         assert rows[14] == ("Subtotal", 0.0, None)
+
+
+def _formula_cell_coordinates(ws) -> set[str]:
+    return {cell.coordinate for row in ws.iter_rows() for cell in row if cell.data_type == "f"}
+
+
+class TestExportFormulaInjectionHardening:
+    """A budget line, category, name etc. that looks like a formula must never
+    become a live formula in the exported workbook (see design.md Decision 1)."""
+
+    MALICIOUS = {
+        "org": "=1+1",
+        "donor": "+2+2",
+        "project": "-3+3",
+        "currency": "@EVIL()",
+        "category": '=HYPERLINK("https://evil.example","click")',
+        "description": "=cmd|' /C calc'!A0",
+        "extra_key": '=WEBSERVICE("https://evil.example")',
+        "extra_value": "@evil_extra_value",
+        "expense_description": "+evil_expense_description",
+        "exported_by": "-evil@example.com",
+    }
+    BENIGN = {
+        "org": "Test Org",
+        "donor": "Test Donor",
+        "project": "Test Project",
+        "currency": "USD",
+        "category": "Personnel",
+        "description": "Salaries",
+        "extra_key": "Notes",
+        "extra_value": "Approved",
+        "expense_description": "Rent",
+        "exported_by": "exporter@example.com",
+    }
+
+    def _build(self, values: dict):
+        budget = BudgetFactory.build(
+            name=values["project"],
+            local_currency="GBP",
+            actual_currency=values["currency"],
+            estimated_exchange_rate=Decimal("2.0"),
+        )
+        category = BudgetCategoryFactory.build(
+            budget=budget, budget_id=budget.id, name=values["category"]
+        )
+        line = BudgetLineFactory.build(
+            budget=budget,
+            budget_id=budget.id,
+            category=category,
+            category_id=category.id,
+            description=values["description"],
+            amount=Decimal("1000.0"),
+            extra_fields={values["extra_key"]: values["extra_value"]},
+        )
+        expense = ReportLineExpense(
+            report_line_id=uuid4(),
+            budget_line_id=line.id,
+            description=values["expense_description"],
+            amount=Decimal("500.0"),
+            expense_date=date(2026, 3, 1),
+            allocations=[
+                ReportLineAllocationDetail(
+                    amount_allocated=Decimal("500.0"),
+                    converted_at=date(2026, 2, 1),
+                    conversion_donor_amount=Decimal("250.0"),
+                    conversion_local_amount=Decimal("500.0"),
+                )
+            ],
+        )
+        data = generate_budget_export_workbook(
+            budget,
+            [category],
+            [line],
+            expenses=[expense],
+            organisation_name=values["org"],
+            donor_name=values["donor"],
+            exported_by=values["exported_by"],
+            exported_at=datetime(2026, 9, 22, 14, 30, tzinfo=timezone.utc),
+        )
+        return load_workbook(io.BytesIO(data))
+
+    def test_malicious_fields_saved_as_text_not_formulas(self):
+        wb = self._build(self.MALICIOUS)
+        remaining = set(self.MALICIOUS.values())
+        for ws in wb.worksheets:
+            for row in ws.iter_rows():
+                for cell in row:
+                    if not isinstance(cell.value, str):
+                        continue
+                    matches = [payload for payload in remaining if payload in cell.value]
+                    for payload in matches:
+                        assert cell.data_type == "s", (
+                            f"{ws.title}!{cell.coordinate} evaluates {payload!r} as a formula"
+                        )
+                        assert payload in cell.value
+                    remaining -= set(matches)
+        assert not remaining, f"payload(s) never written to the export: {remaining}"
+
+    def test_formula_cell_set_matches_benign_equivalent(self):
+        """Every generated formula depends only on row/column counts, never on
+        the text itself — so a missed write site would show up as a diff here."""
+        malicious_wb = self._build(self.MALICIOUS)
+        benign_wb = self._build(self.BENIGN)
+        for sheet_title in (SHEET1_TITLE, SHEET2_TITLE, SHEET3_TITLE):
+            malicious_formulas = _formula_cell_coordinates(malicious_wb[sheet_title])
+            benign_formulas = _formula_cell_coordinates(benign_wb[sheet_title])
+            assert malicious_formulas == benign_formulas, sheet_title
+
+    def test_generated_formulas_still_reference_expected_cells(self):
+        wb = self._build(self.BENIGN)
+        ws1 = wb[SHEET1_TITLE]
+
+        def find_row(label: str) -> int:
+            return next(row[0].row for row in ws1.iter_rows() if row[0].value == label)
+
+        def formula_at(row: int, col_letter: str) -> str:
+            cell = ws1[f"{col_letter}{row}"]
+            assert cell.data_type == "f", f"{col_letter}{row} is not a formula"
+            return cell.value
+
+        # One extra_fields key in the fixture shifts Amount/Estimate one column right (to C/D).
+        amount_col = "C"
+        subtotal_row = find_row("Subtotal")
+        assert re.fullmatch(
+            rf"=SUM\({amount_col}\d+:{amount_col}\d+\)", formula_at(subtotal_row, amount_col)
+        )
+
+        footer_row = find_row("Total expenditures")
+        footer_formula = formula_at(footer_row, amount_col)
+        assert set(re.findall(rf"{amount_col}(\d+)", footer_formula)) == {str(subtotal_row)}
+
+        ws2 = wb[SHEET2_TITLE]
+        actuals_pattern = re.compile(
+            rf"=SUMIF\('{re.escape(SHEET3_TITLE)}'!\$I:\$I,\$H\d+,"
+            rf"'{re.escape(SHEET3_TITLE)}'!\$E:\$E\)"
+        )
+        assert any(
+            cell.data_type == "f" and actuals_pattern.fullmatch(cell.value)
+            for row in ws2.iter_rows()
+            for cell in row
+        ), "no cross-sheet actuals SUMIF formula found referencing List of Expenses"
 
 
 async def _make_budget(db, owner_id=OWNER_ID, funding_customer_id=None):
@@ -1274,7 +1493,7 @@ async def _make_category(db, budget_id, name="Personnel"):
     return category
 
 
-async def _make_line(db, budget_id, category_id, amount=1000.0):
+async def _make_line(db, budget_id, category_id, amount=Decimal("1000.0")):
     line = BudgetLineModel(
         budget_id=budget_id, category_id=category_id, description="Salaries", amount=amount
     )
