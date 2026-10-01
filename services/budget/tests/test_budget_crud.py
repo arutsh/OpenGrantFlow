@@ -117,3 +117,44 @@ class TestDeleteBudgetCascadesOrphanedCategory:
         assert len(list(loaded_budget.categories)) == 1
 
         assert await delete_budget(session=db, budget=loaded_budget) is True
+
+
+async def _budget_with_line(db) -> BudgetModel:
+    user = ValidUserFactory()
+    budget = await create_budget(
+        session=db, user_id=user["user_id"], name="WithLines", owner_id=user["customer_id"]
+    )
+    category = await create_budget_category(
+        session=db, user_id=user["user_id"], budget_id=budget.id, name="Travel"
+    )
+    await create_budget_line(
+        session=db,
+        user_id=user["user_id"],
+        budget_id=budget.id,
+        category_id=category.id,
+        description="Flight",
+        amount=100.0,
+    )
+    return budget
+
+
+@pytest.mark.anyio
+class TestDeleteBudgetCascadesLines:
+    async def test_delete_succeeds_with_lines_unloaded(self, db):
+        budget = await _budget_with_line(db)
+
+        # sqlite doesn't enforce the DB-level cascade; Postgres removes the lines.
+        assert await delete_budget(session=db, budget=budget) is True
+
+    async def test_delete_succeeds_with_lines_already_loaded(self, db):
+        budget = await _budget_with_line(db)
+
+        result = await db.execute(
+            select(BudgetModel)
+            .where(BudgetModel.id == budget.id)
+            .options(selectinload(BudgetModel.lines))
+        )
+        loaded_budget = result.scalar_one()
+        assert len(list(loaded_budget.lines)) == 1
+
+        assert await delete_budget(session=db, budget=loaded_budget) is True
