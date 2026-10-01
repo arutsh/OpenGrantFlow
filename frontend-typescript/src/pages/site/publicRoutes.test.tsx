@@ -74,6 +74,33 @@ describe("public site routing", () => {
     },
   );
 
+  it.each([
+    ["/about", "Built from lived experience", "About · Open Grant Flow"],
+    ["/contact", "Start a conversation", "Contact · Open Grant Flow"],
+  ])("renders %s directly with its title (anonymous and authenticated)", async (path, heading, title) => {
+    for (const authenticated of [false, true]) {
+      localStorage.clear();
+      if (authenticated) signInAsVerifiedUser();
+      const { unmount } = renderAppAt(path);
+
+      expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+      expect(window.location.pathname).toBe(path);
+      expect(document.title).toBe(title);
+      unmount();
+    }
+  });
+
+  it("points every Request Demo CTA in the shared header to /contact", async () => {
+    renderAppAt("/about");
+    await userEvent.click(screen.getByRole("button", { name: "Toggle navigation menu" }));
+
+    const ctas = screen.getAllByRole("link", { name: "Request Demo" });
+    expect(ctas.length).toBeGreaterThanOrEqual(2);
+    for (const cta of ctas) {
+      expect(cta).toHaveAttribute("href", "/contact");
+    }
+  });
+
   it("renders How it works directly for an anonymous visitor, with its title", async () => {
     renderAppAt("/how-it-works");
 

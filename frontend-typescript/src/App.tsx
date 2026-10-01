@@ -2,11 +2,13 @@ import { Routes, Route, Navigate, BrowserRouter, Outlet } from "react-router-dom
 import { useAuth, AuthProvider } from "./context/AuthContext";
 import { AiChatProvider } from "./context/AiChatContext";
 import Login from "./pages/Login";
-import LandingPage, { FounderSection, ContactSection } from "./pages/LandingPage";
+import LandingPage from "./pages/LandingPage";
 import LegalPage from "./pages/Legal";
 import PublicLayout from "./components/site/PublicLayout";
 import HowItWorksPage from "./pages/site/HowItWorks";
 import SecurityPage from "./pages/site/Security";
+import AboutPage from "./pages/site/About";
+import ContactPage from "./pages/site/Contact";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import { JSX } from "react";
 import Register from "./pages/Register";
@@ -52,9 +54,8 @@ export default function App() {
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/how-it-works" element={<HowItWorksPage />} />
               <Route path="/security" element={<SecurityPage />} />
-              {/* Reuse existing content until the dedicated pages are ready. */}
-              <Route path="/about" element={<FounderSection />} />
-              <Route path="/contact" element={<ContactSection />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
             </Route>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />

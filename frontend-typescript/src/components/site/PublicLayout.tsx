@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { Menu, X, Github, Linkedin } from "lucide-react";
 import ogfIcon from "@/assets/logos/ogf-icon.svg";
-import { brand } from "@/lib/brand";
 
 const NAV_LINKS = [
   { to: "/how-it-works", label: "How it works" },
@@ -33,8 +32,7 @@ function RequestDemoButton({ className = "" }: { className?: string }) {
   return (
     <Link
       to="/contact"
-      className={`rounded-lg px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm font-medium text-white transition-opacity hover:opacity-90 whitespace-nowrap ${className}`}
-      style={{ backgroundColor: brand.navy }}
+      className={`rounded-lg px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm font-medium text-white transition-opacity hover:opacity-90 whitespace-nowrap bg-brand-navy ${className}`}
     >
       Request Demo
     </Link>
@@ -50,10 +48,9 @@ function PublicHeader() {
         <Link to="/" className="flex items-center gap-2">
           <img src={ogfIcon} alt="" className="h-8 w-auto shrink-0" />
           <span
-            className="text-lg sm:text-xl font-bold whitespace-nowrap"
-            style={{ color: brand.slate }}
+            className="text-lg sm:text-xl font-bold whitespace-nowrap text-brand-slate"
           >
-            Open Grant <span style={{ color: brand.teal }}>Flow</span>
+            Open Grant <span className="text-brand-teal">Flow</span>
           </span>
         </Link>
         <div className="flex items-center gap-3 sm:gap-6">
@@ -62,8 +59,7 @@ function PublicHeader() {
               <Link
                 key={to}
                 to={to}
-                className="text-sm font-medium hover:opacity-70"
-                style={{ color: brand.slate }}
+                className="text-sm font-medium hover:opacity-70 text-brand-slate"
               >
                 {label}
               </Link>
@@ -78,9 +74,9 @@ function PublicHeader() {
             onClick={() => setMobileOpen((open) => !open)}
           >
             {mobileOpen ? (
-              <X size={22} style={{ color: brand.slate }} />
+              <X size={22} className="text-brand-slate" />
             ) : (
-              <Menu size={22} style={{ color: brand.slate }} />
+              <Menu size={22} className="text-brand-slate" />
             )}
           </button>
         </div>
@@ -94,8 +90,7 @@ function PublicHeader() {
             <Link
               key={to}
               to={to}
-              className="py-2 text-sm font-medium"
-              style={{ color: brand.slate }}
+              className="py-2 text-sm font-medium text-brand-slate"
               onClick={() => setMobileOpen(false)}
             >
               {label}
@@ -113,7 +108,7 @@ function PublicFooter() {
     <footer className="border-t border-slate-200 px-6 py-10">
       <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between gap-6">
         <div>
-          <p className="font-bold" style={{ color: brand.slate }}>
+          <p className="font-bold text-brand-slate">
             Open Grant Flow
           </p>
           <p className="text-sm text-slate-500">
@@ -122,8 +117,7 @@ function PublicFooter() {
         </div>
         <div className="flex flex-col sm:items-end gap-3">
           <nav
-            className="flex flex-wrap gap-4 text-sm"
-            style={{ color: brand.slate }}
+            className="flex flex-wrap gap-4 text-sm text-brand-slate"
           >
             {FOOTER_LINKS.map(({ to, label }) => (
               <Link key={to} to={to} className="hover:opacity-70">
@@ -168,7 +162,7 @@ export default function PublicLayout() {
   useHashScroll();
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: brand.offWhite }}>
+    <div className="min-h-screen bg-brand-off-white">
       <PublicHeader />
       <Outlet />
       <PublicFooter />

@@ -1,8 +1,11 @@
+import type { ComponentType } from "react";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { buildSiteContent, getSection } from "@/lib/siteContent";
+import { buildSiteContent, getSection, type SitePage } from "@/lib/siteContent";
 import HowItWorksPage from "./HowItWorks";
 import SecurityPage from "./Security";
+import AboutPage from "./About";
+import ContactPage from "./Contact";
 
 vi.mock("@/lib/siteContent", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/siteContent")>(),
@@ -14,6 +17,12 @@ const files = import.meta.glob(
   { eager: true, query: "?raw", import: "default" },
 ) as Record<string, string>;
 const sections = [...buildSiteContent(files).sections.values()];
+const PAGES: Partial<Record<SitePage, ComponentType>> = {
+  "how-it-works": HowItWorksPage,
+  security: SecurityPage,
+  about: AboutPage,
+  contact: ContactPage,
+};
 
 describe.each(sections)("$id publication lifecycle", (section) => {
   it.each([false, true])("handles draft content (production: %s)", (isProd) => {
@@ -24,7 +33,8 @@ describe.each(sections)("$id publication lifecycle", (section) => {
         : raw.replace(/status: (published|draft)/, "status: published"),
     ]));
     vi.mocked(getSection).mockImplementation(buildSiteContent(changed, { isProd }).getSection);
-    const Page = section.page === "security" ? SecurityPage : HowItWorksPage;
+    const Page = PAGES[section.page];
+    if (!Page) throw new Error(`No page component mapped for "${section.page}"`);
     render(<MemoryRouter><Page /></MemoryRouter>);
 
     if (isProd) {

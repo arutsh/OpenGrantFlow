@@ -385,8 +385,7 @@ function SolutionSection() {
               className="bg-white p-6 rounded-2xl card-shadow-lg text-left"
             >
               <div
-                className="p-3 rounded-lg inline-block mb-4"
-                style={{ backgroundColor: `${brand.navy}14` }}
+                className="p-3 rounded-lg inline-block mb-4 bg-brand-navy/8"
               >
                 <Icon size={22} style={{ color: brand.navy }} />
               </div>
@@ -458,7 +457,7 @@ function OpenSourceSection() {
   );
 }
 
-export function FounderSection() {
+function FounderSection() {
   return (
     <section id="about" className="max-w-3xl mx-auto px-6 py-16">
       <Kicker>About</Kicker>
@@ -555,7 +554,7 @@ function PartnerSection() {
   );
 }
 
-export function ContactSection() {
+function ContactSection() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(false);
