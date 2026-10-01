@@ -2,13 +2,13 @@ import { Routes, Route, Navigate, BrowserRouter, Outlet } from "react-router-dom
 import { useAuth, AuthProvider } from "./context/AuthContext";
 import { AiChatProvider } from "./context/AiChatContext";
 import Login from "./pages/Login";
-import LegalPage from "./pages/Legal";
 import PublicLayout from "./components/site/PublicLayout";
 import HomePage from "./pages/site/Home";
 import HowItWorksPage from "./pages/site/HowItWorks";
 import SecurityPage from "./pages/site/Security";
 import AboutPage from "./pages/site/About";
 import ContactPage from "./pages/site/Contact";
+import LegalPage from "./pages/site/Legal";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import { JSX } from "react";
 import Register from "./pages/Register";

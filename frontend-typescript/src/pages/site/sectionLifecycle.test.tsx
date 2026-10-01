@@ -8,6 +8,7 @@ import HowItWorksPage from "./HowItWorks";
 import SecurityPage from "./Security";
 import AboutPage from "./About";
 import ContactPage from "./Contact";
+import LegalPage from "./Legal";
 
 vi.mock("@/lib/siteContent", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/siteContent")>(),
@@ -25,6 +26,7 @@ const PAGES: Partial<Record<SitePage, ComponentType>> = {
   security: SecurityPage,
   about: AboutPage,
   contact: ContactPage,
+  legal: LegalPage,
 };
 
 describe.each(sections)("$id publication lifecycle", (section) => {
