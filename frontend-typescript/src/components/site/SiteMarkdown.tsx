@@ -1,4 +1,4 @@
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import { Link } from "react-router-dom";
 
 const components: Components = {
@@ -18,6 +18,23 @@ const components: Components = {
   },
 };
 
-export function SiteMarkdown({ children }: { children: string }) {
-  return <ReactMarkdown components={components}>{children}</ReactMarkdown>;
+export function SiteMarkdown({
+  children,
+  extraComponents,
+  resolveHref,
+}: {
+  children: string;
+  extraComponents?: Components;
+  resolveHref?: (href: string) => string;
+}) {
+  return (
+    <ReactMarkdown
+      components={{ ...components, ...extraComponents }}
+      urlTransform={(url, key) =>
+        defaultUrlTransform(key === "href" && resolveHref ? resolveHref(url) : url)
+      }
+    >
+      {children}
+    </ReactMarkdown>
+  );
 }

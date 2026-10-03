@@ -9,6 +9,7 @@ import SecurityPage from "./pages/site/Security";
 import AboutPage from "./pages/site/About";
 import ContactPage from "./pages/site/Contact";
 import LegalPage from "./pages/site/Legal";
+import GuidePage from "./pages/site/Guide";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import { JSX } from "react";
 import Register from "./pages/Register";
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="/security" element={<SecurityPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
+              <Route path="/guides/:slug" element={<GuidePage />} />
             </Route>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
