@@ -25,7 +25,7 @@ The system SHALL split each file under `docs/user-guide/*.md` into one chunk per
 - **THEN** one `site_chunks` row is created per `##` heading, each with a distinct `content_id` and `url`
 
 ### Requirement: Ingestion is idempotent and prunes stale chunks
-The system SHALL upsert `site_chunks` rows keyed by `content_id`, rewriting a row only when its source text's hash (`content_version`) changes, and SHALL delete rows whose `content_id` no longer exists among published sources.
+The system SHALL upsert `site_chunks` rows keyed by `content_id`, rewriting a row only when the hash of its indexed fields (`content_version`) changes, and SHALL delete rows whose `content_id` no longer exists among published sources.
 
 #### Scenario: Unchanged content is not rewritten
 - **WHEN** ingestion runs twice in a row with no source changes
