@@ -7,7 +7,7 @@ See proposal.md for motivation. Additional facts that shape the approach:
 - `frontend-typescript/src/content/site/**` sections already have globally unique `id` (`<page>.<slug>`), a canonical URL (`<page route>#<anchor>`), optional `personas`, and a `status` of `published`/`draft` (see that directory's README.md). This is most of the `site_chunks` schema already.
 - `docs/user-guide/*.md` (`ngo-guide.md`, `donor-guide.md`) and `docs/PRODUCT.md` have no frontmatter and no public URL today.
 - `.github/workflows/deploy.yml` is a single SSH job that runs `docker compose up --build` for the whole stack on push to `main`, gated by `paths-ignore` that excludes `**/*.md`, `docs/**`, `frontend-typescript/**`. A content-only merge is invisible to it.
-- `.github/workflows/ai.yml` already runs Postgres and `pytest tests/ -v` for the ai service, gated by a `dorny/paths-filter` step scoped to `services/ai/**` and `shared/**`.
+- `.github/workflows/ai.yml` runs `pytest tests/ -v` for the ai service with no database service (existing tests use sqlite), so this change adds a `postgres:15` service to `ai-test` and passes it to `ts_rank_cd`-dependent tests as `AI_TEST_POSTGRES_URL` (those tests skip locally when it's unset, but never in CI). The job is gated by a `dorny/paths-filter` step scoped to `services/ai/**` and `shared/**`.
 - `chat-fix-prompt-injection-provenance`'s `scripts/eval_prompt_injection.py` is an opt-in, not-in-CI live eval against real providers. This change's harness is the opposite shape — deterministic, no LLM, CI-gating — but reuses its reporting layout (per-category breakdown, a committed baseline file) so the repo has one eval-report shape.
 
 ## Goals / Non-Goals

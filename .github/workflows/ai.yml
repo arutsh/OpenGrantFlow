@@ -29,8 +29,23 @@ jobs:
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: grandflow_ai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       AI_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/grandflow_ai
+      AI_TEST_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/grandflow_ai
       LOG_LEVEL: INFO
       PYTHONPATH: ${{ github.workspace }}/services/ai:${{ github.workspace }}
       AI_PROVIDER_APPROVED_ORIGINS: '[{"origin": "http://ollama:11434", "allow_private": true}]'

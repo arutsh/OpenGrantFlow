@@ -30,5 +30,5 @@ The site assistant must answer from Open Grant Flow's own pages. Answer quality 
 - **ai service:** new `site_chunks` model and Alembic migration, an ingestion command run on startup, a retrieval service, and `tests/evals/`. `Dockerfile` must `COPY` the content and docs directories.
 - **Python dependencies:** `pyyaml` (frontmatter). No vector dependency yet.
 - **Infra:** none for lexical search. The later `pgvector/pgvector:pg15` image swap is recorded, not done.
-- **CI:** `ai.yml` already runs Postgres, so retrieval evals need no new service. The workflow needs path triggers for `frontend-typescript/src/content/site/**`, `docs/user-guide/**` and `docs/PRODUCT.md`.
+- **CI:** `ai.yml`'s `ai-test` job gains a `postgres:15` service (it had none; unit tests ran on sqlite), exposed to Postgres-only tests as `AI_TEST_POSTGRES_URL`. The workflow needs path triggers for `frontend-typescript/src/content/site/**`, `docs/user-guide/**` and `docs/PRODUCT.md`.
 - **Deploy:** new/updated workflow to reindex on content-path changes, since `deploy.yml` doesn't trigger on those paths today.
