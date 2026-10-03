@@ -9,6 +9,9 @@ RUN --mount=type=cache,target=/root/.cache pip install -r requirements.txt
 
 COPY shared ./shared
 COPY services/ai/. .
+COPY frontend-typescript/src/content/site ./content/site
+COPY docs/user-guide ./docs/user-guide
+COPY docs/PRODUCT.md ./docs/PRODUCT.md
 RUN chmod +x entrypoint.sh
 RUN chmod +x shared/healthcheck.sh
 

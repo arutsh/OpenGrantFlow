@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Mirrors .github/workflows/{ai,budget,chat,users,shared,tooling,worker}.yml's lint
-# steps locally, scoped to whatever's actually being pushed. See
+# Mirrors .github/workflows/{ai,budget,chat,users,shared,tooling,worker,frontend}.yml's
+# lint steps locally, scoped to whatever's actually being pushed. See
 # docs/development/WORKFLOW.md for setup (git config core.hooksPath).
 set -euo pipefail
 
@@ -28,9 +28,9 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
 
   if [[ -z "$base" ]]; then
-    changed=$(git diff --name-only --diff-filter=ACM "$local_sha" -- '*.py' || true)
+    changed=$(git diff --name-only --diff-filter=ACM "$local_sha" -- '*.py' '*.ts' '*.tsx' || true)
   else
-    changed=$(git diff --name-only --diff-filter=ACM "$base" "$local_sha" -- '*.py' || true)
+    changed=$(git diff --name-only --diff-filter=ACM "$base" "$local_sha" -- '*.py' '*.ts' '*.tsx' || true)
   fi
 
   [[ -z "$changed" ]] && continue
@@ -44,6 +44,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       services/worker/*) areas["worker"]=1 ;;
       scripts/*) areas["scripts"]=1 ;;
       shared/*) areas["ai"]=1; areas["budget"]=1; areas["chat"]=1; areas["users"]=1; areas["shared"]=1 ;;
+      frontend-typescript/*) areas["frontend"]=1 ;;
     esac
   done <<< "$changed"
 done
@@ -90,6 +91,12 @@ for area in "${!areas[@]}"; do
       run black --check scripts/
       run flake8 --max-line-length=100 scripts/
       run python3 -m pytest scripts/test_flow.py -q
+      ;;
+    frontend)
+      echo "== frontend-typescript =="
+      pushd frontend-typescript > /dev/null
+      run npm run lint:ci
+      popd > /dev/null
       ;;
   esac
 done

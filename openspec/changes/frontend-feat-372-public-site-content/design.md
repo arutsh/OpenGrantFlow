@@ -22,7 +22,6 @@
 - A CMS, or content editing outside git.
 - Server-side rendering or prerendering for SEO. Worth revisiting later; it does not affect the content contract.
 - The assistant UI or any AI behaviour.
-- Moving `/legal` copy into content files. It has its own spec (`privacy-policy`) and is not in the assistant's planned corpus.
 
 ## Decisions
 
@@ -64,12 +63,16 @@ A layout route wraps the five pages and renders the header (with a mobile menu t
 ### D9. Legacy anchor redirects on Home
 Existing inbound links such as `/#contact` and `/#about` would otherwise land at the top of Home. Home maps the known legacy hashes to their new pages: `#contact`→`/contact`, `#about` and `#vision`→`/about`, `#platform` and `#problem`→`/how-it-works`, `#founding-partners`→`/contact#pilot`.
 
+### D10. `/legal` follows the same one-file-per-section contract, split at subsection granularity
+`page: legal` content files use the same D2 rule: one file per subsection, not one file for all of Privacy or all of Terms — e.g. `legal.privacy-legal-status`, `legal.privacy-retention`, `legal.privacy-processors`, `legal.privacy-contact`, `legal.terms-service`, `legal.terms-no-warranty`. This gives the assistant a citable ID per compliance fact instead of one undifferentiated page, which is the reason to migrate `/legal` at all. `Legal.tsx`'s `#privacy` and `#terms` anchors stay as the two on-page groupings; the route itself is unaffected.
+
 ## Risks / Trade-offs
 
 - [Rewriting copy loses the current spec'd content, such as the anecdote] → The `landing-page` delta keeps the sector-validation requirement, including the anecdote, now placed on How it works. The page tests assert it.
 - [Authors break an ID or anchor that later changes cite] → The spec treats that as a breaking content change. Once the retrieval change lands, its golden dataset will fail on a dangling ID, so the loss is caught by CI, not by visitors.
 - [Draft text is visible in the bundle] → Accepted (D6). The repo is public.
 - [No prerendering hurts SEO for five new URLs] → Same as today's single page. Deferred.
+- [Migrating compliance-sensitive legal copy risks wording drift] → Legal content files copy `Legal.tsx`'s existing text verbatim, no rewrite. A render test asserts the migrated sections still satisfy the `privacy-policy` spec's exact-wording scenarios (retention posture, subprocessor list, contact address, legal-status statement).
 
 ## Migration Plan
 

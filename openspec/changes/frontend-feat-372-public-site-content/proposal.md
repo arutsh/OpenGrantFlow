@@ -4,7 +4,8 @@ The public site is one 861-line `LandingPage.tsx`, and all its copy is hard-code
 
 ## What Changes
 
-- Split the landing page into five public routes: `/`, `/how-it-works`, `/security`, `/about`, `/contact`. They share a header (with a mobile menu), a footer and per-page `<title>`s. `/legal` is unchanged.
+- Split the landing page into five public routes: `/`, `/how-it-works`, `/security`, `/about`, `/contact`. They share a header (with a mobile menu), a footer and per-page `<title>`s.
+- `/legal`'s copy moves into content files too, under the same one-file-per-section contract, so it's part of the assistant's retrievable corpus. Its route and in-page anchors (`#privacy`, `#terms`) don't change — only where the copy lives.
 - Move all public-page copy into markdown files with YAML frontmatter under `frontend-typescript/src/content/site/`, **one file per section**. Frontmatter carries a stable `id`, `page`, `anchor`, `title`, optional `personas`, a `status` (`published` | `draft`) and optional structured `items` (cards, steps, quotes, FAQs).
 - Page components own the layout. Copy comes from the content loader by section ID, so a copy edit never touches TSX.
 - `draft` sections render only in non-production builds, with a visible "TBC" marker. They are never rendered in production. This is how the redesign's unresolved TBC items ship safely.
@@ -24,7 +25,7 @@ The public site is one 861-line `LandingPage.tsx`, and all its copy is hard-code
 
 ## Impact
 
-- **Frontend:** `LandingPage.tsx` is replaced by `src/pages/site/*`, `src/content/site/**` and `src/lib/siteContent.ts`. `App.tsx` gains public routes, registered before the `*` → `/dashboard` catch-all. `LandingPage.test.tsx` is replaced by per-page tests and the content validation test.
+- **Frontend:** `LandingPage.tsx` is replaced by `src/pages/site/*`, `src/content/site/**` and `src/lib/siteContent.ts`. `App.tsx` gains public routes, registered before the `*` → `/dashboard` catch-all. `LandingPage.test.tsx` is replaced by per-page tests and the content validation test. `Legal.tsx`/`Legal.test.tsx` are replaced the same way, on the same content loader.
 - **New npm dependencies:** `react-markdown` (renders section bodies with no raw-HTML passthrough) and `yaml` (a browser-safe frontmatter parser). `gray-matter` is avoided because it needs Node `Buffer` polyfills under Vite.
 - **Hosting:** Vercel (`vercel.json`) already rewrites every path to `index.html`, and so does `nginx.frontend.conf` (`try_files`), so no gateway change is needed.
 - **Downstream:** `ai-feat-site-assistant-retrieval-evals` depends on this change and reads the same content files.

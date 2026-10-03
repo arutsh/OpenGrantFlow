@@ -7,7 +7,7 @@ Defines how public-site copy is authored: as versioned, individually addressable
 ## ADDED Requirements
 
 ### Requirement: Public-site copy is stored as one content file per section
-All copy on the public pages (Home, How it works, Security & data, About, Contact) SHALL be stored in repository content files, one file per page section. It SHALL NOT be embedded in page component source. Each file SHALL consist of YAML frontmatter followed by an optional markdown body.
+All copy on the public pages (Home, How it works, Security & data, About, Contact, Legal) SHALL be stored in repository content files, one file per page section. It SHALL NOT be embedded in page component source. Each file SHALL consist of YAML frontmatter followed by an optional markdown body.
 
 #### Scenario: Copy edit without code change
 - **WHEN** an author changes the wording of a public-page section
@@ -21,7 +21,7 @@ All copy on the public pages (Home, How it works, Security & data, About, Contac
 ### Requirement: Section frontmatter carries provenance metadata
 Every section file's frontmatter SHALL include:
 - `id`: a globally unique, stable identifier in the form `<page>.<slug>`
-- `page`: one of `home`, `how-it-works`, `security`, `about`, `contact`
+- `page`: one of `home`, `how-it-works`, `security`, `about`, `contact`, `legal`
 - `anchor`: a URL fragment, unique within its page
 - `title`: the section heading as shown to visitors
 - `status`: `published` or `draft`

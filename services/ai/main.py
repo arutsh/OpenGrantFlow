@@ -1,5 +1,6 @@
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI
@@ -13,8 +14,10 @@ from app.api import decide_routes, excel_extraction_routes, parse_routes, settin
 from app.core.config import settings
 from app.core.exceptions import DomainError, PermissionDenied
 from app.core.logging import setup_logging, get_logger
-from app.db.session import engine
+from app.db.session import AsyncSessionLocal, engine
+from app.services.guide_doc_ingestion import ingest_guide_docs
 from app.services.privileged_access_audit import write_privileged_access_log
+from app.services.site_content_ingestion import ingest_site_content
 from shared.exceptions.error_handlers import domain_error_handler, unhandled_exception_handler
 from shared.observability import (
     init_logging,
@@ -47,10 +50,25 @@ if os.getenv("VSCODE_DEBUGGER") == "1":
         pass
 
 
+async def _ingest_site_knowledge() -> None:
+    # A failed reindex must not stop the service; the previous index keeps serving.
+    try:
+        async with AsyncSessionLocal() as db:
+            await ingest_site_content(db, Path(settings.SITE_CONTENT_DIR))
+            await ingest_guide_docs(
+                db, Path(settings.GUIDE_DOCS_DIR), Path(settings.PRODUCT_DOC_PATH)
+            )
+        logger.info("site_knowledge_index_ingested")
+    except Exception:
+        logger.exception("site_knowledge_index_ingest_failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("app_startup", service="ai")
     app.state.http_client = httpx.AsyncClient(timeout=httpx.Timeout(30.0))
+    if os.getenv("ENV") != "test":
+        await _ingest_site_knowledge()
     yield
     await app.state.http_client.aclose()
     logger.info("app_shutdown", service="ai")
