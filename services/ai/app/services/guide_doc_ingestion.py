@@ -59,9 +59,7 @@ async def _indexed_doc_slugs(db: AsyncSession) -> set[str]:
     return {content_id.split(".", 1)[0] for content_id in result.scalars()}
 
 
-async def ingest_guide_docs(
-    db: AsyncSession, guide_docs_dir: Path, product_doc_path: Path
-) -> None:
+async def ingest_guide_docs(db: AsyncSession, guide_docs_dir: Path, product_doc_path: Path) -> None:
     """Index docs/user-guide/*.md and docs/PRODUCT.md into site_chunks, one
     row per H2 section, pruning rows for sections no longer present."""
     paths = [p for p in sorted(guide_docs_dir.glob("*.md")) if p.name != "README.md"]
