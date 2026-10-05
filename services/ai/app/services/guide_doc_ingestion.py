@@ -62,13 +62,30 @@ async def _indexed_doc_slugs(db: AsyncSession) -> set[str]:
 async def ingest_guide_docs(db: AsyncSession, guide_docs_dir: Path, product_doc_path: Path) -> None:
     """Index docs/user-guide/*.md and docs/PRODUCT.md into site_chunks, one
     row per H2 section, pruning rows for sections no longer present."""
-    paths = [p for p in sorted(guide_docs_dir.glob("*.md")) if p.name != "README.md"]
+    paths = _guide_doc_paths(guide_docs_dir, product_doc_path)
     if not paths:
         logger.error("guide_docs_dir_empty_skipping_sync", path=str(guide_docs_dir))
         return
-    if product_doc_path.exists():
-        paths.append(product_doc_path)
 
+    chunks = _load_chunks(paths)
+    doc_slugs = {path.stem.lower() for path in paths} | await _indexed_doc_slugs(db)
+    await sync_chunks(db, chunks, known_prefixes=sorted(doc_slugs))
+
+
+def load_guide_chunks(guide_docs_dir: Path, product_doc_path: Path) -> list[ChunkInput] | None:
+    """Parse guide docs into H2 chunks; None when `guide_docs_dir` has no guide files."""
+    paths = _guide_doc_paths(guide_docs_dir, product_doc_path)
+    return _load_chunks(paths) if paths else None
+
+
+def _guide_doc_paths(guide_docs_dir: Path, product_doc_path: Path) -> list[Path]:
+    paths = [p for p in sorted(guide_docs_dir.glob("*.md")) if p.name != "README.md"]
+    if paths and product_doc_path.exists():
+        paths.append(product_doc_path)
+    return paths
+
+
+def _load_chunks(paths: list[Path]) -> list[ChunkInput]:
     chunks = []
     for path in paths:
         doc_slug = path.stem.lower()
@@ -76,6 +93,4 @@ async def ingest_guide_docs(db: AsyncSession, guide_docs_dir: Path, product_doc_
             chunks.extend(_chunks_for_doc(doc_slug, path.read_text(encoding="utf-8")))
         except Exception as exc:
             logger.warning("guide_doc_parse_failed", path=str(path), error=str(exc))
-
-    doc_slugs = {path.stem.lower() for path in paths} | await _indexed_doc_slugs(db)
-    await sync_chunks(db, chunks, known_prefixes=sorted(doc_slugs))
+    return chunks

@@ -72,10 +72,18 @@ def _to_chunk(frontmatter: dict) -> ChunkInput | None:
 async def ingest_site_content(db: AsyncSession, content_dir: Path) -> None:
     """Index published sections under `content_dir` into site_chunks,
     pruning rows for sections that are no longer published."""
-    paths = [p for p in sorted(content_dir.rglob("*.md")) if p.name != "README.md"]
-    if not paths:
+    chunks = load_site_chunks(content_dir)
+    if chunks is None:
         logger.error("site_content_dir_empty_skipping_sync", path=str(content_dir))
         return
+    await sync_chunks(db, chunks, known_prefixes=list(PAGE_ROUTES))
+
+
+def load_site_chunks(content_dir: Path) -> list[ChunkInput] | None:
+    """Parse published sections under `content_dir`; None when it has no section files."""
+    paths = [p for p in sorted(content_dir.rglob("*.md")) if p.name != "README.md"]
+    if not paths:
+        return None
 
     chunks = []
     for path in paths:
@@ -87,5 +95,4 @@ async def ingest_site_content(db: AsyncSession, content_dir: Path) -> None:
             continue
         if chunk is not None:
             chunks.append(chunk)
-
-    await sync_chunks(db, chunks, known_prefixes=list(PAGE_ROUTES))
+    return chunks

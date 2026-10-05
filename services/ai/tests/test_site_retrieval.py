@@ -1,49 +1,20 @@
 """Real-Postgres tests for site retrieval: ts_rank_cd ranking, top_k bound, persona boost."""
 
-import gc
-import os
-import uuid
-
 import pytest
-from sqlalchemy import text
-from sqlalchemy.engine.url import make_url
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.models.base import Base
 from app.models.site_chunk import SiteChunkModel
 from app.services.site_retrieval import retrieve
+from tests.postgres_schema import postgres_schema_session, requires_postgres
 
-PG_URL = os.environ.get("AI_TEST_POSTGRES_URL")
-
-# Skip locally without a DB, but never in CI, so a lost service fails loudly instead.
-pytestmark = pytest.mark.skipif(
-    not PG_URL and not os.environ.get("CI"),
-    reason="AI_TEST_POSTGRES_URL not set; ts_rank_cd needs real Postgres",
-)
+pytestmark = requires_postgres
 
 
 @pytest.fixture
 async def db_session():
-    url = make_url(PG_URL).set(drivername="postgresql+asyncpg")
-    schema = f"test_site_retrieval_{uuid.uuid4().hex[:12]}"
-
-    admin = create_async_engine(url)
-    async with admin.begin() as conn:
-        await conn.execute(text(f'CREATE SCHEMA "{schema}"'))
-
-    engine = create_async_engine(url, connect_args={"server_settings": {"search_path": schema}})
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all, tables=[SiteChunkModel.__table__])
-    maker = async_sessionmaker(engine, expire_on_commit=False)
-    try:
-        async with maker() as session:
-            yield session
-    finally:
-        await engine.dispose()
-        async with admin.begin() as conn:
-            await conn.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
-        await admin.dispose()
-        gc.collect()
+    async with postgres_schema_session(
+        "test_site_retrieval", [SiteChunkModel.__table__]
+    ) as session:
+        yield session
 
 
 def _chunk(content_id: str, body: str, personas: list[str] | None = None) -> SiteChunkModel:
