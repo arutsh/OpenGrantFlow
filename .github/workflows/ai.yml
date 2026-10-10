@@ -24,6 +24,9 @@ jobs:
             relevant:
               - "services/ai/**"
               - "shared/**"
+              - "frontend-typescript/src/content/site/**"
+              - "docs/user-guide/**"
+              - "docs/PRODUCT.md"
 
   ai-test:
     needs: changes
