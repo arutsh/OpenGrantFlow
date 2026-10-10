@@ -1,0 +1,31 @@
+name: Reindex Site Content
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend-typescript/src/content/site/**"
+      - "docs/user-guide/**"
+      - "docs/PRODUCT.md"
+
+jobs:
+  reindex:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reindex content and restart AI service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+            cd /opt/grandflow
+
+            # Fetch latest main and update checkout
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Restart ai container to trigger startup ingestion hook
+            docker compose --env-file .env.prod -f docker-compose.prod.yml restart ai
