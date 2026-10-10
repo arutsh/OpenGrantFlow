@@ -8,6 +8,8 @@ on:
       - "docs/user-guide/**"
       - "docs/PRODUCT.md"
 
+permissions: {}
+
 jobs:
   reindex:
     runs-on: ubuntu-latest
