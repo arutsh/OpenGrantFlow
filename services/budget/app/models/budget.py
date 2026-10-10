@@ -77,11 +77,17 @@ class BudgetModel(Base, AuditMixin):
     excel_import_structure: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     excel_import_lines_locked_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     lines: Mapped[list["BudgetLineModel"]] = relationship(
-        "BudgetLineModel", back_populates="budget"
+        "BudgetLineModel",
+        back_populates="budget",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     reports: Mapped[list["ReportModel"]] = relationship("ReportModel", back_populates="budget")
     categories: Mapped[list["BudgetCategoryModel"]] = relationship(
-        "BudgetCategoryModel", back_populates="budget"
+        "BudgetCategoryModel",
+        back_populates="budget",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
 
@@ -91,7 +97,9 @@ class BudgetLineModel(Base, AuditMixin):
     id: Mapped[uuid.UUID] = mapped_column(
         GUID(), primary_key=True, index=True, default=lambda: uuid.uuid4()
     )
-    budget_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("budgets.id"), nullable=False)
+    budget_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False
+    )
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("budget_categories.id", ondelete="SET NULL"), nullable=True
     )

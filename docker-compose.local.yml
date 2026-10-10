@@ -30,7 +30,7 @@ services:
       - grandflow
 
   minio:
-    image: quay.io/minio/minio:latest
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     container_name: grandflow-minio-local
     command: server /data --console-address ":9001"
     ports:
