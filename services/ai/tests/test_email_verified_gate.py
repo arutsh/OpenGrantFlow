@@ -30,12 +30,8 @@ def _token(email_verified: bool) -> str:
 
 @pytest.fixture
 async def sessions_db():
-    # settings_routes.py declares its own module-local get_db (see
-    # project_user_routes_duplicate_get_db in memory for the sibling case) —
-    # this fixture exists only so
-    # test_verified_token_is_not_blocked_by_the_verification_gate doesn't
-    # need a real Postgres reachable at settings.ai_database_url, which isn't
-    # resolvable outside docker-compose.local.yml (or CI).
+    # Lets the verified-token test override get_db without a real Postgres,
+    # which isn't reachable outside docker-compose.local.yml (or CI).
     engine = create_async_engine("sqlite+aiosqlite://")
     async with engine.begin() as conn:
         await conn.run_sync(

@@ -207,6 +207,25 @@ All set already: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `RABBITMQ_
 
 **Not yet set — needed for the platform-funded AI fallback (`services/ai`):** `ANTHROPIC_API_KEY`. Without it, `resolve_platform_funded_model()` returns `None` and every platform-funded fallback path (excel import for zero-key orgs, and the superuser-gated `/ai/decide` / `/ai/parse-budget/stream` fallback) fails closed even when it should recover — confirmed missing in prod on 2026-08-25.
 
+### Public site assistant (`services/ai`)
+
+The anonymous "ask a question" box on the public website is off unless `SITE_ASSISTANT_ENABLED=true`. While it is off, `POST /api/v1/ai/site-assistant/ask` returns 404 and the Home page hides the box. Don't enable it in production until the live eval suite has passed and the privacy-policy wording has legal sign-off (see the `ai-feat-387-site-assistant-grounded-answers` change's design.md, Migration Plan).
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `SITE_ASSISTANT_ENABLED` | `false` | Feature flag for the endpoint and the Home box |
+| `SITE_ASSISTANT_PROVIDER` | `anthropic` | `anthropic` (platform `ANTHROPIC_API_KEY`) or `ollama` (`OLLAMA_URL`, which must be in `AI_PROVIDER_APPROVED_ORIGINS`). Any other value fails startup |
+| `SITE_ASSISTANT_MODEL` | unset | Model name; unset uses Claude Haiku for `anthropic` and `OLLAMA_MODEL` for `ollama` |
+| `SITE_ASSISTANT_PER_IP_DAILY_CAP` | unset | Questions per visitor IP per UTC day. Unset uses the provider profile (`anthropic` 20, `ollama` 200); `0` means unlimited |
+| `SITE_ASSISTANT_GLOBAL_DAILY_CAP` | unset | Model calls per UTC day across all visitors. Unset uses the provider profile (`anthropic` 300, `ollama` none); `0` means unlimited |
+| `SITE_ASSISTANT_MAX_QUESTION_CHARS` | `500` | Longer questions get a 422 |
+| `SITE_ASSISTANT_TOP_K` | `5` | Site chunks retrieved per question |
+| `SITE_ASSISTANT_MIN_SCORE` | `0.25` | Top retrieval score below this answers "not covered" without calling the model |
+| `SITE_ASSISTANT_HUMAN_VERIFIER` | `none` | Bot-check hook; `none` is the only verifier today |
+| `SITE_ASSISTANT_LINK_HOSTS` | `opengrantflow.com,www.opengrantflow.com` | Hosts an answer may link to. An answer linking to any other host is replaced with the "not covered" reply. Dev adds `localhost`; self-hosters set their own domain |
+
+If the configured model can't be resolved (missing key, unapproved Ollama origin), `ask` returns 503 and the Home box falls back to browse links.
+
 ### Observability
 
 Traces, metrics, and logs from all five services (the four FastAPI services

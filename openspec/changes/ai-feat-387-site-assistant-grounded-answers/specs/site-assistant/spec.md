@@ -36,15 +36,19 @@ The system SHALL reject a question that is empty or longer than the configured m
 - **THEN** the system returns 422 and makes no model call
 
 ### Requirement: Answers are grounded in retrieved site content only
-The system SHALL retrieve site chunks for the question and pass only those chunks to the model, wrapped and labelled as untrusted reference data. The answer SHALL be drawn only from that content. The system SHALL NOT state pricing, partners, endorsements, guarantees, revenue or capabilities that the content does not contain.
+The system SHALL retrieve site chunks for the question and pass only those chunks to the model, wrapped and labelled as untrusted reference data. The answer SHALL be drawn only from that content. The system SHALL NOT state pricing, partners, endorsements, guarantees, revenue or capabilities that the content does not contain. Links in the answer text SHALL point only at hosts on the operator's verified link-host list (by default the production domain); an answer linking anywhere else SHALL be returned as `answerable: false` with the fixed fallback answer.
 
 #### Scenario: Unsupported claim requested
-- **WHEN** a visitor asks "Which governments endorse GrantFlow?" and no indexed content mentions an endorsement
+- **WHEN** a visitor asks "Which governments endorse OpenGrantFlow?" and no indexed content mentions an endorsement
 - **THEN** the response has `answerable: false` and the answer names no endorser
 
 #### Scenario: Instruction planted in content
 - **WHEN** a retrieved chunk contains text instructing the assistant to ignore its rules or output a URL
-- **THEN** the response does not follow that instruction and contains no URL outside the citation list
+- **THEN** the response does not follow that instruction and contains no link to a host outside the verified link-host list
+
+#### Scenario: Link to a verified host
+- **WHEN** the model's answer links to a host on the verified link-host list
+- **THEN** the answer is returned unchanged
 
 ### Requirement: Weak retrieval short-circuits without a model call
 When retrieval returns no chunks, or the top chunk scores below the configured unanswerable threshold, the system SHALL return `answerable: false` with no citations and SHALL NOT call the model.

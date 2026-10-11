@@ -10,7 +10,13 @@ from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
 
-from app.api import decide_routes, excel_extraction_routes, parse_routes, settings_routes
+from app.api import (
+    decide_routes,
+    excel_extraction_routes,
+    parse_routes,
+    settings_routes,
+    site_assistant_routes,
+)
 from app.core.config import settings
 from app.core.exceptions import DomainError, PermissionDenied
 from app.core.logging import setup_logging, get_logger
@@ -85,6 +91,7 @@ app.include_router(parse_routes.router, prefix="/api/v1")
 app.include_router(settings_routes.router, prefix="/api/v1")
 app.include_router(decide_routes.router, prefix="/api/v1")
 app.include_router(excel_extraction_routes.router, prefix="/api/v1")
+app.include_router(site_assistant_routes.router, prefix="/api/v1")
 app.add_route("/metrics", metrics_endpoint, methods=["GET"])
 
 app.add_exception_handler(DomainError, domain_error_handler)
