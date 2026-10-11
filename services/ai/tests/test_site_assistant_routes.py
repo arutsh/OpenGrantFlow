@@ -1,10 +1,14 @@
 """Route tests for /api/v1/ai/site-assistant, one or more per specs/site-assistant scenario."""
 
 import importlib.util
+from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
+import fakeredis
 import pytest
+import redis
 import respx
 from fastapi.testclient import TestClient
 from pydantic_ai.exceptions import ModelHTTPError
@@ -13,7 +17,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from app.api import site_assistant_routes
 from app.core.config import settings
-from app.services import site_assistant
+from app.services import rate_limiter, site_assistant
 from app.services.prompt_loader import LoadedPrompt
 from app.services.provider import ResolvedModel
 from app.services.site_retrieval import RetrievedChunk
@@ -83,6 +87,7 @@ def assistant(monkeypatch):
     }
     retrieve = AsyncMock(side_effect=lambda *a, **k: state["chunks"])
     state["retrieve"] = retrieve
+    state["redis"] = fakeredis.FakeAsyncRedis(decode_responses=True)
 
     async def _no_db():
         yield None
@@ -90,6 +95,7 @@ def assistant(monkeypatch):
     app.dependency_overrides[site_assistant_routes.get_db] = _no_db
     with (
         patch.object(site_assistant, "retrieve", retrieve),
+        patch.object(rate_limiter, "get_redis_client", side_effect=lambda: state["redis"]),
         patch.object(site_assistant, "load_prompt", AsyncMock(return_value=_seeded_prompt())),
         patch.object(
             site_assistant_routes,
@@ -387,3 +393,138 @@ def test_rejecting_verifier_returns_403_without_model_call(assistant):
     assert _ask(assistant).status_code == 403
     assistant["retrieve"].assert_not_awaited()
     assert assistant["model"].calls == []
+
+
+# Daily caps follow the provider
+
+_TESTCLIENT_IP = "testclient"
+
+
+def _cap_key(scope: str, subject: str) -> str:
+    return f"rate_limit:{scope}:{subject}:{datetime.now(timezone.utc):%Y%m%d}"
+
+
+def _seed(state, key: str, count: int) -> None:
+    anyio.run(state["redis"].set, key, count)
+
+
+def _seed_ip(state, count: int) -> None:
+    subject = rate_limiter.hash_client_ip(_TESTCLIENT_IP)
+    _seed(state, _cap_key(site_assistant_routes.PER_IP_SCOPE, subject), count)
+
+
+def _seed_global(state, count: int) -> None:
+    _seed(state, _cap_key(site_assistant_routes.GLOBAL_SCOPE, "all"), count)
+
+
+def test_per_ip_cap_reached_on_21st_question_under_anthropic(assistant):
+    for _ in range(20):
+        assert _ask(assistant).status_code == 200
+    resp = _ask(assistant)
+    assert resp.status_code == 429
+    assert 0 < int(resp.headers["Retry-After"]) <= 86400
+    assert len(assistant["model"].calls) == 20
+
+
+def test_per_ip_cap_counts_short_circuits_but_not_invalid_questions(assistant, monkeypatch):
+    monkeypatch.setattr(settings, "SITE_ASSISTANT_PER_IP_DAILY_CAP", 1)
+    assert assistant["client"].post(ASK, json={"question": "x" * 501}).status_code == 422
+    assistant["chunks"] = []
+    assert _ask(assistant).status_code == 200
+    assert _ask(assistant).status_code == 429
+
+
+def test_per_ip_cap_hit_runs_before_retrieval(assistant):
+    _seed_ip(assistant, 20)
+    assert _ask(assistant).status_code == 429
+    assistant["retrieve"].assert_not_awaited()
+
+
+def test_global_cap_reached_returns_429_without_model_call(assistant):
+    _seed_global(assistant, 300)
+    resp = _ask(assistant)
+    assert resp.status_code == 429
+    assert "Retry-After" in resp.headers
+    assert assistant["model"].calls == []
+
+
+def test_short_circuits_do_not_consume_global_cap(assistant, monkeypatch):
+    monkeypatch.setattr(settings, "SITE_ASSISTANT_GLOBAL_DAILY_CAP", 1)
+    assistant["chunks"] = []
+    for _ in range(3):
+        assert _ask(assistant).status_code == 200
+    assistant["chunks"] = [_chunk("export")]
+    assert _ask(assistant).status_code == 200
+    assert _ask(assistant).status_code == 429
+    assert len(assistant["model"].calls) == 1
+
+
+def test_ollama_profile_has_no_global_cap_and_200_per_ip(assistant, monkeypatch):
+    monkeypatch.setattr(settings, "SITE_ASSISTANT_PROVIDER", "ollama")
+    _seed_global(assistant, 10_000)
+    _seed_ip(assistant, 199)
+    assert _ask(assistant).status_code == 200
+    assert _ask(assistant).status_code == 429
+
+
+def test_per_ip_override_zero_is_unlimited(assistant, monkeypatch):
+    monkeypatch.setattr(settings, "SITE_ASSISTANT_PER_IP_DAILY_CAP", 0)
+    _seed_ip(assistant, 1_000_000)
+    assert _ask(assistant).status_code == 200
+
+
+# Caps fail closed
+
+
+def _broken_redis():
+    broken = MagicMock()
+    broken.pipeline = MagicMock(side_effect=redis.ConnectionError("down"))
+    return broken
+
+
+def test_redis_down_returns_503_without_model_call(assistant):
+    assistant["redis"] = _broken_redis()
+    assert _ask(assistant).status_code == 503
+    assistant["retrieve"].assert_not_awaited()
+    assert assistant["model"].calls == []
+
+
+def test_redis_down_at_global_cap_returns_503_without_model_call(assistant, monkeypatch):
+    monkeypatch.setattr(settings, "SITE_ASSISTANT_PER_IP_DAILY_CAP", 0)
+    assistant["redis"] = _broken_redis()
+    assert _ask(assistant).status_code == 503
+    assert assistant["model"].calls == []
+
+
+# Client IP comes from the trusted gateway
+
+
+def _proxied_client() -> TestClient:
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    # entrypoint.sh flags; overwriting a client-sent header is the gateways' job (client_ip tests).
+    return TestClient(ProxyHeadersMiddleware(app, trusted_hosts="*"))
+
+
+def test_per_ip_cap_counts_the_gateway_forwarded_address(assistant, monkeypatch):
+    monkeypatch.setattr(settings, "SITE_ASSISTANT_PER_IP_DAILY_CAP", 1)
+    proxied = _proxied_client()
+    body = {"question": "How do I export?"}
+    for _ in range(2):
+        last = proxied.post(ASK, json=body, headers={"X-Forwarded-For": "203.0.113.7"})
+    assert last.status_code == 429
+
+    keys = anyio.run(assistant["redis"].keys, "rate_limit:site-assistant-ip:*")
+    real = rate_limiter.hash_client_ip("203.0.113.7")
+    assert keys == [_cap_key(site_assistant_routes.PER_IP_SCOPE, real)]
+    assert "203.0.113.7" not in keys[0]
+
+
+def test_ipv6_addresses_in_one_slash64_share_a_per_ip_bucket(assistant, monkeypatch):
+    monkeypatch.setattr(settings, "SITE_ASSISTANT_PER_IP_DAILY_CAP", 1)
+    proxied = _proxied_client()
+    body = {"question": "How do I export?"}
+    first = proxied.post(ASK, json=body, headers={"X-Forwarded-For": "2001:db8:1:2::1"})
+    rotated = proxied.post(ASK, json=body, headers={"X-Forwarded-For": "2001:db8:1:2:ffff::9"})
+    other = proxied.post(ASK, json=body, headers={"X-Forwarded-For": "2001:db8:1:3::1"})
+    assert (first.status_code, rotated.status_code, other.status_code) == (200, 429, 200)

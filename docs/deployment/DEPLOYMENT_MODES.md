@@ -226,6 +226,10 @@ The anonymous "ask a question" box on the public website is off unless `SITE_ASS
 
 If the configured model can't be resolved (missing key, unapproved Ollama origin), `ask` returns 503 and the Home box falls back to browse links.
 
+Caps reset at 00:00 UTC and are counted in Redis. If Redis is unreachable, `ask` returns 503 rather than serving without limits.
+
+**Never publish the ai service's port directly.** In production, uvicorn runs with `--proxy-headers --forwarded-allow-ips='*'`, so it takes the client address from the leftmost `X-Forwarded-For` entry. That is only safe because Caddy (with no `trusted_proxies` set) replaces any client-sent `X-Forwarded-For` with the real peer address. If the ai port were reachable without going through Caddy, or if `trusted_proxies` or a `header_up X-Forwarded-For` passthrough were added to the Caddyfile, a visitor could choose their own IP and get past the per-IP cap. `services/ai/tests/test_site_assistant_client_ip.py` fails if the Caddyfile changes in either way.
+
 ### Observability
 
 Traces, metrics, and logs from all five services (the four FastAPI services

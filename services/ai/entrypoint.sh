@@ -19,5 +19,6 @@ if [ "$ENV" = "production" ]; then
   # https, not the plain-http scheme of the internal Docker connection.
   exec uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'
 else
-  exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+  # Behind nginx too, so the site-assistant per-IP cap sees the visitor, not the gateway.
+  exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'
 fi

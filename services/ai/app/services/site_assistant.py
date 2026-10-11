@@ -1,6 +1,7 @@
 """Grounded site-assistant pipeline: retrieve → generate → resolve citations, failing closed."""
 
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -16,6 +17,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.services.prompt_loader import LoadedPrompt, load_prompt
 from app.services.provider import ResolvedModel, build_agent
+from app.services.rate_limiter import DailyCapReached
 from app.services.redacted_tracing import RedactedSpan, RedactingTracer
 from app.services.site_retrieval import Persona, RetrievedChunk, retrieve
 
@@ -142,9 +144,14 @@ def resolve_citations(output: SiteAnswer, chunks: list[RetrievedChunk]) -> AskRe
 
 
 async def ask(
-    db: AsyncSession, question: str, persona: Persona | None, resolved: ResolvedModel
+    db: AsyncSession,
+    question: str,
+    persona: Persona | None,
+    resolved: ResolvedModel,
+    before_model_call: Callable[[], Awaitable[None]] | None = None,
 ) -> AskResponse:
-    """Answer one question; raises SiteAssistantUnavailable when the pipeline itself fails."""
+    """Answer one question; raises SiteAssistantUnavailable when the pipeline itself fails.
+    `before_model_call` runs only when the model will be called (the global cap hook)."""
     tracer = RedactingTracer(trace.get_tracer(__name__, tracer_provider=_tracer_provider()))
     with tracer.start_as_current_span("site_assistant.ask") as span:
         span.set_attribute("site_assistant.question_length", len(question))
@@ -159,14 +166,23 @@ async def ask(
         span.set_attribute("site_assistant.retrieved_ids", [c.content_id for c in chunks])
         span.set_attribute("site_assistant.retrieved_scores", [c.score for c in chunks])
 
+        capped: DailyCapReached | None = None
         if not chunks or chunks[0].score < settings.SITE_ASSISTANT_MIN_SCORE:
             response = _unanswerable()
         else:
-            response = await _generate(tracer, span, question, persona, chunks, resolved)
-
-        span.set_attribute("site_assistant.answerable", response.answerable)
-        span.set_attribute("site_assistant.citation_count", len(response.citations))
-        return response
+            try:
+                response = await _generate(
+                    tracer, span, question, persona, chunks, resolved, before_model_call
+                )
+            except DailyCapReached as exc:
+                # Expected throttling: tag the span, re-raise only after it closes cleanly.
+                span.set_attribute("site_assistant.daily_cap_reached", True)
+                capped = exc
+        if capped is None:
+            span.set_attribute("site_assistant.answerable", response.answerable)
+            span.set_attribute("site_assistant.citation_count", len(response.citations))
+            return response
+    raise capped
 
 
 async def _generate(
@@ -176,6 +192,7 @@ async def _generate(
     persona: Persona | None,
     chunks: list[RetrievedChunk],
     resolved: ResolvedModel,
+    before_model_call: Callable[[], Awaitable[None]] | None,
 ) -> AskResponse:
     try:
         prompt = await load_prompt(PROMPT_NAME)
@@ -184,6 +201,9 @@ async def _generate(
     except Exception as exc:
         raise _unavailable("prompt", exc) from exc
     span.set_attribute("site_assistant.prompt_version", prompt.version)
+
+    if before_model_call is not None:
+        await before_model_call()
 
     with tracer.start_as_current_span("site_assistant.generate"):
         try:

@@ -6,11 +6,13 @@ import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from app.services import site_assistant
 from app.services.provider import ResolvedModel
+from app.services.rate_limiter import DailyCapReached
 from tests.test_site_assistant_routes import _chunk, _seeded_prompt
 
 QUESTION = "zebra-question-marker how do I export"
@@ -120,3 +122,23 @@ async def test_short_circuit_span_records_no_model_attributes(exporter):
     root = next(s for s in exporter.get_finished_spans() if s.name == "site_assistant.ask")
     assert root.attributes["site_assistant.answerable"] is False
     assert "gen_ai.usage.input_tokens" not in root.attributes
+
+
+@pytest.mark.anyio
+async def test_daily_cap_hit_is_not_a_span_error(exporter):
+    resolved = ResolvedModel(FunctionModel(_respond), "anthropic", "test-model")
+
+    async def _capped() -> None:
+        raise DailyCapReached(60)
+
+    with (
+        patch.object(site_assistant, "retrieve", AsyncMock(return_value=[_chunk("export")])),
+        patch.object(site_assistant, "load_prompt", AsyncMock(return_value=_seeded_prompt())),
+    ):
+        with pytest.raises(DailyCapReached):
+            await site_assistant.ask(None, QUESTION, None, resolved, before_model_call=_capped)
+
+    root = next(s for s in exporter.get_finished_spans() if s.name == "site_assistant.ask")
+    assert root.status.status_code is not StatusCode.ERROR
+    assert not root.events
+    assert root.attributes["site_assistant.daily_cap_reached"] is True

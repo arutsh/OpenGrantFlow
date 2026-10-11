@@ -21,7 +21,7 @@ api.opengrantflow.com {
 	# Custom response headers are invisible to browser JS unless explicitly exposed —
 	# without this, the frontend can never read X-Session-Id and every chat turn
 	# starts a brand-new session with no history.
-	header Access-Control-Expose-Headers "X-Session-Id, X-Conversation-Id"
+	header Access-Control-Expose-Headers "X-Session-Id, X-Conversation-Id, Retry-After"
 	header @allowed_apex Access-Control-Allow-Origin "https://opengrantflow.com"
 	header @allowed_www Access-Control-Allow-Origin "https://www.opengrantflow.com"
 
