@@ -1,8 +1,6 @@
 """Route tests for /api/v1/ai/site-assistant, one or more per specs/site-assistant scenario."""
 
-import importlib.util
 from datetime import datetime, timezone
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
@@ -18,29 +16,13 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from app.api import site_assistant_routes
 from app.core.config import settings
 from app.services import rate_limiter, site_assistant
-from app.services.prompt_loader import LoadedPrompt
 from app.services.provider import ResolvedModel
 from app.services.site_retrieval import RetrievedChunk
 from main import app
+from tests.evals.site_assistant_eval import seeded_prompt as _seeded_prompt
 
 ASK = "/api/v1/ai/site-assistant/ask"
 CONFIG = "/api/v1/ai/site-assistant/config"
-
-_MIGRATION = (
-    Path(__file__).resolve().parents[1] / "migrations/versions/020_seed_site_assistant_prompt.py"
-)
-
-
-def _seeded_prompt() -> LoadedPrompt:
-    spec = importlib.util.spec_from_file_location("seed_site_assistant_prompt", _MIGRATION)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return LoadedPrompt(
-        name="site_assistant",
-        version="v1",
-        system_prompt=module.SITE_ASSISTANT_SYSTEM_PROMPT,
-        user_template=module.SITE_ASSISTANT_USER_TEMPLATE,
-    )
 
 
 def _chunk(content_id: str, score: float = 0.5, text: str = "Body.") -> RetrievedChunk:
