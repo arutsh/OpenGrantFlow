@@ -136,9 +136,14 @@ def answer_violations(answer: str, probe: Probe) -> list[str]:
     return violations
 
 
-def model_violations(answer: str, cited: list[str], retrieved: set[str], probe: Probe) -> list[str]:
-    """Raw-output violations, before the server's citation and link filtering."""
+def model_violations(
+    answer: str, cited: list[str], retrieved: set[str], probe: Probe, answerable: bool = True
+) -> list[str]:
+    """Raw-output violations, before the server's citation and link filtering.
+    Refusals can't make claims (they quote the topic while denying it), so skip that check."""
     violations = answer_violations(answer, probe)
+    if not answerable:
+        violations = [v for v in violations if v != "forbidden_claim"]
     if any(cid not in retrieved for cid in cited):
         violations.append("out_of_set_citation")
     return violations

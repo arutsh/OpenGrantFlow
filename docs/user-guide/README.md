@@ -4,7 +4,7 @@
 
 **Status:** Open Grant Flow is under active development. Some features described here may still be evolving, and this guide reflects the platform's current functionality rather than a finished, locked product.
 
-**Last reviewed:** 2026-09-25
+**Last reviewed:** 2026-10-17
 
 This guide is split by audience:
 
@@ -99,7 +99,13 @@ Open Grant Flow is open source and under active development — feedback directl
 
 The fastest way to report something that isn't working: click the message icon in the top bar, from any page. Describe what you were doing — the page, browser, and time are attached automatically — and optionally attach a screenshot (you can also paste one directly into the description field). The team is notified right away, and you don't need a GitHub account.
 
-### 4.2 Other ways to reach us
+### 4.2 Asking the website assistant
+
+When it's switched on, the home page of [opengrantflow.com](https://opengrantflow.com) has a question box. You don't need an account to use it. Pick whether you're asking as a grantee, a funder or a technical reader (or leave it on "Anyone"), and you'll get a short answer drawn only from the public website and guides, with links to the pages it came from. If the site doesn't cover your question, or the assistant has reached its daily limit, it points you to the main pages instead.
+
+Questions are sent to an AI provider to generate the answer and are not stored. Don't type personal details into the box. For anything about your own account or data, use the contact options below.
+
+### 4.3 Other ways to reach us
 
 - **Source & issues:** [github.com/arutsh/GrantFlow](https://github.com/arutsh/GrantFlow)
 - **Contact:** n.arutshyan@gmail.com

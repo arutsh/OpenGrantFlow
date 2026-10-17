@@ -58,7 +58,9 @@ async def _run_probe(db, probe: Probe, resolved: ResolvedModel, verbose: bool) -
     result = ProbeResult(
         probe,
         short_circuited=False,
-        model_violations=model_violations(output.answer, output.cited_chunk_ids, retrieved, probe),
+        model_violations=model_violations(
+            output.answer, output.cited_chunk_ids, retrieved, probe, output.answerable
+        ),
         served_violations=answer_violations(response.answer, probe),
     )
     if verbose:

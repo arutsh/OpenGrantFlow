@@ -62,6 +62,15 @@ describe("LegalPage", () => {
     expect(processors.textContent).toMatch(/Anthropic.*transfer of data outside the EU\/EEA to the US/);
   });
 
+  it("discloses where website-assistant questions go", () => {
+    renderPage();
+
+    const disclosure = screen.getByText(/questions you type into it are sent to Anthropic/);
+    expect(disclosure.textContent).toContain("our own platform account");
+    expect(disclosure.textContent).toContain("outside the EU/EEA to the US");
+    expect(disclosure.textContent).toContain("We do not store these questions");
+  });
+
   it("provides a named contact address alongside the contact form", () => {
     renderPage();
 

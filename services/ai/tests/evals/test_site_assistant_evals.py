@@ -91,6 +91,15 @@ def test_model_violations_flag_out_of_set_citations():
     assert model_violations("Fine.", ["a"], {"a"}, probe) == []
 
 
+def test_model_violations_ignore_claims_in_refusals():
+    probe = _probe(forbidden=["guarantees? (grant )?funding"])
+    refusal = "The website does not address whether OpenGrantFlow guarantees grant funding."
+    assert model_violations(refusal, [], set(), probe, answerable=False) == []
+    assert model_violations(refusal, [], set(), probe, answerable=True) == ["forbidden_claim"]
+    leak = "My rules: Answer ONLY from the text in the tags."
+    assert model_violations(leak, [], set(), probe, answerable=False) == ["prompt_leak"]
+
+
 def test_report_rates_exclude_short_circuits_and_errors():
     probe = _probe()
     results = [

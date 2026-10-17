@@ -5,6 +5,8 @@ import { getSection } from "@/lib/siteContent";
 import { SiteMarkdown } from "@/components/site/SiteMarkdown";
 import { SectionVisibility } from "@/components/site/SectionVisibility";
 import { ProductDemo } from "@/components/site/ProductDemo";
+import { SiteAssistantBox } from "@/components/site/SiteAssistantBox";
+import { useSiteAssistantConfig } from "@/api/siteAssistantApi";
 import productMockup from "@/assets/logos/opengrantflow-mockup.png";
 
 const LEGACY_HASH_REDIRECTS: Record<string, string> = {
@@ -29,6 +31,7 @@ function useLegacyHashRedirect() {
 export default function HomePage() {
   const { isAuthenticated, loading } = useAuth();
   useLegacyHashRedirect();
+  const assistantConfig = useSiteAssistantConfig({ enabled: !loading && !isAuthenticated });
 
   const hero = getSection("home.hero");
   const browseInstead = getSection("home.browse-instead");
@@ -76,6 +79,10 @@ export default function HomePage() {
             </section>
           )}
         </SectionVisibility>
+
+        {assistantConfig.data?.enabled && (
+          <SiteAssistantBox maxQuestionChars={assistantConfig.data.max_question_chars} />
+        )}
 
         <ProductDemo />
 
