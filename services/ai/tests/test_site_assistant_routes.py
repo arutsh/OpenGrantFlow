@@ -61,6 +61,9 @@ class FakeModel:
 def assistant(monkeypatch):
     """Enabled assistant with retrieval, prompt and model stubbed; tweak via the returned dict."""
     monkeypatch.setattr(settings, "SITE_ASSISTANT_ENABLED", True)
+    # Profile defaults only, so a local env cap override can't change the expected limits.
+    monkeypatch.setattr(settings, "SITE_ASSISTANT_PER_IP_DAILY_CAP", None)
+    monkeypatch.setattr(settings, "SITE_ASSISTANT_GLOBAL_DAILY_CAP", None)
     state = {
         "chunks": [_chunk("export"), _chunk("reports", score=0.3)],
         "model": FakeModel(
