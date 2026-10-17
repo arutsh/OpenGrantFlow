@@ -7,7 +7,7 @@ from app.crud.ai_provider import get_by_name
 from app.crud.ai_provider_model import exists_for_provider as model_exists_for_provider
 from app.crud.customer_ai_defaults import get as get_customer_ai_defaults, set_platform_fallback
 from app.crud.user_provider_key import create, delete, list_for_customer, set_default
-from app.db.session import AsyncSessionLocal
+from app.db.session import get_db
 from app.services import egress_policy
 from app.services.provider import _REGISTRY
 from app.utils.encryption import decrypt, encrypt
@@ -16,11 +16,6 @@ from app.utils.security import get_validated_user, resolve_customer_id
 router = APIRouter(prefix="/ai/settings", tags=["AI Settings"])
 
 _ADMIN_ROLES = {"superuser", "admin"}
-
-
-async def get_db():
-    async with AsyncSessionLocal() as db:
-        yield db
 
 
 def _require_admin(valid_user: dict) -> None:

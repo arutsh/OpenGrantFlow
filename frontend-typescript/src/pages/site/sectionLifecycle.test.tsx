@@ -9,6 +9,11 @@ import SecurityPage from "./Security";
 import AboutPage from "./About";
 import ContactPage from "./Contact";
 import LegalPage from "./Legal";
+import { withQueryClient } from "@/test/queryClient";
+
+vi.mock("@/api/gatewayApi", () => ({
+  default: { get: vi.fn().mockResolvedValue({ data: { enabled: false } }) },
+}));
 
 vi.mock("@/lib/siteContent", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/siteContent")>(),
@@ -40,7 +45,7 @@ describe.each(sections)("$id publication lifecycle", (section) => {
     vi.mocked(getSection).mockImplementation(buildSiteContent(changed, { isProd }).getSection);
     const Page = PAGES[section.page];
     if (!Page) throw new Error(`No page component mapped for "${section.page}"`);
-    render(<MemoryRouter><AuthProvider><Page /></AuthProvider></MemoryRouter>);
+    render(withQueryClient(<MemoryRouter><AuthProvider><Page /></AuthProvider></MemoryRouter>));
 
     if (isProd) {
       expect(document.getElementById(section.anchor)).not.toBeInTheDocument();

@@ -1,5 +1,5 @@
 import os
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
@@ -20,6 +20,20 @@ def _site_knowledge_default(container_path: str, repo_relative: str) -> str:
     if Path(container_path).exists():
         return container_path
     return str(REPO_ROOT / repo_relative)
+
+
+# Site-assistant (per-IP, global) daily caps per provider; None means no cap.
+CAP_PROFILES: dict[str, tuple[int | None, int | None]] = {
+    "anthropic": (20, 300),
+    "ollama": (200, None),
+}
+HUMAN_VERIFIERS = {"none"}
+
+
+def resolve_daily_cap(override: int | None, profile_default: int | None) -> int | None:
+    """Effective cap: an unset override uses the profile, and 0 means unlimited (None)."""
+    cap = profile_default if override is None else override
+    return cap or None
 
 
 class Settings(BaseSettings):
@@ -49,6 +63,56 @@ class Settings(BaseSettings):
     )
     GUIDE_DOCS_DIR: str = _site_knowledge_default("/app/docs/user-guide", "docs/user-guide")
     PRODUCT_DOC_PATH: str = _site_knowledge_default("/app/docs/PRODUCT.md", "docs/PRODUCT.md")
+
+    SITE_ASSISTANT_ENABLED: bool = False
+    SITE_ASSISTANT_PROVIDER: str = "anthropic"
+    SITE_ASSISTANT_MODEL: str | None = None
+    SITE_ASSISTANT_PER_IP_DAILY_CAP: int | None = Field(default=None, ge=0)
+    SITE_ASSISTANT_GLOBAL_DAILY_CAP: int | None = Field(default=None, ge=0)
+    SITE_ASSISTANT_MAX_QUESTION_CHARS: int = Field(default=500, ge=1)
+    SITE_ASSISTANT_TOP_K: int = Field(default=5, ge=1)
+    # Matches tests/evals/baseline.yaml unanswerable_threshold.
+    SITE_ASSISTANT_MIN_SCORE: float = 0.25
+    SITE_ASSISTANT_HUMAN_VERIFIER: str = "none"
+    # Comma-separated hosts an answer may link to; any other link fails the answer closed.
+    SITE_ASSISTANT_LINK_HOSTS: str = "opengrantflow.com,www.opengrantflow.com"
+
+    @field_validator("SITE_ASSISTANT_PROVIDER")
+    @classmethod
+    def _validate_site_assistant_provider(cls, provider: str) -> str:
+        if provider not in CAP_PROFILES:
+            raise ValueError(f"SITE_ASSISTANT_PROVIDER must be one of {sorted(CAP_PROFILES)}")
+        return provider
+
+    @field_validator(
+        "SITE_ASSISTANT_PER_IP_DAILY_CAP", "SITE_ASSISTANT_GLOBAL_DAILY_CAP", mode="before"
+    )
+    @classmethod
+    def _blank_cap_is_unset(cls, value: object) -> object:
+        # An empty env value (`CAP=`) means "use the profile default", not a parse error.
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("SITE_ASSISTANT_HUMAN_VERIFIER")
+    @classmethod
+    def _validate_human_verifier(cls, verifier: str) -> str:
+        if verifier not in HUMAN_VERIFIERS:
+            raise ValueError(f"SITE_ASSISTANT_HUMAN_VERIFIER must be one of {HUMAN_VERIFIERS}")
+        return verifier
+
+    @property
+    def site_assistant_link_hosts(self) -> frozenset[str]:
+        hosts = self.SITE_ASSISTANT_LINK_HOSTS.split(",")
+        return frozenset(h.strip().lower() for h in hosts if h.strip())
+
+    @property
+    def site_assistant_per_ip_cap(self) -> int | None:
+        profile = CAP_PROFILES[self.SITE_ASSISTANT_PROVIDER][0]
+        return resolve_daily_cap(self.SITE_ASSISTANT_PER_IP_DAILY_CAP, profile)
+
+    @property
+    def site_assistant_global_cap(self) -> int | None:
+        profile = CAP_PROFILES[self.SITE_ASSISTANT_PROVIDER][1]
+        return resolve_daily_cap(self.SITE_ASSISTANT_GLOBAL_DAILY_CAP, profile)
 
     @field_validator("AI_PROVIDER_APPROVED_ORIGINS")
     @classmethod

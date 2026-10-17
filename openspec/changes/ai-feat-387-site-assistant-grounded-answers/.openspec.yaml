@@ -3,5 +3,5 @@ created: 2026-09-29
 author: Norair Arutshyan
 priority: medium
 depends_on:
-  - ai-feat-site-assistant-retrieval-evals
-  - frontend-feat-public-site-content
+  - ai-feat-380-site-assistant-retrieval-evals
+  - frontend-feat-372-public-site-content

@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, TypeVar
 
 from fastapi import Depends
 from pydantic_ai import Agent
 from pydantic_ai.output import OutputSpec
 from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 
@@ -35,13 +37,14 @@ def build_agent(
     model: AnthropicModel | OpenAIChatModel,
     *,
     output_type: OutputSpec[OutputDataT] = str,  # type: ignore[assignment]
+    instrument: bool | InstrumentationSettings = True,
     **kwargs: Any,
 ) -> Agent[None, OutputDataT]:
     """Construct a PydanticAI Agent with OTEL instrumentation enabled — every Agent in this
     service must go through here so `agent.run()` produces spans (see 2026-08-21 trace
     investigation)."""
     agent: Agent[None, OutputDataT] = Agent(model, output_type=output_type, **kwargs)
-    agent.instrument = True
+    agent.instrument = instrument
     return agent
 
 
@@ -111,23 +114,56 @@ def resolve_model(user_key=None, *, customer_id: str = "") -> ResolvedModel | No
     return resolved
 
 
-def resolve_platform_funded_model() -> ResolvedModel | None:
-    """GrantFlow-funded fallback for organizations with no configured provider
-    key. A deliberate, scoped carve-out from the platform's BYOK-only/no-fallback
-    policy — see budget-export-from-excel design.md Decision 5. Returns None if
-    the platform's own key isn't configured, so callers can fail closed."""
+def _platform_anthropic_model(model_name: str) -> ResolvedModel | None:
+    """Anthropic model on the platform's own key, or None if that key isn't configured."""
     from app.core.config import settings
 
     if not settings.ANTHROPIC_API_KEY:
         return None
     return ResolvedModel(
         model=AnthropicModel(
-            _PLATFORM_FUNDED_MODEL,
-            provider=AnthropicProvider(api_key=settings.ANTHROPIC_API_KEY),
+            model_name, provider=AnthropicProvider(api_key=settings.ANTHROPIC_API_KEY)
         ),
         provider_name="anthropic",
-        model_name=_PLATFORM_FUNDED_MODEL,
+        model_name=model_name,
     )
+
+
+def resolve_site_assistant_model() -> ResolvedModel | None:
+    """Operator-configured model for the anonymous site assistant, or None to fail closed."""
+    from app.core.config import settings
+
+    return _site_assistant_model(
+        settings.SITE_ASSISTANT_PROVIDER,
+        settings.SITE_ASSISTANT_MODEL,
+        settings.ANTHROPIC_API_KEY,
+        settings.OLLAMA_URL,
+        settings.OLLAMA_MODEL,
+        settings.AI_PROVIDER_APPROVED_ORIGINS,
+    )
+
+
+@lru_cache(maxsize=1)
+def _site_assistant_model(
+    provider: str,
+    model_name: str | None,
+    _anthropic_key: str | None,
+    ollama_url: str | None,
+    ollama_model: str,
+    _approved_origins: str | None,
+) -> ResolvedModel | None:
+    # Keyed on every setting the build reads, so a config change rebuilds instead of going stale.
+    if provider == "anthropic":
+        return _platform_anthropic_model(model_name or _PLATFORM_FUNDED_MODEL)
+    return build_ollama_model(ollama_url, model_name or ollama_model, "site-assistant")
+
+
+def resolve_platform_funded_model() -> ResolvedModel | None:
+    """GrantFlow-funded fallback for organizations with no configured provider
+    key. A deliberate, scoped carve-out from the platform's BYOK-only/no-fallback
+    policy — see budget-export-from-excel design.md Decision 5. Returns None if
+    the platform's own key isn't configured, so callers can fail closed."""
+    return _platform_anthropic_model(_PLATFORM_FUNDED_MODEL)
 
 
 async def get_resolved_model(
@@ -170,4 +206,4 @@ async def resolve_with_platform_fallback(customer_id: str) -> ResolvedModel | No
 
 # Import adapters to trigger their @register decorators
 from app.services.adapters.anthropic import AnthropicAdapter  # noqa: E402, F401
-from app.services.adapters.ollama import OllamaAdapter  # noqa: E402, F401
+from app.services.adapters.ollama import OllamaAdapter, build_ollama_model  # noqa: E402, F401

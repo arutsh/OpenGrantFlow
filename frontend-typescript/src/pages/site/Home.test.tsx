@@ -1,18 +1,26 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
+import gatewayApi from "@/api/gatewayApi";
+import { withQueryClient } from "@/test/queryClient";
 import HomePage from "./Home";
+
+vi.mock("@/api/gatewayApi", () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+
+const getMock = vi.mocked(gatewayApi.get);
 
 function renderAt(path: string) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <AuthProvider>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/dashboard" element={<div>Dashboard Page</div>} />
-        </Routes>
-      </AuthProvider>
-    </MemoryRouter>,
+    withQueryClient(
+      <MemoryRouter initialEntries={[path]}>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/dashboard" element={<div>Dashboard Page</div>} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>,
+    ),
   );
 }
 
@@ -20,6 +28,43 @@ describe("HomePage", () => {
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
+    getMock.mockReset();
+    getMock.mockResolvedValue({ data: { enabled: false, max_question_chars: 500 } });
+  });
+
+  describe("site assistant box", () => {
+    it("is shown when the assistant is enabled", async () => {
+      getMock.mockResolvedValue({ data: { enabled: true, max_question_chars: 500 } });
+      renderAt("/");
+
+      expect(
+        await screen.findByRole("heading", { name: "Ask about Open Grant Flow" }),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Your question")).toHaveAttribute("maxLength", "500");
+      expect(getMock).toHaveBeenCalledWith("/ai/site-assistant/config");
+    });
+
+    it("is hidden when the assistant is disabled", async () => {
+      renderAt("/");
+
+      await waitFor(() => expect(getMock).toHaveBeenCalled());
+      expect(screen.queryByLabelText("Your question")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Grant management without spreadsheets." }),
+      ).toBeInTheDocument();
+    });
+
+    it("is hidden, with no error shown, when the config request fails", async () => {
+      getMock.mockRejectedValue(new Error("network down"));
+      renderAt("/");
+
+      await waitFor(() => expect(getMock).toHaveBeenCalled());
+      expect(screen.queryByLabelText("Your question")).not.toBeInTheDocument();
+      expect(screen.queryByText(/went wrong|error|unavailable/i)).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Grant management without spreadsheets." }),
+      ).toBeInTheDocument();
+    });
   });
 
   it("renders the hero and its CTAs", () => {
@@ -88,6 +133,7 @@ describe("HomePage", () => {
     renderAt("/");
 
     expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
+    expect(getMock).not.toHaveBeenCalled();
     expect(
       screen.queryByText("Grant management without spreadsheets."),
     ).not.toBeInTheDocument();
@@ -96,16 +142,18 @@ describe("HomePage", () => {
   describe("legacy hash redirects", () => {
     function renderWithHash(hash: string) {
       return render(
-        <MemoryRouter initialEntries={[`/${hash}`]}>
-          <AuthProvider>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/contact" element={<div>Contact Page</div>} />
-              <Route path="/about" element={<div>About Page</div>} />
-              <Route path="/how-it-works" element={<div>How it works Page</div>} />
-            </Routes>
-          </AuthProvider>
-        </MemoryRouter>,
+        withQueryClient(
+          <MemoryRouter initialEntries={[`/${hash}`]}>
+            <AuthProvider>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/contact" element={<div>Contact Page</div>} />
+                <Route path="/about" element={<div>About Page</div>} />
+                <Route path="/how-it-works" element={<div>How it works Page</div>} />
+              </Routes>
+            </AuthProvider>
+          </MemoryRouter>,
+        ),
       );
     }
 

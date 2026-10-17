@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "@/App";
 
+vi.mock("@/api/siteAssistantApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/siteAssistantApi")>()),
+  useSiteAssistantConfig: () => ({ data: { enabled: false, max_question_chars: 500 } }),
+}));
+
 function makeFakeJwt(payload: Record<string, unknown>): string {
   const header = btoa(JSON.stringify({ alg: "none", typ: "JWT" }));
   const body = btoa(JSON.stringify(payload));
