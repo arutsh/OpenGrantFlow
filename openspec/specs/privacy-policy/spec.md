@@ -27,6 +27,12 @@ handle personal data on the platform's behalf, consistent with
   MailerSend, Anthropic for BYOK AI, Grafana Cloud) and, for Anthropic,
   notes that data may cross into the US
 
+#### Scenario: Site assistant questions are disclosed
+- **WHEN** a visitor reads the Privacy Policy while the site assistant is enabled
+- **THEN** it states that questions typed into the website assistant are sent
+  to Anthropic under the platform's own account, may cross into the US, and
+  are not stored by the platform
+
 ### Requirement: Privacy Policy provides a reachable contact
 The Privacy Policy SHALL provide a named contact address for privacy
 questions, in addition to the general contact form.
