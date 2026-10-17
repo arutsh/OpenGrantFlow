@@ -3,4 +3,4 @@ created: 2026-09-29
 author: Norair Arutshyan
 priority: medium
 depends_on:
-  - frontend-feat-public-site-content
+  - frontend-feat-372-public-site-content

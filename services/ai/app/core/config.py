@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # services/ai/app/core
+REPO_ROOT = BASE_DIR.parent.parent.parent  # repo root on bare-metal; "/" inside the container
 env_mode = os.getenv("ENV", "development")
 if env_mode == "local":
     ENV_FILE = BASE_DIR.parent / ".env.ai.private.local"
@@ -11,6 +12,14 @@ elif env_mode == "production":
     ENV_FILE = BASE_DIR.parent / ".env.ai.prod"
 else:
     ENV_FILE = BASE_DIR.parent / ".env.ai.private.dev"
+
+
+def _site_knowledge_default(container_path: str, repo_relative: str) -> str:
+    # The Dockerfile COPYs sources to container_path; bare-metal dev has no
+    # such copy, so fall back to the original location under the repo root.
+    if Path(container_path).exists():
+        return container_path
+    return str(REPO_ROOT / repo_relative)
 
 
 class Settings(BaseSettings):
@@ -34,6 +43,12 @@ class Settings(BaseSettings):
     # general BYOK-covered AI_RATE_LIMIT_PER_HOUR above. Starting value, not
     # yet informed by real usage data.
     AI_EXCEL_IMPORT_PLATFORM_RATE_LIMIT_PER_HOUR: int = 10
+    # Paths the Dockerfile COPYs the site-knowledge-index sources to.
+    SITE_CONTENT_DIR: str = _site_knowledge_default(
+        "/app/content/site", "frontend-typescript/src/content/site"
+    )
+    GUIDE_DOCS_DIR: str = _site_knowledge_default("/app/docs/user-guide", "docs/user-guide")
+    PRODUCT_DOC_PATH: str = _site_knowledge_default("/app/docs/PRODUCT.md", "docs/PRODUCT.md")
 
     @field_validator("AI_PROVIDER_APPROVED_ORIGINS")
     @classmethod

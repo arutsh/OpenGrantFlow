@@ -1,0 +1,382 @@
+# Retrieval golden dataset: questions a visitor might ask, and the site_chunks content_ids that answer them.
+# Entries tagged `paraphrase` deliberately share little vocabulary with their source (lexical-search gap).
+entries:
+  # --- budgeting ---
+  - id: budget-create-manual
+    question: How do I create a new budget manually, line by line?
+    expected_content_ids: [ngo-guide.2-creating-a-budget]
+    persona: grantee
+    category: budgeting
+    answerable: true
+  - id: budget-import-excel
+    question: Can I import my existing Excel budget file?
+    expected_content_ids: [ngo-guide.2-creating-a-budget]
+    persona: grantee
+    category: budgeting
+    answerable: true
+  - id: budget-ai-plain-language
+    question: Can the AI build a budget from a plain language description?
+    expected_content_ids:
+      - ngo-guide.2-creating-a-budget
+      - how-it-works.five-steps
+      - product.core-features
+      - product.who-its-for
+    persona: grantee
+    category: budgeting
+    answerable: true
+  - id: budget-ai-draft-status
+    question: What does the AI Draft status mean?
+    expected_content_ids: [ngo-guide.3-budget-statuses]
+    persona: grantee
+    category: budgeting
+    answerable: true
+  - id: budget-restore-archived
+    question: Can I restore an archived budget?
+    expected_content_ids: [ngo-guide.3-budget-statuses]
+    persona: grantee
+    category: budgeting
+    answerable: true
+  - id: budget-who-confirms
+    question: Who is allowed to confirm a budget and set its start date?
+    expected_content_ids: [donor-guide.3-confirming-a-budget, ngo-guide.3-budget-statuses]
+    persona: funder
+    category: budgeting
+    answerable: true
+  - id: budget-grouped-list-view
+    question: What is the difference between the grouped and list view of budget lines?
+    expected_content_ids: [ngo-guide.2-creating-a-budget]
+    persona: grantee
+    category: budgeting
+    answerable: true
+  - id: budget-paraphrase-spreadsheet-upload
+    question: I don't want to type every row again — can I just bring in my sheet?
+    expected_content_ids: [ngo-guide.2-creating-a-budget]
+    persona: grantee
+    category: budgeting
+    answerable: true
+
+  # --- reporting ---
+  - id: report-submit
+    question: How do I submit a report to my donor for review?
+    expected_content_ids: [ngo-guide.5-reports-receipts]
+    persona: grantee
+    category: reporting
+    answerable: true
+  - id: report-attachment-formats
+    question: Which file formats can I attach as receipts?
+    expected_content_ids: [ngo-guide.5-reports-receipts]
+    persona: grantee
+    category: reporting
+    answerable: true
+  - id: report-attachment-size
+    question: What is the maximum size for an attachment?
+    expected_content_ids: [ngo-guide.5-reports-receipts]
+    persona: grantee
+    category: reporting
+    answerable: true
+  - id: report-funder-review
+    question: How do I approve or reject a grantee's report?
+    expected_content_ids: [donor-guide.4-reviewing-reports]
+    persona: funder
+    category: reporting
+    answerable: true
+  - id: report-rejected-resubmit
+    question: My report was rejected — how do I reopen it and resubmit?
+    expected_content_ids: [ngo-guide.5-reports-receipts, donor-guide.4-reviewing-reports]
+    persona: grantee
+    category: reporting
+    answerable: true
+  - id: report-directory
+    question: Where can I see all my reports across every budget?
+    expected_content_ids: [ngo-guide.6-reports-directory]
+    persona: grantee
+    category: reporting
+    answerable: true
+  - id: report-period-overlap
+    question: Can two reporting periods overlap on the same budget?
+    expected_content_ids: [ngo-guide.5-reports-receipts]
+    persona: grantee
+    category: reporting
+    answerable: true
+  - id: report-no-funder-linked
+    question: Who reviews reports when a budget has no funder linked to it?
+    expected_content_ids: [donor-guide.4-reviewing-reports]
+    persona: funder
+    category: reporting
+    answerable: true
+  - id: report-paraphrase-locked
+    question: Once I've sent it off, can I still change things?
+    expected_content_ids: [ngo-guide.5-reports-receipts]
+    persona: grantee
+    category: reporting
+    answerable: true
+
+  # --- currency ---
+  - id: currency-estimated-rate
+    question: How is the estimated exchange rate used on a budget?
+    expected_content_ids: [ngo-guide.4-understanding-the-currencies-on-a-budget]
+    persona: grantee
+    category: currency
+    answerable: true
+  - id: currency-record-conversion
+    question: How do I record a real currency conversion from my bank?
+    expected_content_ids: [ngo-guide.4-understanding-the-currencies-on-a-budget]
+    persona: grantee
+    category: currency
+    answerable: true
+  - id: currency-local-cap
+    question: What is the estimated local cap?
+    expected_content_ids: [ngo-guide.4-understanding-the-currencies-on-a-budget]
+    persona: grantee
+    category: currency
+    answerable: true
+  - id: currency-no-blending
+    question: Are totals in different currencies added together into one number?
+    expected_content_ids:
+      - donor-guide.2-your-dashboard
+      - ngo-guide.1-your-dashboard
+      - ngo-guide.4-understanding-the-currencies-on-a-budget
+    persona: funder
+    category: currency
+    answerable: true
+  - id: currency-multi-currency-funders
+    question: Can funders follow grants funded in multiple currencies?
+    expected_content_ids: [how-it-works.who-funders, donor-guide.2-your-dashboard]
+    persona: funder
+    category: currency
+    answerable: true
+
+  # --- dashboards and grantee links ---
+  - id: dashboard-grantee
+    question: What does the grantee dashboard show me?
+    expected_content_ids: [ngo-guide.1-your-dashboard]
+    persona: grantee
+    category: dashboards
+    answerable: true
+  - id: dashboard-donor
+    question: What can I see on the donor dashboard?
+    expected_content_ids: [donor-guide.2-your-dashboard, how-it-works.who-funders]
+    persona: funder
+    category: dashboards
+    answerable: true
+  - id: dashboard-link-grantee
+    question: How do I link to an NGO so I can see their budgets?
+    expected_content_ids: [donor-guide.1-approving-grantees]
+    persona: funder
+    category: dashboards
+    answerable: true
+  - id: dashboard-revoke-grantee
+    question: Can I revoke a grantee I approved earlier?
+    expected_content_ids: [donor-guide.1-approving-grantees]
+    persona: funder
+    category: dashboards
+    answerable: true
+  - id: dashboard-paraphrase-portfolio
+    question: Where do I get an overview of everyone I give money to?
+    expected_content_ids: [donor-guide.2-your-dashboard, how-it-works.who-funders]
+    persona: funder
+    category: dashboards
+    answerable: true
+
+  # --- export ---
+  - id: export-excel
+    question: How do I export a budget to Excel?
+    expected_content_ids: [ngo-guide.7-exporting-to-excel]
+    persona: grantee
+    category: export
+    answerable: true
+  - id: export-sheets
+    question: What sheets are in the exported Excel workbook?
+    expected_content_ids: [ngo-guide.7-exporting-to-excel]
+    persona: funder
+    category: export
+    answerable: true
+  - id: export-live-sync
+    question: Is the exported xlsx file kept in sync with the budget?
+    expected_content_ids: [ngo-guide.7-exporting-to-excel]
+    persona: grantee
+    category: export
+    answerable: true
+
+  # --- security and privacy ---
+  - id: privacy-processors
+    question: Which third-party services process my data?
+    expected_content_ids: [legal.privacy-processors]
+    persona: technical
+    category: security-privacy
+    answerable: true
+  - id: privacy-outside-eu
+    question: Is any of my data transferred outside the EU?
+    expected_content_ids: [legal.privacy-processors]
+    persona: technical
+    category: security-privacy
+    answerable: true
+  - id: privacy-byok
+    question: Can I bring my own AI provider key?
+    expected_content_ids: [security.ai-providers, contact.faq]
+    persona: technical
+    category: security-privacy
+    answerable: true
+  - id: privacy-info-collected
+    question: What information do you collect when I submit the contact form?
+    expected_content_ids: [legal.privacy-info-collected]
+    persona: null
+    category: security-privacy
+    answerable: true
+  - id: privacy-retention
+    question: How long do you retain my information?
+    expected_content_ids: [legal.privacy-retention]
+    persona: null
+    category: security-privacy
+    answerable: true
+  - id: privacy-selling
+    question: Do you sell my information to third parties?
+    expected_content_ids: [legal.privacy-how-we-use]
+    persona: null
+    category: security-privacy
+    answerable: true
+  - id: privacy-high-risk
+    question: We work in a high-risk context — can we discuss security needs first?
+    expected_content_ids: [security.high-risk]
+    persona: null
+    category: security-privacy
+    answerable: true
+
+  # --- open source and hosting ---
+  - id: oss-is-open-source
+    question: Is Open Grant Flow open source?
+    expected_content_ids:
+      - about.open-code
+      - security.self-hosting
+      - legal.privacy-self-hosting
+      - product.why-open-source
+      - contact.faq
+    persona: technical
+    category: open-source
+    answerable: true
+  - id: oss-self-host
+    question: Can I self-host the platform on my own servers?
+    expected_content_ids: [about.open-code, security.self-hosting, legal.privacy-self-hosting]
+    persona: technical
+    category: open-source
+    answerable: true
+  - id: oss-free
+    question: Is Open Grant Flow free?
+    expected_content_ids: [contact.faq, product.why-open-source, how-it-works.who-grantees]
+    persona: null
+    category: open-source
+    answerable: true
+  - id: oss-ai-optional
+    question: Do I have to use the AI features?
+    expected_content_ids: [contact.faq, security.ai-providers]
+    persona: null
+    category: open-source
+    answerable: true
+  - id: oss-production-ready
+    question: Is the platform production-ready yet?
+    expected_content_ids: [product.current-status, legal.terms-service]
+    persona: technical
+    category: open-source
+    answerable: true
+
+  # --- pilot programme and contact ---
+  - id: pilot-join
+    question: How do I become a Pilot Partner?
+    expected_content_ids: [contact.pilot, home.pilot-teaser, product.get-involved]
+    persona: funder
+    category: pilot
+    answerable: true
+  - id: pilot-receive
+    question: What do pilot partners receive?
+    expected_content_ids: [contact.what-you-receive]
+    persona: grantee
+    category: pilot
+    answerable: true
+  - id: pilot-expectations
+    question: What do you ask of pilot partners?
+    expected_content_ids: [contact.what-we-ask]
+    persona: null
+    category: pilot
+    answerable: true
+  - id: pilot-demo
+    question: How do I request a demo?
+    expected_content_ids: [contact.demo-request, contact.faq, security.high-risk]
+    persona: null
+    category: pilot
+    answerable: true
+
+  # --- about ---
+  - id: about-founder
+    question: Who founded Open Grant Flow?
+    expected_content_ids: [about.origin, product.the-story-behind-it]
+    persona: null
+    category: about
+    answerable: true
+  - id: about-problem
+    question: What problem does Open Grant Flow solve for nonprofits?
+    expected_content_ids: [product.the-problem, about.mission, how-it-works.intro]
+    persona: null
+    category: about
+    answerable: true
+  - id: about-survey
+    question: What did your survey of nonprofits find about donor reporting?
+    expected_content_ids: [how-it-works.survey-evidence]
+    persona: null
+    category: about
+    answerable: true
+  - id: about-warranty
+    question: Is the platform provided with any warranty?
+    expected_content_ids: [legal.terms-no-warranty]
+    persona: null
+    category: about
+    answerable: true
+
+  # --- unanswerable: nothing in the corpus answers these ---
+  - id: none-password-reset
+    question: How do I reset my password?
+    expected_content_ids: []
+    persona: null
+    category: unanswerable
+    answerable: false
+  - id: none-quickbooks
+    question: Does it integrate with QuickBooks or Xero?
+    expected_content_ids: []
+    persona: technical
+    category: unanswerable
+    answerable: false
+  - id: none-payroll
+    question: Can I run staff payroll through it?
+    expected_content_ids: []
+    persona: grantee
+    category: unanswerable
+    answerable: false
+  - id: none-two-factor
+    question: Does login support two-factor authentication?
+    expected_content_ids: []
+    persona: technical
+    category: unanswerable
+    answerable: false
+  - id: none-weather
+    question: What's the weather in Yerevan tomorrow?
+    expected_content_ids: []
+    persona: null
+    category: unanswerable
+    answerable: false
+  - id: none-pay-grantees
+    question: Can I wire money to grantees directly from the platform?
+    expected_content_ids: []
+    persona: funder
+    category: unanswerable
+    answerable: false
+  - id: none-enterprise-price
+    question: What is the monthly price of the enterprise plan?
+    expected_content_ids: []
+    persona: funder
+    category: unanswerable
+    answerable: false
+  - id: none-delete-account
+    question: How do I delete my account?
+    expected_content_ids: []
+    persona: null
+    category: unanswerable
+    answerable: false

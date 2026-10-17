@@ -2,8 +2,14 @@ import { Routes, Route, Navigate, BrowserRouter, Outlet } from "react-router-dom
 import { useAuth, AuthProvider } from "./context/AuthContext";
 import { AiChatProvider } from "./context/AiChatContext";
 import Login from "./pages/Login";
-import LandingPage from "./pages/LandingPage";
-import LegalPage from "./pages/Legal";
+import PublicLayout from "./components/site/PublicLayout";
+import HomePage from "./pages/site/Home";
+import HowItWorksPage from "./pages/site/HowItWorks";
+import SecurityPage from "./pages/site/Security";
+import AboutPage from "./pages/site/About";
+import ContactPage from "./pages/site/Contact";
+import LegalPage from "./pages/site/Legal";
+import GuidePage from "./pages/site/Guide";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import { JSX } from "react";
 import Register from "./pages/Register";
@@ -44,8 +50,15 @@ export default function App() {
       <AiChatProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/legal" element={<LegalPage />} />
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/legal" element={<LegalPage />} />
+              <Route path="/how-it-works" element={<HowItWorksPage />} />
+              <Route path="/security" element={<SecurityPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/guides/:slug" element={<GuidePage />} />
+            </Route>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/verify-email" element={<VerifyEmail />} />

@@ -109,6 +109,11 @@ services:
       dockerfile: services/ai/Dockerfile
     container_name: ai-service
     restart: unless-stopped
+    # Bind-mounted so `restart ai` reindexes freshly pulled content without a rebuild.
+    volumes:
+      - ./frontend-typescript/src/content/site:/app/content/site:ro
+      - ./docs/user-guide:/app/docs/user-guide:ro
+      - ./docs/PRODUCT.md:/app/docs/PRODUCT.md:ro
     env_file:
       - ./services/ai/.env.ai.prod
     environment:

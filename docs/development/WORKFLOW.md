@@ -161,8 +161,11 @@ rather than fast-forward-mergeable). Pass `--yes` to skip the prompt.
 (`black --check`, `mypy`, `flake8`) locally, scoped to whichever service(s) the
 push actually touches (a `shared/` change checks all four). A push touching
 `scripts/*.py` runs `black --check`, `flake8 --max-line-length=100` and
-`scripts/test_flow.py` over `scripts/` — the workflow tooling lints itself. The
-hook also rejects a branch whose name doesn't match §3. One-time setup:
+`scripts/test_flow.py` over `scripts/` — the workflow tooling lints itself. A
+push touching `frontend-typescript/*.{ts,tsx}` runs `npm run lint:ci`, the
+same ESLint baseline ratchet as `frontend.yml` (see CLAUDE.md's "Frontend
+lint" section). The hook also rejects a branch whose name doesn't match §3.
+One-time setup:
 
 ```
 git config core.hooksPath scripts/git-hooks

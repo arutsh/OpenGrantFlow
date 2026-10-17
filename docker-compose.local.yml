@@ -140,6 +140,9 @@ services:
     volumes:
       - ./shared:/app/shared:ro
       - ./services/ai:/app
+      - ./frontend-typescript/src/content/site:/app/content/site:ro
+      - ./docs/user-guide:/app/docs/user-guide:ro
+      - ./docs/PRODUCT.md:/app/docs/PRODUCT.md:ro
     env_file:
       - ./services/ai/.env.ai.private.local
     environment:

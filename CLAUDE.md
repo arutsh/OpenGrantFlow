@@ -67,3 +67,17 @@ This is enforced, not just documented: `.claude/hooks/check_comment_brevity.py`
 (a `PreToolUse` hook on `Write`/`Edit`) denies any write that introduces a
 comment longer than that, so trim it before retrying rather than fighting the
 hook.
+
+## Frontend lint — fix on touch, never add to the pile
+
+`frontend-typescript` has a pre-existing lint backlog. Rather than block on
+fixing it all at once, CI enforces a ratchet: `BASELINE` in
+`frontend-typescript/scripts/check-lint-baseline.mjs` caps total ESLint
+problems, checked by `npm run lint:ci`. A push that adds new lint errors
+fails; one that fixes some should lower `BASELINE` to lock the win in. When
+you touch a file that already has lint issues, fix them as part of that
+change instead of leaving them for later.
+
+This is enforced, not just documented: `.github/workflows/frontend.yml` runs
+`lint:ci` on every push/PR touching `frontend-typescript/**`, and
+`scripts/git-hooks/pre-push` mirrors it locally (see WORKFLOW.md §8).

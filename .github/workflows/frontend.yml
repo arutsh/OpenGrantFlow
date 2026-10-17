@@ -40,6 +40,10 @@ jobs:
         working-directory: ./frontend-typescript
         run: npm ci
 
+      - name: Lint (baseline ratchet)
+        working-directory: ./frontend-typescript
+        run: npm run lint:ci
+
       - name: Run Vitest
         working-directory: ./frontend-typescript
         run: npx vitest run --coverage

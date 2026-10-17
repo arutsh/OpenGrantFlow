@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* Brand palette: generates bg-brand-*, text-brand-*, border-brand-* utilities. */
+@theme {
+  --color-brand-navy: #163A5F;
+  --color-brand-teal: #1F8A70;
+  --color-brand-gold: #D9A441;
+  --color-brand-off-white: #F8FAFC;
+  --color-brand-slate: #243447;
+  --color-brand-mist: #EEF2F6;
+  --color-brand-teal-tint: #EDF6F3;
+  --color-brand-teal-tint-border: #CDE7DE;
+}
+
 /* Type-scale tokens from the budget-report-frontend mockup
    (openspec/changes/budget-report-frontend, ticket #160). Adopted going
    forward on new/touched components — not retrofitted across the whole app
