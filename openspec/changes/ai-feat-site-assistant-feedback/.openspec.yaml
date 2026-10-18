@@ -3,4 +3,4 @@ created: 2026-09-29
 author: Norair Arutshyan
 priority: low
 depends_on:
-  - ai-feat-site-assistant-grounded-answers
+  - ai-feat-site-assistant-release-gates
