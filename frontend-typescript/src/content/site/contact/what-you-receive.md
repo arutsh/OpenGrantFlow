@@ -6,7 +6,7 @@ title: What you receive
 status: published
 items:
   - title: Direct collaboration
-    body: Work directly with the founder.
+    body: Work directly with the team.
   - title: Early access
     body: Use new features before they are generally available.
   - title: Influence

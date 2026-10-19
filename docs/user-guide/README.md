@@ -59,7 +59,7 @@ Admins can edit the organisation's general details from **Settings → Organizat
 
 ### 2.3 Team management (Admins)
 
-Admins can invite teammates by email from **Settings → Team**. Invited teammates appear as "pending" until they accept and set a password. Admins can also remove teammates — this follows the same secure removal process used for account-deletion requests, and Open Grant Flow won't let an organisation be left with zero Admins.
+Admins can invite teammates by email from **Settings → Team**. Invited teammates appear as "pending" until they accept and set a password. Admins can also remove teammates — this follows the same secure removal process used for account-deletion requests, and Open Grant Flow won't let an organisation be left with zero Admins. During the pilot phase, there's no limit on how many teammates you can invite.
 
 ### 2.4 AI integrations (Bring Your Own Key)
 
@@ -102,5 +102,5 @@ The fastest way to report something that isn't working: click the message icon i
 ### 4.2 Other ways to reach us
 
 - **Source & issues:** [github.com/arutsh/GrantFlow](https://github.com/arutsh/GrantFlow)
-- **Contact:** n.arutshyan@gmail.com
+- **Contact:** [opengrantflow.com/contact](https://opengrantflow.com/contact)
 - **Website:** [opengrantflow.com](https://opengrantflow.com)

@@ -62,8 +62,8 @@ Budget approval, amendments, receipts, and final reports — all tracked, audita
 | Feature | What it does |
 |---|---|
 | **Centralised budget management** | All grants, donors, and budgets in one place — with version history built in |
-| **AI-assisted budget generation** | Describe your budget in plain language; GrantFlow generates the structured version instantly |
-| **Donor-compliant exports** | Auto-export to any donor template format — no manual reformatting |
+| **AI-assisted budget generation** | Describe your budget in plain language; Open Grant Flow drafts the structured version in seconds, ready for you to review |
+| **Structured Excel exports** | Export any budget as a structured Excel file, easy to copy into your funder's own format |
 | **Reporting against approved budgets** | Submit reports, track amendments, attach receipts — all inside the platform |
 | **Multi-provider AI** | Connect Anthropic Claude, or run fully offline with Ollama |
 | **Bring Your Own Key (BYOK)** | Use your own AI provider credentials — your data stays under your control |
@@ -78,11 +78,7 @@ The organisations that need this most — small NGOs, grassroots groups, organis
 
 GrantFlow is open source because the infrastructure that makes philanthropy work should belong to the sector, not to a vendor.
 
-**Community tier:** Free forever. Self-hosted.
-**Cloud tier:** Managed hosting for organisations that want it without the ops overhead.
-**Donor tier:** Foundations pay a per-grantee subscription — their grantees use GrantFlow free.
-
-Revenue is reinvested to cover infrastructure, accelerate development, and fund a small-grants programme for organisations that can't afford even the cloud tier.
+**Pricing:** not yet set. We're in the early stages of working with pilot partners, and our pricing structure will take shape alongside them. Our intention is for Open Grant Flow to be free for small, grassroots organisations. Piloting is free: pilot partners pay nothing.
 
 ---
 
@@ -103,9 +99,9 @@ Revenue is reinvested to cover infrastructure, accelerate development, and fund 
 
 ## The Story Behind It
 
-GrantFlow was built by [Norair Arutshyan](https://linkedin.com/in/norair-arutshyan) — a senior full-stack engineer who co-founded and led a human rights NGO in Armenia for 17 years.
+Open Grant Flow is built by a team with 17 years of experience co-founding and leading nonprofit organisations, combined with senior software engineering.
 
-> *"I've reviewed hundreds of NGO budgets over 20 years — every single one managed in scattered Excel files, reformatted by hand for every donor. I know this pain from both sides of the table: as the person responsible for the budget, and as the engineer who knew there was a better way. GrantFlow is my answer to a problem I've lived."*
+We've reviewed hundreds of NGO budgets, and every one was managed in scattered Excel files and reformatted by hand for every donor. We know this pain from both sides of the table: as the people responsible for the budget, and as engineers who knew there was a better way.
 
 The architecture reflects both worlds: production-grade microservices, multi-provider AI infrastructure, and a vendor-agnostic observability stack — built with the operational constraints of real NGOs in mind.
 
@@ -114,7 +110,7 @@ The architecture reflects both worlds: production-grade microservices, multi-pro
 ## Get Involved
 
 ### Pilot Partners
-If you're an NGO or donor willing to test GrantFlow in a real grant cycle, your feedback directly shapes the product. [Open an issue](../../issues) or reach out at **n.arutshyan@gmail.com**.
+If you're an NGO or donor willing to test GrantFlow in a real grant cycle, your feedback directly shapes the product. [Open an issue](../../issues) or get in touch through the [contact page](https://opengrantflow.com/contact).
 
 ### Grant Funding
 Seeking development grants (Innovate UK, FCDO, nonprofit tech foundations) to accelerate full-time development.
@@ -129,5 +125,4 @@ Developers, designers, and domain experts from the nonprofit sector are welcome.
 - [Architecture & technical docs](../../blob/main/README.md)
 - [Discussions](../../discussions)
 - [Issues](../../issues)
-- n.arutshyan@gmail.com
-- [LinkedIn](https://linkedin.com/in/norair-arutshyan)
+- [Contact](https://opengrantflow.com/contact)
