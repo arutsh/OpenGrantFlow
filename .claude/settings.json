@@ -47,12 +47,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /home/noro/repos/GrandFlow/.claude/hooks/block_secret_file_reads.py",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/block_secret_file_reads.py",
             "timeout": 15
           },
           {
             "type": "command",
-            "command": "python3 /home/noro/repos/GrandFlow/.claude/hooks/block_manual_branch_creation.py",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/block_manual_branch_creation.py",
             "timeout": 15
           }
         ]
@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /home/noro/repos/GrandFlow/.claude/hooks/check_comment_brevity.py",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/check_comment_brevity.py",
             "timeout": 15
           }
         ]
@@ -74,7 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /home/noro/repos/GrandFlow/.claude/hooks/check_test_factory_usage.py",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/check_test_factory_usage.py",
             "timeout": 15
           }
         ]
