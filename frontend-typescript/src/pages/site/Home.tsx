@@ -4,10 +4,12 @@ import { useAuth } from "@/context/AuthContext";
 import { getSection } from "@/lib/siteContent";
 import { SiteMarkdown } from "@/components/site/SiteMarkdown";
 import { SectionVisibility } from "@/components/site/SectionVisibility";
-import { ProductDemo } from "@/components/site/ProductDemo";
+import { ClassicHero } from "@/components/site/ClassicHero";
+import { SiteSection } from "@/components/site/SiteSection";
+import { SectionHead } from "@/components/site/SectionHead";
+import { CtaBand } from "@/components/site/CtaBand";
 import { SiteAssistantBox } from "@/components/site/SiteAssistantBox";
 import { useSiteAssistantConfig } from "@/api/siteAssistantApi";
-import productMockup from "@/assets/logos/opengrantflow-mockup.png";
 
 const LEGACY_HASH_REDIRECTS: Record<string, string> = {
   "#contact": "/contact",
@@ -47,147 +49,79 @@ export default function HomePage() {
       <title>Open Grant Flow</title>
       <div className="bg-brand-off-white">
         <SectionVisibility section={hero}>
-          {(hero) => (
-            <section
-              id={hero.anchor}
-              className="max-w-6xl mx-auto px-6 py-20 text-center"
-            >
-              <div className="max-w-3xl mx-auto">
-                <h1 className="text-4xl md:text-5xl font-bold mb-6 leading-tight text-brand-slate">
-                  {hero.title}
-                </h1>
-                <div className="text-lg mb-10 max-w-2xl mx-auto text-brand-slate">
-                  <SiteMarkdown>{hero.body}</SiteMarkdown>
-                </div>
-                <div className="flex flex-wrap justify-center gap-4">
-                  {hero.items?.map((item) => (
-                    <Link
-                      key={item.title}
-                      to={item.href ?? "/"}
-                      className="rounded-lg px-6 py-3 font-medium text-white transition-opacity hover:opacity-90 bg-brand-navy"
-                    >
-                      {item.title}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-              <img
-                src={productMockup}
-                alt="Open Grant Flow budgets dashboard with the AI budget assistant panel"
-                className="mt-16"
-              />
-            </section>
-          )}
+          {(hero) => <ClassicHero section={hero} />}
         </SectionVisibility>
 
         {assistantConfig.data?.enabled && (
           <SiteAssistantBox maxQuestionChars={assistantConfig.data.max_question_chars} />
         )}
 
-        <ProductDemo />
-
         <SectionVisibility section={browseInstead}>
           {(browseInstead) => (
-            <section id={browseInstead.anchor} className="px-6 py-16 bg-brand-mist">
-              <div className="max-w-5xl mx-auto text-center">
-                <h2 className="text-3xl font-bold mb-12 text-brand-slate">
-                  {browseInstead.title}
-                </h2>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {browseInstead.items?.map((item) => (
-                    <Link
-                      key={item.title}
-                      to={item.href ?? "/"}
-                      className="bg-white p-6 rounded-2xl card-shadow-lg text-left hover:opacity-90"
-                    >
-                      <h3 className="font-semibold mb-2 text-brand-slate">
-                        {item.title}
-                      </h3>
-                      <p className="text-sm text-slate-500">{item.body}</p>
-                    </Link>
-                  ))}
-                </div>
+            <SiteSection id={browseInstead.anchor} alt className="text-center">
+              <h2 className="text-site-h2 mb-12 text-brand-slate">{browseInstead.title}</h2>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {browseInstead.items?.map((item) => (
+                  <Link
+                    key={item.title}
+                    to={item.href ?? "/"}
+                    className="rounded-2xl bg-white p-6 text-left card-shadow-lg hover:opacity-90"
+                  >
+                    <h3 className="mb-2 font-semibold text-brand-slate">{item.title}</h3>
+                    <p className="text-sm text-slate-500">{item.body}</p>
+                  </Link>
+                ))}
               </div>
-            </section>
+            </SiteSection>
           )}
         </SectionVisibility>
 
         <SectionVisibility section={whatYouGetBack}>
           {(whatYouGetBack) => (
-            <section id={whatYouGetBack.anchor} className="max-w-5xl mx-auto px-6 py-16">
-              <h2 className="text-3xl font-bold mb-12 text-center text-brand-slate">
-                {whatYouGetBack.title}
-              </h2>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {whatYouGetBack.items?.map((item, index) => (
-                  <div
-                    key={index}
-                    className="bg-white p-6 rounded-2xl card-shadow-lg text-left"
-                  >
-                    <h3 className="font-semibold mb-2 text-brand-slate">
-                      {item.title}
-                    </h3>
-                    <p className="text-sm text-slate-500">{item.body}</p>
-                  </div>
+            <SiteSection id={whatYouGetBack.anchor} alt>
+              <SectionHead eyebrow={whatYouGetBack.eyebrow} title={whatYouGetBack.title} />
+              <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {whatYouGetBack.items?.map((item) => (
+                  <li key={item.title} className="grid content-start gap-2.5 rounded-2xl bg-white p-6 card-shadow-lg">
+                    <h3 className="text-lg font-semibold leading-snug text-brand-slate">{item.title}</h3>
+                    <p className="text-slate-500">{item.body}</p>
+                  </li>
                 ))}
-              </div>
-            </section>
+              </ul>
+            </SiteSection>
           )}
         </SectionVisibility>
 
         <SectionVisibility section={valuesSummary}>
           {(valuesSummary) => (
-            <section
-              id={valuesSummary.anchor}
-              className="px-6 py-16 bg-brand-mist"
-            >
-              <div className="max-w-5xl mx-auto">
-                <h2 className="text-3xl font-bold mb-8 text-brand-slate">
-                  {valuesSummary.title}
-                </h2>
-                <div className="grid sm:grid-cols-3 gap-6 mb-8">
-                  {valuesSummary.items?.map((item, index) => (
-                    <div
-                      key={index}
-                      className="bg-white p-6 rounded-2xl card-shadow-lg"
-                    >
-                      <h3 className="font-semibold mb-2 text-brand-slate">
-                        {item.title}
-                      </h3>
-                      <p className="text-sm text-slate-500">{item.body}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="[&_a]:underline text-brand-slate">
-                  <SiteMarkdown>{valuesSummary.body}</SiteMarkdown>
-                </div>
+            <SiteSection id={valuesSummary.anchor}>
+              <SectionHead eyebrow={valuesSummary.eyebrow} title={valuesSummary.title} />
+              <ul className="grid gap-6 md:grid-cols-2">
+                {valuesSummary.items?.map((item) => (
+                  <li key={item.title} className="grid content-start gap-2 rounded-2xl bg-white p-6 card-shadow-lg">
+                    <h3 className="text-lg font-semibold leading-snug text-brand-slate">{item.title}</h3>
+                    <p className="text-slate-500">{item.body}</p>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8 font-semibold text-brand-navy [&_a]:underline">
+                <SiteMarkdown>{valuesSummary.body}</SiteMarkdown>
               </div>
-            </section>
+            </SiteSection>
           )}
         </SectionVisibility>
 
         <SectionVisibility section={pilotTeaser}>
           {(pilotTeaser) => (
-            <section
+            <CtaBand
               id={pilotTeaser.anchor}
-              className="max-w-3xl mx-auto px-6 py-16 text-center"
-            >
-              <h2 className="text-3xl font-bold mb-6 text-brand-slate">
-                {pilotTeaser.title}
-              </h2>
-              <div className="mb-8 text-brand-slate">
-                <SiteMarkdown>{pilotTeaser.body}</SiteMarkdown>
-              </div>
-              {pilotTeaser.items?.map((item) => (
-                <Link
-                  key={item.title}
-                  to={item.href ?? "/contact"}
-                  className="inline-block rounded-lg px-6 py-3 font-medium text-white transition-opacity hover:opacity-90 bg-brand-navy"
-                >
-                  {item.title}
-                </Link>
-              ))}
-            </section>
+              title={pilotTeaser.title}
+              body={<SiteMarkdown>{pilotTeaser.body}</SiteMarkdown>}
+              cta={{
+                label: pilotTeaser.items?.[0]?.title ?? "Request a demo",
+                to: pilotTeaser.items?.[0]?.href ?? "/contact",
+              }}
+            />
           )}
         </SectionVisibility>
       </div>

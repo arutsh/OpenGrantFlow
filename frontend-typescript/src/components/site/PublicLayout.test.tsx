@@ -45,6 +45,20 @@ describe("PublicLayout", () => {
     expect(mobileNav.getByRole("link", { name: "Request Demo" })).toBeInTheDocument();
   });
 
+  it("keeps the header pinned to the top of the viewport", () => {
+    renderAt("/");
+
+    expect(screen.getByRole("banner")).toHaveClass("sticky", "top-0");
+  });
+
+  it("gives anchor targets a scroll margin that clears the sticky header", () => {
+    renderAt("/how-it-works#five-steps");
+
+    const target = document.getElementById("five-steps");
+    const layoutRoot = target?.closest("[class*='scroll-mt']");
+    expect(layoutRoot).toHaveClass("[&_[id]]:scroll-mt-20");
+  });
+
   it("scrolls to the section named by the URL hash", () => {
     const scrollIntoViewSpy = vi.fn();
     vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(

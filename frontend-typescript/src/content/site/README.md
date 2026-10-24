@@ -10,6 +10,7 @@ id: how-it-works.five-steps
 page: how-it-works
 anchor: five-steps
 title: Five steps
+eyebrow: The platform           # optional
 status: published
 personas: [grantee, funder]   # optional
 items:                        # optional, structured entries
@@ -30,6 +31,8 @@ Optional prose body, rendered as markdown (no raw HTML).
 
 ## Optional fields
 
+- `eyebrow` — a short label shown above the section heading (e.g. "What
+  we believe"). Display only; the site assistant's index does not read it.
 - `personas` — a subset of `grantee`, `funder`, `technical`.
 - `items` — a list of structured entries (cards, steps, quotes, FAQs). Each
   item needs a `title` or `quote`, and a `body` or `attribution`.

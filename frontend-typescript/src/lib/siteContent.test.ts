@@ -127,6 +127,21 @@ Body`,
     expect(section?.body).toBe("Hero body.");
   });
 
+  it("throws when eyebrow is not a string", () => {
+    expect(() =>
+      buildSiteContent({
+        "/a.md": PUBLISHED.replace("status: published", "status: published\neyebrow: [a, b]"),
+      }),
+    ).toThrow(/\/a\.md: "eyebrow" must be a string/);
+  });
+
+  it("exposes an optional eyebrow", () => {
+    const withEyebrow = PUBLISHED.replace("status: published", "status: published\neyebrow: Ours");
+
+    expect(buildSiteContent({ "/a.md": withEyebrow }).getSection("home.hero")?.eyebrow).toBe("Ours");
+    expect(buildSiteContent({ "/a.md": PUBLISHED }).getSection("home.hero")?.eyebrow).toBeUndefined();
+  });
+
   it("parses a file saved with a UTF-8 byte order mark", () => {
     const { getSection } = buildSiteContent({ "/a.md": `\uFEFF${PUBLISHED}` });
 

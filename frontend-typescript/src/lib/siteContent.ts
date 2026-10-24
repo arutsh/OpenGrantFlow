@@ -26,6 +26,7 @@ export interface SiteSection {
   page: SitePage;
   anchor: string;
   title: string;
+  eyebrow?: string;
   status: SiteSectionStatus;
   personas?: SitePersona[];
   items?: SiteContentItem[];
@@ -104,6 +105,9 @@ function validateFrontmatter(
     !STATUSES.includes(frontmatter.status as SiteSectionStatus)
   ) {
     errors.push(`${path}: invalid "status" value "${String(frontmatter.status)}"`);
+  }
+  if (frontmatter.eyebrow !== undefined && typeof frontmatter.eyebrow !== "string") {
+    errors.push(`${path}: "eyebrow" must be a string`);
   }
   if (frontmatter.personas !== undefined) {
     const personas = frontmatter.personas;
@@ -191,6 +195,7 @@ export function buildSiteContent(
       page: fm.page as SitePage,
       anchor: fm.anchor as string,
       title: fm.title as string,
+      eyebrow: fm.eyebrow as string | undefined,
       status: fm.status as SiteSectionStatus,
       personas: fm.personas as SitePersona[] | undefined,
       items: fm.items as SiteContentItem[] | undefined,

@@ -38,7 +38,7 @@ The file is frontmatter only, holding `default`, `grantee`, `funder` and `techni
 The `home.browse-instead` file stays. The fallback links in `SiteAssistantBox` read it, and its anchor is indexed. Home renders its items as the "Prefer to browse instead?" link line, carrying `id={anchor}`, so citations to `/#browse-instead` still resolve when the assistant is on.
 
 **6. New copy goes in new section files, and existing IDs keep their files.**
-New sections: `home.ask-hero` (assistant headline and lede) and one `<page>.cta` per page for the band copy. Rewritten sections keep their `id`/`anchor`. `home.values-summary` grows to four items. Unconfirmed wording stays `status: draft`, so the existing `TbcMarker` handles it.
+New sections: `home.ask-hero` (assistant headline and lede) and one `<page>.cta` per page for the band copy, except Home, whose band reuses `home.pilot-teaser` (an eval source). Section eyebrows come from a new optional `eyebrow` frontmatter field, which ingestion ignores. Rewritten sections keep their `id`/`anchor`. `home.values-summary` grows to four items. Unconfirmed wording stays `status: draft`, so the existing `TbcMarker` handles it.
 
 **7. Sticky header.**
 `PublicLayout`'s header gets `sticky top-0 z-20` and a background. `useHashScroll` targets need `scroll-mt-20` so anchors don't land under it.
