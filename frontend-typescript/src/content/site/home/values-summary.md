@@ -2,14 +2,17 @@
 id: home.values-summary
 page: home
 anchor: values-summary
-title: What we stand for
+eyebrow: What we believe
+title: Our values
 status: published
 items:
-  - title: Transparency
-    body: Financial infrastructure for the nonprofit sector should be transparent and accessible.
-  - title: Collaboration
-    body: Donors and grantees work from one shared record instead of passing files back and forth.
-  - title: Time for impact
-    body: Every hour saved on reporting is an hour returned to the work the grant was for.
+  - title: Security, without making it your problem
+    body: Infrastructure you can inspect and self-host if you choose, and a standard of care for your data that matches the standard you'd expect for your own.
+  - title: Transparency, because trust has to be built on something
+    body: Open-source code anyone can examine, and a habit of saying plainly when our own evidence is early.
+  - title: Collaboration is the cornerstone of this sector
+    body: We build shared records that replace suspicion and duplicated effort with visibility both funders and grantees can trust.
+  - title: Free where it matters most
+    body: Grassroots access stays free, always. Larger institutions fund the infrastructure, and any surplus is reinvested, never extracted as profit.
 ---
-Read more about [what we value](/about#values).
+[Read more about us and our mission →](/about)

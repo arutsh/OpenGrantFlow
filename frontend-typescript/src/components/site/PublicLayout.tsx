@@ -43,8 +43,8 @@ function PublicHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <header className="border-b border-slate-200">
-      <div className="max-w-5xl mx-auto flex items-center justify-between px-6 py-5">
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-brand-off-white">
+      <div className="mx-auto flex max-w-[1120px] items-center justify-between px-4 py-3.5 sm:px-5">
         <Link to="/" className="flex items-center gap-2">
           <img src={ogfIcon} alt="" className="h-8 w-auto shrink-0" />
           <span
@@ -84,7 +84,7 @@ function PublicHeader() {
       {mobileOpen && (
         <nav
           aria-label="Mobile"
-          className="sm:hidden flex flex-col gap-1 px-6 pb-4"
+          className="sm:hidden mx-auto flex max-w-[1120px] flex-col gap-1 px-4 pb-4"
         >
           {NAV_LINKS.map(({ to, label }) => (
             <Link
@@ -105,8 +105,8 @@ function PublicHeader() {
 
 function PublicFooter() {
   return (
-    <footer className="border-t border-slate-200 px-6 py-10">
-      <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between gap-6">
+    <footer className="border-t border-slate-200 py-10">
+      <div className="mx-auto flex max-w-[1120px] flex-col justify-between gap-6 px-4 sm:flex-row sm:px-5">
         <div>
           <p className="font-bold text-brand-slate">
             Open Grant Flow
@@ -162,7 +162,8 @@ export default function PublicLayout() {
   useHashScroll();
 
   return (
-    <div className="min-h-screen bg-brand-off-white">
+    // Every anchor target clears the sticky header when scrolled into view.
+    <div className="min-h-screen bg-brand-off-white [&_[id]]:scroll-mt-20">
       <PublicHeader />
       <Outlet />
       <PublicFooter />

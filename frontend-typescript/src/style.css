@@ -36,6 +36,32 @@
   @apply text-sm font-semibold uppercase tracking-wide text-slate-500;
 }
 
+/* Public-site type scale from the public-site-refresh mockup (#394). */
+@utility text-site-display {
+  @apply font-bold text-balance tracking-[-0.015em] leading-[1.1];
+  font-size: clamp(2.15rem, 5.4vw, 3.6rem);
+}
+
+@utility text-site-page-title {
+  @apply font-bold text-balance tracking-[-0.015em] leading-[1.1];
+  font-size: clamp(2rem, 4.6vw, 3rem);
+}
+
+@utility text-site-h2 {
+  @apply font-bold text-balance tracking-[-0.015em] leading-[1.18];
+  font-size: clamp(1.65rem, 3.4vw, 2.35rem);
+}
+
+@utility text-site-lede {
+  @apply leading-[1.55];
+  font-size: 1.2rem;
+}
+
+@utility text-site-eyebrow {
+  @apply font-semibold uppercase tracking-[0.12em] text-brand-teal;
+  font-size: 0.78rem;
+}
+
 /* Bordered/rounded card wrapper for a ledger-style table (desktop table +
    mobile card list both sit inside one of these) — replaces the bare
    `shadow rounded` table treatment with a properly contained card, per the

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import gatewayApi from "@/api/gatewayApi";
@@ -79,23 +79,36 @@ describe("HomePage", () => {
     expect(
       screen.getByRole("link", { name: "See how it works" }),
     ).toHaveAttribute("href", "/how-it-works");
+    expect(
+      screen.getByRole("img", {
+        name: "Open Grant Flow budgets dashboard with the AI budget assistant panel",
+      }),
+    ).toBeInTheDocument();
   });
 
-  it("renders the product demo embed", () => {
+  it("does not render the product demo embed", () => {
+    const { container } = renderAt("/");
+
+    expect(container.querySelector("iframe")).not.toBeInTheDocument();
+    expect(document.getElementById("demo")).not.toBeInTheDocument();
+  });
+
+  it("renders the four values and the pilot call-to-action band", () => {
     renderAt("/");
 
-    const demoFrame = screen.getByTitle(
-      "OpenGrantFlow - Grant Management Without Spreadsheets",
+    const values = document.getElementById("values-summary") as HTMLElement;
+    expect(within(values).getByRole("heading", { level: 2, name: "Our values" })).toBeInTheDocument();
+    expect(within(values).getByText("What we believe")).toBeInTheDocument();
+    expect(within(values).getAllByRole("listitem")).toHaveLength(4);
+
+    const band = document.getElementById("pilot-teaser") as HTMLElement;
+    expect(
+      within(band).getByRole("heading", { level: 2, name: "Become a Pilot Partner" }),
+    ).toBeInTheDocument();
+    expect(within(band).getByRole("link", { name: "Request a demo" })).toHaveAttribute(
+      "href",
+      "/contact#pilot",
     );
-    expect(demoFrame.tagName).toBe("IFRAME");
-    expect(document.getElementById("demo")).toContainElement(demoFrame);
-    expect(demoFrame).toHaveAttribute(
-      "src",
-      expect.stringContaining(
-        "https://demo.arcade.software/video/bJX6Bh5bfgTZU5E2pUSK",
-      ),
-    );
-    expect(demoFrame).toHaveAttribute("loading", "lazy");
   });
 
   it("offers links to browse the rest of the site", () => {
