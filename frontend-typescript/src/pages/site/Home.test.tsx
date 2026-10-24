@@ -32,46 +32,67 @@ describe("HomePage", () => {
     getMock.mockResolvedValue({ data: { enabled: false, max_question_chars: 500 } });
   });
 
-  describe("site assistant box", () => {
-    it("is shown when the assistant is enabled", async () => {
+  describe("hero", () => {
+    const CLASSIC = "Grant management without spreadsheets.";
+    const ASK = "One shared financial record. Zero spreadsheets.";
+    const FIELD = "Ask a question about Open Grant Flow";
+
+    it("shows a placeholder, and neither hero, while the config is loading", () => {
+      getMock.mockReturnValue(new Promise(() => {}));
+      renderAt("/");
+
+      expect(screen.getByRole("region", { name: "Loading" })).toHaveAttribute("aria-busy", "true");
+      expect(screen.queryByRole("heading", { name: CLASSIC })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: ASK })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(FIELD)).not.toBeInTheDocument();
+      expect(document.getElementById("values-summary")).toBeInTheDocument();
+    });
+
+    it("holds the assistant box when the assistant is enabled", async () => {
       getMock.mockResolvedValue({ data: { enabled: true, max_question_chars: 500 } });
       renderAt("/");
 
-      expect(
-        await screen.findByRole("heading", { name: "Ask about Open Grant Flow" }),
-      ).toBeInTheDocument();
-      expect(screen.getByLabelText("Your question")).toHaveAttribute("maxLength", "500");
+      expect(await screen.findByRole("heading", { level: 1, name: ASK })).toBeInTheDocument();
+      expect(screen.getByLabelText(FIELD)).toHaveAttribute("maxLength", "500");
+      expect(screen.queryByRole("heading", { name: CLASSIC })).not.toBeInTheDocument();
       expect(getMock).toHaveBeenCalledWith("/ai/site-assistant/config");
+
+      const browse = document.getElementById("browse-instead") as HTMLElement;
+      expect(browse).toHaveTextContent("Prefer to browse instead?");
+      expect(within(browse).getByRole("link", { name: "How it works" })).toHaveAttribute(
+        "href",
+        "/how-it-works",
+      );
+      expect(within(browse).getByRole("link", { name: "Security & data" })).toHaveAttribute(
+        "href",
+        "/security",
+      );
+      expect(within(browse).getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
     });
 
-    it("is hidden when the assistant is disabled", async () => {
+    it("shows the classic hero when the assistant is disabled", async () => {
       renderAt("/");
 
-      await waitFor(() => expect(getMock).toHaveBeenCalled());
-      expect(screen.queryByLabelText("Your question")).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("heading", { name: "Grant management without spreadsheets." }),
-      ).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: CLASSIC })).toBeInTheDocument();
+      expect(screen.queryByLabelText(FIELD)).not.toBeInTheDocument();
+      expect(document.getElementById("browse-instead")).not.toBeInTheDocument();
     });
 
-    it("is hidden, with no error shown, when the config request fails", async () => {
+    it("shows the classic hero, with no error, when the config request fails", async () => {
       getMock.mockRejectedValue(new Error("network down"));
       renderAt("/");
 
-      await waitFor(() => expect(getMock).toHaveBeenCalled());
-      expect(screen.queryByLabelText("Your question")).not.toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: CLASSIC })).toBeInTheDocument();
+      expect(screen.queryByLabelText(FIELD)).not.toBeInTheDocument();
       expect(screen.queryByText(/went wrong|error|unavailable/i)).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("heading", { name: "Grant management without spreadsheets." }),
-      ).toBeInTheDocument();
     });
   });
 
-  it("renders the hero and its CTAs", () => {
+  it("renders the classic hero and its CTAs", async () => {
     renderAt("/");
 
     expect(
-      screen.getByRole("heading", { name: "Grant management without spreadsheets." }),
+      await screen.findByRole("heading", { name: "Grant management without spreadsheets." }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Become a Pilot Partner" }),
@@ -109,17 +130,6 @@ describe("HomePage", () => {
       "href",
       "/contact#pilot",
     );
-  });
-
-  it("offers links to browse the rest of the site", () => {
-    renderAt("/");
-
-    expect(
-      screen.getByRole("link", { name: /How it works/ }),
-    ).toHaveAttribute("href", "/how-it-works");
-    expect(
-      screen.getByRole("link", { name: /Security & data/ }),
-    ).toHaveAttribute("href", "/security");
   });
 
   it("does not show the old in-development workflow status pills", () => {

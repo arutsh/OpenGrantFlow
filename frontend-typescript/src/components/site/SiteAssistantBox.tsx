@@ -1,21 +1,40 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { getSection } from "@/lib/siteContent";
+import { assistantSuggestions } from "@/lib/assistantSuggestions";
 import {
   classifySiteAssistantError,
   useAskSiteAssistant,
+  type SiteAssistantCitation,
   type SiteAssistantFailure,
   type SiteAssistantPersona,
 } from "@/api/siteAssistantApi";
 
 const PERSONAS: { value: SiteAssistantPersona | null; label: string }[] = [
   { value: null, label: "Anyone" },
-  { value: "grantee", label: "Grantee" },
-  { value: "funder", label: "Funder" },
-  { value: "technical", label: "Technical" },
+  { value: "grantee", label: "I receive grants" },
+  { value: "funder", label: "I fund grants" },
+  { value: "technical", label: "I'm technical" },
 ];
 
-// Same links as Home's own Browse-instead cards, so renames stay in one content file.
+const ANSWER_LABELS: Record<SiteAssistantPersona | "none", string> = {
+  none: "Answer",
+  grantee: "Answer for grant recipients",
+  funder: "Answer for funders",
+  technical: "Answer for technical teams",
+};
+
+const FALLBACK_MESSAGES: Record<SiteAssistantFailure | "unanswerable", string> = {
+  unanswerable: "Sorry, I couldn't find that on this site. Try browsing instead:",
+  daily_cap: "The assistant has answered all it can for today. Try again tomorrow, or browse:",
+  unavailable: "The assistant isn't available right now. You can browse instead:",
+  error: "Something went wrong asking the assistant. You can browse instead:",
+};
+
+// Show the character counter once the question reaches this share of the limit.
+const COUNTER_THRESHOLD = 0.8;
+
+// Same links as Home's browse-instead line, so renames stay in one content file.
 function browseLinks() {
   const items = getSection("home.browse-instead")?.items ?? [];
   return items.flatMap((item) =>
@@ -33,17 +52,108 @@ function isSitePath(url: string): boolean {
   }
 }
 
-const FALLBACK_MESSAGES: Record<SiteAssistantFailure | "unanswerable", string> = {
-  unanswerable: "Sorry, I couldn't find that on this site. Try browsing instead:",
-  daily_cap: "The assistant has answered all it can for today. Try again tomorrow, or browse:",
-  unavailable: "The assistant isn't available right now. You can browse instead:",
-  error: "Something went wrong asking the assistant. You can browse instead:",
-};
-
-function BrowseInstead({ message }: { message: string }) {
+function PersonaToggle({ persona, onChange }: {
+  persona: SiteAssistantPersona | null;
+  onChange: (persona: SiteAssistantPersona | null) => void;
+}) {
   return (
-    <div>
-      <p className="mb-3 text-brand-slate">{message}</p>
+    <div role="group" aria-label="I am asking as" className="flex flex-wrap justify-center gap-2">
+      {PERSONAS.map((option) => (
+        <button
+          key={option.label}
+          type="button"
+          aria-pressed={persona === option.value}
+          onClick={() => onChange(persona === option.value ? null : option.value)}
+          className="rounded-full border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-brand-slate transition-colors hover:border-brand-navy aria-pressed:border-brand-navy aria-pressed:bg-brand-navy aria-pressed:text-white"
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SuggestedQuestions({ questions, onPick }: {
+  questions: string[];
+  onPick: (question: string) => void;
+}) {
+  return (
+    <ul aria-label="Suggested questions" className="flex flex-wrap gap-2">
+      {questions.map((question) => (
+        <li key={question}>
+          <button
+            type="button"
+            onClick={() => onPick(question)}
+            className="rounded-2xl border border-slate-200 bg-brand-off-white px-3 py-1.5 text-left text-sm leading-snug text-brand-slate hover:border-brand-teal hover:bg-brand-teal-tint"
+          >
+            {question}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ResultFooter({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2.5">
+      <Link
+        to="/contact"
+        className="inline-flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-brand-navy hover:bg-brand-mist"
+      >
+        Request a demo
+      </Link>
+      <button
+        type="button"
+        onClick={onReset}
+        className="text-sm text-brand-navy underline hover:opacity-70"
+      >
+        Ask something else
+      </button>
+    </div>
+  );
+}
+
+function ResultContainer({ children }: { children: ReactNode }) {
+  return <div className="grid min-w-0 gap-2.5 border-t border-slate-200 pt-4">{children}</div>;
+}
+
+function AnswerBlock({ question, persona, answer, citations, onReset }: {
+  question: string;
+  persona: SiteAssistantPersona | null;
+  answer: string;
+  citations: SiteAssistantCitation[];
+  onReset: () => void;
+}) {
+  return (
+    <ResultContainer>
+      <p className="text-xs font-semibold uppercase tracking-widest text-brand-teal">
+        {ANSWER_LABELS[persona ?? "none"]}
+      </p>
+      <h3 className="text-lg font-semibold leading-snug text-brand-slate">{question}</h3>
+      <p className="whitespace-pre-line text-brand-slate">{answer}</p>
+      {citations.length > 0 && (
+        <p className="text-sm text-slate-500">
+          Answered from:{" "}
+          {citations.map((citation, index) => (
+            <span key={citation.content_id}>
+              {index > 0 && " · "}
+              <Link to={citation.url} className="text-brand-navy underline hover:opacity-70">
+                {citation.title}
+              </Link>
+            </span>
+          ))}
+        </p>
+      )}
+      <ResultFooter onReset={onReset} />
+    </ResultContainer>
+  );
+}
+
+function FallbackBlock({ message, onReset }: { message: string; onReset: () => void }) {
+  return (
+    <ResultContainer>
+      <p className="text-brand-slate">{message}</p>
       <ul className="flex flex-wrap gap-2">
         {browseLinks().map((link) => (
           <li key={link.to}>
@@ -56,31 +166,123 @@ function BrowseInstead({ message }: { message: string }) {
           </li>
         ))}
       </ul>
-    </div>
+      <ResultFooter onReset={onReset} />
+    </ResultContainer>
   );
 }
 
 export function SiteAssistantBox({ maxQuestionChars }: { maxQuestionChars: number }) {
   const [question, setQuestion] = useState("");
   const [persona, setPersona] = useState<SiteAssistantPersona | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const ask = useAskSiteAssistant();
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const trimmed = question.trim();
+  function submit(text: string) {
+    const trimmed = text.trim();
     if (!trimmed || ask.isPending) return;
     ask.mutate({ question: trimmed, persona });
   }
 
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    submit(question);
+  }
+
+  function pickSuggestion(text: string) {
+    setQuestion(text);
+    submit(text);
+    // The clicked chip unmounts once the request starts, so keep focus in the box.
+    inputRef.current?.focus();
+  }
+
+  function changePersona(next: SiteAssistantPersona | null) {
+    setPersona(next);
+    if (!ask.isPending) ask.reset();
+  }
+
+  function reset() {
+    ask.reset();
+    setQuestion("");
+    inputRef.current?.focus();
+  }
+
   const answer = ask.data;
+  const asked = ask.variables;
   // Server citation URLs are site paths; anything else is dropped rather than linked.
-  const citations = answer?.citations.filter((c) => isSitePath(c.url));
+  const citations = answer?.citations.filter((c) => isSitePath(c.url)) ?? [];
+  const showCounter = question.length >= maxQuestionChars * COUNTER_THRESHOLD;
 
   return (
-    <section id="ask" className="px-6 py-16">
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl card-shadow-lg p-6 sm:p-8">
-        <h2 className="text-2xl font-bold mb-2 text-brand-slate">Ask about Open Grant Flow</h2>
-        <p className="text-xs text-slate-500 mb-6">
+    <>
+      <PersonaToggle persona={persona} onChange={changePersona} />
+
+      <div className="grid w-full min-w-0 max-w-[660px] gap-3.5 rounded-2xl bg-white p-[18px] text-left card-shadow-lg sm:px-6 sm:py-[22px]">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-brand-slate">
+          <span aria-hidden="true" className="h-[7px] w-[7px] flex-none rounded-full bg-brand-teal" />
+          Ask about Open Grant Flow
+        </h2>
+
+        <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-2.5 min-[481px]:flex-row">
+          <label htmlFor="site-assistant-question" className="sr-only">
+            Ask a question about Open Grant Flow
+          </label>
+          <input
+            ref={inputRef}
+            id="site-assistant-question"
+            type="text"
+            autoComplete="off"
+            maxLength={maxQuestionChars}
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="e.g. We already use Fluxx. Why would we need this?"
+            className="min-h-[46px] min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-brand-slate input-focus"
+          />
+          <button
+            type="submit"
+            disabled={ask.isPending || !question.trim()}
+            className="min-h-10 rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {ask.isPending ? "Asking…" : "Ask"}
+          </button>
+        </form>
+        {showCounter && (
+          <p className="-mt-2 text-right text-xs text-slate-500">
+            {question.length}/{maxQuestionChars}
+          </p>
+        )}
+
+        {ask.isIdle && (
+          <SuggestedQuestions
+            questions={assistantSuggestions[persona ?? "default"]}
+            onPick={pickSuggestion}
+          />
+        )}
+
+        <div aria-live="polite" className="empty:hidden">
+          {ask.isPending && (
+            <p className="text-sm text-slate-500">Looking through the site…</p>
+          )}
+          {ask.isError && (
+            <FallbackBlock
+              message={FALLBACK_MESSAGES[classifySiteAssistantError(ask.error)]}
+              onReset={reset}
+            />
+          )}
+          {answer && !answer.answerable && (
+            <FallbackBlock message={FALLBACK_MESSAGES.unanswerable} onReset={reset} />
+          )}
+          {answer?.answerable && asked && (
+            <AnswerBlock
+              question={asked.question}
+              persona={asked.persona}
+              answer={answer.answer}
+              citations={citations}
+              onReset={reset}
+            />
+          )}
+        </div>
+
+        <p className="text-xs text-slate-500">
           Questions are sent to an AI provider to generate an answer from this website&apos;s
           content, and are not stored by us. Please don&apos;t include personal details. See our{" "}
           <Link to="/legal#privacy-processors" className="underline hover:opacity-70">
@@ -88,85 +290,7 @@ export function SiteAssistantBox({ maxQuestionChars }: { maxQuestionChars: numbe
           </Link>
           .
         </p>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <fieldset>
-            <legend className="text-sm font-medium mb-2 text-brand-slate">I am asking as</legend>
-            <div className="flex flex-wrap gap-2">
-              {PERSONAS.map((option) => (
-                <button
-                  key={option.label}
-                  type="button"
-                  aria-pressed={persona === option.value}
-                  onClick={() => setPersona(option.value)}
-                  className="rounded-full border px-4 py-1.5 text-sm transition-colors border-slate-300 text-brand-slate aria-pressed:bg-brand-navy aria-pressed:border-brand-navy aria-pressed:text-white"
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <div>
-            <label
-              htmlFor="site-assistant-question"
-              className="block text-sm font-medium mb-2 text-brand-slate"
-            >
-              Your question
-            </label>
-            <textarea
-              id="site-assistant-question"
-              rows={3}
-              maxLength={maxQuestionChars}
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-white input-focus"
-            />
-            <p className="text-xs text-slate-500 text-right">
-              {question.length}/{maxQuestionChars}
-            </p>
-          </div>
-
-          <button
-            type="submit"
-            disabled={ask.isPending || !question.trim()}
-            className="w-full sm:w-auto rounded-lg px-6 py-3 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50 bg-brand-navy"
-          >
-            {ask.isPending ? "Asking…" : "Ask"}
-          </button>
-        </form>
-
-        <div aria-live="polite" className="mt-6 empty:hidden">
-          {ask.isError && (
-            <BrowseInstead message={FALLBACK_MESSAGES[classifySiteAssistantError(ask.error)]} />
-          )}
-          {answer && !answer.answerable && (
-            <BrowseInstead message={FALLBACK_MESSAGES.unanswerable} />
-          )}
-          {answer?.answerable && (
-            <div className="rounded-xl bg-brand-mist p-4 sm:p-5">
-              <p className="whitespace-pre-line text-brand-slate">{answer.answer}</p>
-              {citations && citations.length > 0 && (
-                <div className="mt-4">
-                  <h3 className="text-sm font-semibold mb-2 text-brand-slate">Sources</h3>
-                  <ul className="space-y-1">
-                    {citations.map((citation) => (
-                      <li key={citation.content_id}>
-                        <Link
-                          to={citation.url}
-                          className="text-sm underline text-brand-navy hover:opacity-70"
-                        >
-                          {citation.title}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
-    </section>
+    </>
   );
 }

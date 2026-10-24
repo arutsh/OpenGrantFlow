@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import gatewayApi from "@/api/gatewayApi";
 import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { buildSiteContent, getSection, type SitePage } from "@/lib/siteContent";
@@ -25,6 +26,8 @@ const files = import.meta.glob(
   { eager: true, query: "?raw", import: "default" },
 ) as Record<string, string>;
 const sections = [...buildSiteContent(files).sections.values()];
+// These Home sections only render inside the assistant hero.
+const ASSISTANT_SECTIONS = new Set(["home.ask-hero", "home.browse-instead"]);
 const PAGES: Partial<Record<SitePage, ComponentType>> = {
   home: HomePage,
   "how-it-works": HowItWorksPage,
@@ -35,7 +38,10 @@ const PAGES: Partial<Record<SitePage, ComponentType>> = {
 };
 
 describe.each(sections)("$id publication lifecycle", (section) => {
-  it.each([false, true])("handles draft content (production: %s)", (isProd) => {
+  it.each([false, true])("handles draft content (production: %s)", async (isProd) => {
+    vi.mocked(gatewayApi.get).mockResolvedValue({
+      data: { enabled: ASSISTANT_SECTIONS.has(section.id), max_question_chars: 500 },
+    });
     const changed = Object.fromEntries(Object.entries(files).map(([path, raw]) => [
       path,
       raw.includes(`id: ${section.id}\n`)
@@ -46,6 +52,9 @@ describe.each(sections)("$id publication lifecycle", (section) => {
     const Page = PAGES[section.page];
     if (!Page) throw new Error(`No page component mapped for "${section.page}"`);
     render(withQueryClient(<MemoryRouter><AuthProvider><Page /></AuthProvider></MemoryRouter>));
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Loading" })).not.toBeInTheDocument(),
+    );
 
     if (isProd) {
       expect(document.getElementById(section.anchor)).not.toBeInTheDocument();

@@ -22,15 +22,19 @@ When the site assistant's config reports `enabled: true`, the Home page SHALL us
 - **THEN** the classic hero is shown and no error is displayed
 
 ### Requirement: Visitor can ask with an optional persona
-The box SHALL offer a persona toggle with the labels "I receive grants" (`grantee`), "I fund grants" (`funder`) and "I'm technical" (`technical`). No persona is selected at first, and activating the selected persona again SHALL clear it. The question field SHALL be limited to the configured maximum length. Submitting SHALL send the question and the selected persona, if any, and SHALL disable the submit control until the response arrives.
+The box SHALL offer a persona toggle with the labels "Anyone" (no persona), "I receive grants" (`grantee`), "I fund grants" (`funder`) and "I'm technical" (`technical`), in that order. "Anyone" SHALL be selected at first and whenever no persona is chosen, and activating the selected persona again SHALL return the selection to "Anyone". The question field SHALL be limited to the configured maximum length. Submitting SHALL send the question and the selected persona, or no persona when "Anyone" is selected, and SHALL disable the submit control until the response arrives.
 
 #### Scenario: Persona sent with the question
 - **WHEN** a visitor selects "I fund grants" and submits a question
 - **THEN** the request carries `persona: funder`
 
 #### Scenario: Persona cleared
-- **WHEN** a visitor activates the already-selected persona
-- **THEN** no persona is selected and the next request carries no persona
+- **WHEN** a visitor activates the already-selected persona, or activates "Anyone"
+- **THEN** "Anyone" is selected and the next request carries no persona
+
+#### Scenario: Anyone selected at first
+- **WHEN** a visitor opens the box
+- **THEN** "Anyone" is selected, the default suggested questions are shown, and a submitted question carries no persona
 
 #### Scenario: Length limit enforced in the field
 - **WHEN** the configured maximum is 500 characters

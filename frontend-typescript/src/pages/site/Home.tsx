@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { getSection } from "@/lib/siteContent";
 import { SiteMarkdown } from "@/components/site/SiteMarkdown";
@@ -8,7 +8,7 @@ import { ClassicHero } from "@/components/site/ClassicHero";
 import { SiteSection } from "@/components/site/SiteSection";
 import { SectionHead } from "@/components/site/SectionHead";
 import { CtaBand } from "@/components/site/CtaBand";
-import { SiteAssistantBox } from "@/components/site/SiteAssistantBox";
+import { AssistantHero, HeroPlaceholder } from "@/components/site/AssistantHero";
 import { useSiteAssistantConfig } from "@/api/siteAssistantApi";
 
 const LEGACY_HASH_REDIRECTS: Record<string, string> = {
@@ -36,6 +36,7 @@ export default function HomePage() {
   const assistantConfig = useSiteAssistantConfig({ enabled: !loading && !isAuthenticated });
 
   const hero = getSection("home.hero");
+  const askHero = getSection("home.ask-hero");
   const browseInstead = getSection("home.browse-instead");
   const whatYouGetBack = getSection("home.what-you-get-back");
   const valuesSummary = getSection("home.values-summary");
@@ -48,33 +49,23 @@ export default function HomePage() {
     <>
       <title>Open Grant Flow</title>
       <div className="bg-brand-off-white">
-        <SectionVisibility section={hero}>
-          {(hero) => <ClassicHero section={hero} />}
-        </SectionVisibility>
-
-        {assistantConfig.data?.enabled && (
-          <SiteAssistantBox maxQuestionChars={assistantConfig.data.max_question_chars} />
+        {assistantConfig.isPending ? (
+          <HeroPlaceholder />
+        ) : assistantConfig.data?.enabled && askHero ? (
+          <SectionVisibility section={askHero}>
+            {(askHero) => (
+              <AssistantHero
+                section={askHero}
+                browseInstead={browseInstead}
+                maxQuestionChars={assistantConfig.data.max_question_chars}
+              />
+            )}
+          </SectionVisibility>
+        ) : (
+          <SectionVisibility section={hero}>
+            {(hero) => <ClassicHero section={hero} />}
+          </SectionVisibility>
         )}
-
-        <SectionVisibility section={browseInstead}>
-          {(browseInstead) => (
-            <SiteSection id={browseInstead.anchor} alt className="text-center">
-              <h2 className="text-site-h2 mb-12 text-brand-slate">{browseInstead.title}</h2>
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                {browseInstead.items?.map((item) => (
-                  <Link
-                    key={item.title}
-                    to={item.href ?? "/"}
-                    className="rounded-2xl bg-white p-6 text-left card-shadow-lg hover:opacity-90"
-                  >
-                    <h3 className="mb-2 font-semibold text-brand-slate">{item.title}</h3>
-                    <p className="text-sm text-slate-500">{item.body}</p>
-                  </Link>
-                ))}
-              </div>
-            </SiteSection>
-          )}
-        </SectionVisibility>
 
         <SectionVisibility section={whatYouGetBack}>
           {(whatYouGetBack) => (

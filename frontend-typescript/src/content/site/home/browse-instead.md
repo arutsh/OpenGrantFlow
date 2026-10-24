@@ -2,7 +2,7 @@
 id: home.browse-instead
 page: home
 anchor: browse-instead
-title: Not sure where to start? Browse instead.
+title: Prefer to browse instead?
 status: published
 items:
   - title: How it works

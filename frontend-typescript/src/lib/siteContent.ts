@@ -50,7 +50,7 @@ interface ParsedFile {
   body: string;
 }
 
-function splitFrontmatter(raw: string): { frontmatter: unknown; body: string } {
+export function splitFrontmatter(raw: string): { frontmatter: unknown; body: string } {
   const withoutBom = raw.replace(/^\uFEFF/, "");
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(withoutBom);
   if (!match) {

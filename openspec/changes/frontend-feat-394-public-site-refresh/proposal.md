@@ -10,7 +10,7 @@ An outside draft of the public site had clearer structure, stronger copy and an 
 ## What Changes
 
 - **Layout and type scale** on all five public pages follow the mockup: larger fluid headings, eyebrow labels, a 1120px content width, and a navy call-to-action band per page. Colours, fonts, cards and buttons are unchanged.
-- **Assistant-first Home hero**: when the site assistant is enabled, the hero holds the assistant: a new headline, persona buttons ("I receive grants" / "I fund grants" / "I'm technical"), suggested questions per persona and a single-line field. When the assistant is disabled or its config fails, Home shows the current hero in the new layout.
+- **Assistant-first Home hero**: when the site assistant is enabled, the hero holds the assistant: a new headline, persona buttons ("Anyone" / "I receive grants" / "I fund grants" / "I'm technical"), suggested questions per persona and a single-line field. When the assistant is disabled or its config fails, Home shows the current hero in the new layout.
 - **Suggested questions are sent to the real assistant** like typed questions. There are no pre-written answers.
 - **New answer layout**: a persona label, the question as a heading, the answer, an "Answered from:" line of source links, and "Request a demo" and "Ask something else" actions. Fallback replies use the same container. The AI-processing notice stays.
 - **Home sections**: the browse cards become one line of links, "What you get back" gets new copy, there are four values instead of three, and a pilot call-to-action band is added.
