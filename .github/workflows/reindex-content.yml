@@ -11,7 +11,49 @@ on:
 permissions: {}
 
 jobs:
+  content-evals:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: grandflow_ai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AI_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/grandflow_ai
+      AI_TEST_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/grandflow_ai
+      LOG_LEVEL: INFO
+      PYTHONPATH: ${{ github.workspace }}/services/ai:${{ github.workspace }}
+      AI_PROVIDER_APPROVED_ORIGINS: '[{"origin": "http://ollama:11434", "allow_private": true}]'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r services/ai/requirements.txt
+
+      - name: Run content evals
+        working-directory: ./services/ai
+        run: python -m pytest tests/evals -v
+
   reindex:
+    needs: content-evals
     runs-on: ubuntu-latest
     steps:
       - name: Reindex content and restart AI service
