@@ -2,7 +2,7 @@
 id: how-it-works.who-grantees
 page: how-it-works
 anchor: who-grantees
-title: For grantees
+title: If you receive grants
 status: published
 personas: [grantee]
 items:

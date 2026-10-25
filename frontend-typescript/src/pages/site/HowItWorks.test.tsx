@@ -15,7 +15,7 @@ describe("HowItWorksPage", () => {
     renderPage();
 
     expect(
-      screen.getByText("One continuous financial record, from budget to report"),
+      screen.getByRole("heading", { level: 1, name: "One continuous financial record, from budget to report." }),
     ).toBeInTheDocument();
     expect(screen.getByText("Budget")).toBeInTheDocument();
     expect(screen.getByText("Track")).toBeInTheDocument();
@@ -69,9 +69,27 @@ describe("HowItWorksPage", () => {
   it("renders the who-it's-for sections for grantees and funders", () => {
     renderPage();
 
-    expect(screen.getByText("For grantees")).toBeInTheDocument();
+    expect(screen.getByText("If you receive grants")).toBeInTheDocument();
     expect(screen.getByText("Less time on administration")).toBeInTheDocument();
-    expect(screen.getByText("For funders")).toBeInTheDocument();
-    expect(screen.getByText("Clear portfolio view")).toBeInTheDocument();
+    expect(screen.getByText("If you fund grants")).toBeInTheDocument();
+    expect(screen.getByText("A clear view of your portfolio")).toBeInTheDocument();
+  });
+
+  it("numbers the steps in order", () => {
+    renderPage();
+
+    const steps = screen.getAllByRole("listitem").filter((li) => li.closest("#five-steps"));
+    expect(steps.map((step) => step.textContent?.slice(0, 2))).toEqual(
+      ["1B", "2T", "3R", "4R", "5A"],
+    );
+  });
+
+  it("ends with a CTA band linking to the demo request", () => {
+    renderPage();
+
+    expect(
+      screen.getByRole("heading", { name: "See it with your own grants in mind" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Request a demo" })).toHaveAttribute("href", "/contact");
   });
 });

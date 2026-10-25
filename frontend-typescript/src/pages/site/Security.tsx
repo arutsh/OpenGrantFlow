@@ -1,19 +1,27 @@
 import { getSection, type SiteSection } from "@/lib/siteContent";
 import { SiteMarkdown } from "@/components/site/SiteMarkdown";
 import { SectionVisibility } from "@/components/site/SectionVisibility";
+import { PageHero } from "@/components/site/PageHero";
+import { SiteSection as SiteSectionWrap } from "@/components/site/SiteSection";
+import { SectionCtaBand } from "@/components/site/CtaBand";
 
-function ProseSection({ section }: { section: SiteSection | null }) {
+function QuestionCard({ section }: { section: SiteSection | null }) {
   return (
     <SectionVisibility section={section}>
       {(section) => (
-        <section id={section.anchor} className="max-w-3xl mx-auto px-6 py-10">
-          <h2 className="text-2xl font-bold mb-4 text-brand-slate">
-            {section.title}
-          </h2>
-          <div className="text-brand-slate">
+        <div id={section.anchor} className="grid gap-2.5 rounded-2xl bg-white p-6 card-shadow-lg">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-lg font-semibold leading-snug text-brand-slate">{section.title}</h2>
+            {section.pill && section.status === "published" && (
+              <span className="whitespace-nowrap rounded-full border border-brand-teal-tint-border bg-brand-teal-tint px-2.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-wide text-brand-teal">
+                {section.pill}
+              </span>
+            )}
+          </div>
+          <div className="text-slate-500 [&_a]:text-brand-navy [&_a]:underline">
             <SiteMarkdown>{section.body}</SiteMarkdown>
           </div>
-        </section>
+        </div>
       )}
     </SectionVisibility>
   );
@@ -21,37 +29,34 @@ function ProseSection({ section }: { section: SiteSection | null }) {
 
 export default function SecurityPage() {
   const intro = getSection("security.intro");
-  const selfHosting = getSection("security.self-hosting");
-  const aiProviders = getSection("security.ai-providers");
-  const gdpr = getSection("security.gdpr");
-  const dataLocation = getSection("security.data-location");
-  const highRisk = getSection("security.high-risk");
+  const questions = [
+    getSection("security.self-hosting"),
+    getSection("security.ai-providers"),
+    getSection("security.gdpr"),
+    getSection("security.data-location"),
+    getSection("security.high-risk"),
+  ];
+  const cta = getSection("security.cta");
 
   return (
     <>
       <title>Security & data · Open Grant Flow</title>
       <div className="bg-brand-off-white">
         <SectionVisibility section={intro}>
-          {(intro) => (
-            <section
-              id={intro.anchor}
-              className="max-w-3xl mx-auto px-6 py-16 text-center"
-            >
-              <h1 className="text-4xl font-bold mb-6 text-brand-slate">
-                {intro.title}
-              </h1>
-              <div className="text-lg text-brand-slate">
-                <SiteMarkdown>{intro.body}</SiteMarkdown>
-              </div>
-            </section>
-          )}
+          {(intro) => <PageHero section={intro} />}
         </SectionVisibility>
 
-        <ProseSection section={selfHosting} />
-        <ProseSection section={aiProviders} />
-        <ProseSection section={gdpr} />
-        <ProseSection section={dataLocation} />
-        <ProseSection section={highRisk} />
+        {questions.some(Boolean) && (
+          <SiteSectionWrap alt>
+            <div className="grid max-w-[860px] gap-4">
+              {questions.map((section, index) => (
+                <QuestionCard key={index} section={section} />
+              ))}
+            </div>
+          </SiteSectionWrap>
+        )}
+
+        <SectionCtaBand section={cta} />
       </div>
     </>
   );
