@@ -48,11 +48,11 @@ describe("public site routing", () => {
 
       await userEvent.click(screen.getAllByRole("link", { name: "About" })[0]);
       expect(window.location.pathname).toBe("/about");
-      expect(screen.getByRole("heading", { name: "Built from lived experience" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "This started as our own problem, not a business plan" })).toBeInTheDocument();
 
       await userEvent.click(screen.getAllByRole("link", { name: "Contact" })[0]);
       expect(window.location.pathname).toBe("/contact");
-      expect(screen.getByRole("heading", { name: "Start a conversation" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Become a Pilot Partner" })).toBeInTheDocument();
 
       await userEvent.click(screen.getAllByRole("link", { name: "Security" })[0]);
       await userEvent.click(screen.getByRole("link", { name: "Request Demo" }));
@@ -80,8 +80,8 @@ describe("public site routing", () => {
   );
 
   it.each([
-    ["/about", "Built from lived experience", "About · Open Grant Flow"],
-    ["/contact", "Start a conversation", "Contact · Open Grant Flow"],
+    ["/about", "This started as our own problem, not a business plan", "About · Open Grant Flow"],
+    ["/contact", "Become a Pilot Partner", "Contact · Open Grant Flow"],
   ])("renders %s directly with its title (anonymous and authenticated)", async (path, heading, title) => {
     for (const authenticated of [false, true]) {
       localStorage.clear();

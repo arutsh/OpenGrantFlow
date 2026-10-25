@@ -22,7 +22,7 @@ function FieldLabel({ htmlFor, children }: { htmlFor: string; children: string }
   );
 }
 
-export function DemoRequestForm() {
+export function DemoRequestForm({ heading }: { heading?: string }) {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(false);
@@ -95,8 +95,9 @@ export function DemoRequestForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-2xl card-shadow-lg p-8 space-y-5"
+      className="bg-white rounded-2xl card-shadow-lg p-8 space-y-5 text-brand-slate"
     >
+      {heading && <h3 className="text-[1.35rem] font-bold text-brand-slate">{heading}</h3>}
       <div>
         <FieldLabel htmlFor="demo-name">Name</FieldLabel>
         <input id="demo-name" type="text" required {...fieldProps("name")} />

@@ -2,10 +2,9 @@
 id: contact.pilot
 page: contact
 anchor: pilot
+eyebrow: The free pilot programme
 title: Become a Pilot Partner
 status: published
 personas: [grantee, funder]
 ---
-We're looking for a small number of institutional donors, grant-making foundations, international NGOs and nonprofit organisations to help shape Open Grant Flow.
-
-This is not a sales programme. It is a collaborative product development initiative.
+Three months of free access while the platform is still being shaped around real grant workflows. You get a product built around how you actually work. We get honest guidance on what to improve.

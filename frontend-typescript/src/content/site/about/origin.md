@@ -2,11 +2,11 @@
 id: about.origin
 page: about
 anchor: origin
-title: Built from lived experience
+title: This started as our own problem, not a business plan
 status: published
 ---
-Open Grant Flow is founded by a software engineer who previously spent 17 years co-founding and leading nonprofit organisations in Armenia.
+Before Open Grant Flow was a platform, it was seventeen years of preparing the same grant budgets, chasing the same donor formats, and losing the same hours to work that had nothing to do with the mission it was meant to serve.
 
-During that time, hundreds of grant budgets, donor reports and financial reconciliations revealed the same recurring problem: **too much time is spent managing administration instead of delivering impact.**
+That history is why the people building this measure success by whether the sector is better off, not by a valuation.
 
-*Open Grant Flow is the platform I wish had existed.*
+Open Grant Flow was founded by a software engineer who spent those seventeen years co-founding and leading nonprofit organisations in Armenia.

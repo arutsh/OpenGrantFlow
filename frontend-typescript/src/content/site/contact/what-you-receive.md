@@ -4,13 +4,7 @@ page: contact
 anchor: what-you-receive
 title: What you receive
 status: published
-items:
-  - title: Direct collaboration
-    body: Work directly with the founder.
-  - title: Early access
-    body: Use new features before they are generally available.
-  - title: Influence
-    body: Help decide what we build first.
-  - title: Discounted hosting
-    body: Discounted hosted services, when available.
 ---
+- Free access to the platform for three months
+- Early access and direct collaboration with the team
+- Real influence over what we build next

@@ -24,16 +24,37 @@ describe("ContactPage", () => {
     vi.unstubAllEnvs();
   });
 
-  it("renders the demo request intro, pilot programme and FAQ", () => {
+  it("renders the pilot programme, demo request intro and FAQ", () => {
     renderPage();
 
     expect(
-      screen.getByRole("heading", { name: "Start a conversation" }),
+      screen.getByRole("heading", { level: 1, name: "Become a Pilot Partner" }),
     ).toBeInTheDocument();
-    expect(document.getElementById("pilot")).toHaveTextContent("Become a Pilot Partner");
-    expect(screen.getByText("What you receive")).toBeInTheDocument();
-    expect(screen.getByText("What we ask")).toBeInTheDocument();
-    expect(screen.getByText("Is Open Grant Flow free?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "See Open Grant Flow with your own grants in mind" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What you receive" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What we ask" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Request your demo" })).toBeInTheDocument();
+    expect(screen.getByText("Is the pilot really free?")).toBeInTheDocument();
+  });
+
+  it("numbers the three pilot month cards in order", () => {
+    renderPage();
+
+    const months = document.getElementById("pilot-details")!;
+    expect(months.querySelectorAll("li")).toHaveLength(3);
+    expect(months).toHaveTextContent(/Month 1\s*Get set up.*Month 2\s*Use it for real.*Month 3\s*Review together/);
+  });
+
+  it("collapses FAQ answers until the question is opened", async () => {
+    renderPage();
+
+    const details = screen.getByText("Where does our data live?").closest("details")!;
+    expect(details).not.toHaveAttribute("open");
+    await userEvent.click(screen.getByText("Where does our data live?"));
+    expect(details).toHaveAttribute("open");
+    expect(screen.getByRole("link", { name: "Security & data" })).toHaveAttribute("href", "/security");
   });
 
   it("links the form to the privacy policy", () => {
@@ -100,12 +121,20 @@ describe("ContactPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides the draft pilot details and time-expectations answer in production", () => {
+  it("shows the draft time-expectations answer with a TBC marker outside production", () => {
+    vi.stubEnv("PROD", false);
+
+    renderPage();
+
+    expect(screen.getByText("How much time does a pilot take?")).toBeInTheDocument();
+    expect(screen.getByText("TBC")).toBeInTheDocument();
+  });
+
+  it("hides the draft time-expectations answer in production", () => {
     vi.stubEnv("PROD", true);
 
     renderPage();
 
-    expect(screen.queryByText("How the pilot runs")).not.toBeInTheDocument();
     expect(screen.queryByText("How much time does a pilot take?")).not.toBeInTheDocument();
     expect(screen.queryByText("TBC")).not.toBeInTheDocument();
   });
