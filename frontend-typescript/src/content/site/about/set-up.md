@@ -5,4 +5,4 @@ anchor: set-up
 title: How we are set up
 status: draft
 ---
-Open Grant Flow is being set up as a Community Interest Company (CIC), so that the platform serves the sector it was built for. Registration details will be published here once confirmed.
+Open Grant Flow is a UK Community Interest Company: profit-capped and asset-locked. It is not a registered charity.

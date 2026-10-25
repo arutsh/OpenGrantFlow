@@ -2,25 +2,23 @@ import { getSection, type SiteSection } from "@/lib/siteContent";
 import { SiteMarkdown } from "@/components/site/SiteMarkdown";
 import { SectionVisibility } from "@/components/site/SectionVisibility";
 import { DemoRequestForm } from "@/components/site/DemoRequestForm";
+import { SiteWrap } from "@/components/site/SiteSection";
 
-function ItemList({ section }: { section: SiteSection | null }) {
+const EYEBROW = "text-[0.78rem] font-semibold uppercase tracking-[0.12em] text-[#7fd6bc]";
+const TICKS =
+  "[&_ul]:grid [&_ul]:gap-3 [&_li]:relative [&_li]:pl-7 [&_li]:text-[#e8eff6] [&_li]:before:absolute [&_li]:before:left-0.5 [&_li]:before:top-[0.55em] [&_li]:before:h-[7px] [&_li]:before:w-3 [&_li]:before:-translate-y-1/2 [&_li]:before:-rotate-45 [&_li]:before:border-b-[2.5px] [&_li]:before:border-l-[2.5px] [&_li]:before:border-[#7fd6bc]";
+const SUMMARY =
+  "flex cursor-pointer list-none justify-between gap-4 font-semibold text-white [&::-webkit-details-marker]:hidden after:text-xl after:font-normal after:leading-none after:content-['+'] group-open:after:content-['−']";
+
+function TickList({ section }: { section: SiteSection | null }) {
   return (
     <SectionVisibility section={section}>
       {(section) => (
-        <div id={section.anchor} className="bg-white p-6 rounded-2xl card-shadow-lg">
-          <h3 className="font-semibold mb-4 text-brand-slate">
-            {section.title}
-          </h3>
-          <ul className="space-y-3">
-            {section.items?.map((item, index) => (
-              <li key={index}>
-                <p className="font-medium text-brand-slate">
-                  {item.title}
-                </p>
-                <p className="text-sm text-slate-500">{item.body}</p>
-              </li>
-            ))}
-          </ul>
+        <div id={section.anchor} className="grid content-start gap-3.5">
+          <h2 className="text-lg font-semibold text-white">{section.title}</h2>
+          <div className={`grid gap-3.5 [&_p]:text-sm [&_p]:text-[#c3d2e2] ${TICKS}`}>
+            <SiteMarkdown>{section.body}</SiteMarkdown>
+          </div>
         </div>
       )}
     </SectionVisibility>
@@ -28,106 +26,102 @@ function ItemList({ section }: { section: SiteSection | null }) {
 }
 
 export default function ContactPage() {
-  const demoRequest = getSection("contact.demo-request");
   const pilot = getSection("contact.pilot");
   const pilotDetails = getSection("contact.pilot-details");
   const whatYouReceive = getSection("contact.what-you-receive");
   const whatWeAsk = getSection("contact.what-we-ask");
+  const demoRequest = getSection("contact.demo-request");
   const faq = getSection("contact.faq");
   const faqTime = getSection("contact.faq-time");
 
   return (
     <>
       <title>Contact · Open Grant Flow</title>
-      <div className="bg-brand-off-white">
-        <SectionVisibility section={demoRequest}>
-          {(demoRequest) => (
-            <section id={demoRequest.anchor} className="max-w-2xl mx-auto px-6 py-16">
-              <h1 className="text-4xl font-bold mb-4 text-brand-slate">
-                {demoRequest.title}
-              </h1>
-              <div className="text-lg mb-8 text-brand-slate">
-                <SiteMarkdown>{demoRequest.body}</SiteMarkdown>
+      <section className="bg-brand-navy py-14 text-white md:py-[72px] [&_[data-tbc]]:bg-amber-400/10">
+        <SiteWrap>
+          <SectionVisibility section={pilot}>
+            {(pilot) => (
+              <div id={pilot.anchor} className="grid gap-3.5">
+                {pilot.eyebrow && <p className={EYEBROW}>{pilot.eyebrow}</p>}
+                <h1 className="text-site-page-title text-white">{pilot.title}</h1>
+                <div className="text-site-lede max-w-[65ch] text-[#c3d2e2]">
+                  <SiteMarkdown>{pilot.body}</SiteMarkdown>
+                </div>
               </div>
-              <DemoRequestForm />
-            </section>
-          )}
-        </SectionVisibility>
+            )}
+          </SectionVisibility>
 
-        {(pilot || pilotDetails || whatYouReceive || whatWeAsk) && (
-          <div className="px-6 py-16 bg-brand-mist">
-            <div className="max-w-3xl mx-auto space-y-8">
-              <SectionVisibility section={pilot}>
-                {(pilot) => (
-                  <section id={pilot.anchor}>
-                    <h2 className="text-3xl font-bold mb-6 text-brand-slate">
-                      {pilot.title}
-                    </h2>
-                    <div className="space-y-4 text-brand-slate">
-                      <SiteMarkdown>{pilot.body}</SiteMarkdown>
-                    </div>
-                  </section>
-                )}
-              </SectionVisibility>
-
-              <SectionVisibility section={pilotDetails}>
-                {(pilotDetails) => (
-                  <section id={pilotDetails.anchor}>
-                    <h3 className="font-semibold mb-2 text-brand-slate">
-                      {pilotDetails.title}
-                    </h3>
-                    <div className="text-brand-slate">
-                      <SiteMarkdown>{pilotDetails.body}</SiteMarkdown>
-                    </div>
-                  </section>
-                )}
-              </SectionVisibility>
-
-              <div className="grid sm:grid-cols-2 gap-6">
-                <ItemList section={whatYouReceive} />
-                <ItemList section={whatWeAsk} />
+          <SectionVisibility section={pilotDetails}>
+            {(pilotDetails) => (
+              <div id={pilotDetails.anchor} className="mt-10">
+                <h2 className="sr-only">{pilotDetails.title}</h2>
+                <ol role="list" className="grid gap-5 md:grid-cols-3">
+                  {pilotDetails.items?.map((item, index) => (
+                    <li key={index} className="grid content-start gap-2 rounded-2xl bg-white p-6 card-shadow-lg">
+                      <p className="text-site-eyebrow">Month {index + 1}</p>
+                      <h3 className="text-lg font-semibold text-brand-slate">{item.title}</h3>
+                      <p className="text-slate-500">{item.body}</p>
+                    </li>
+                  ))}
+                </ol>
               </div>
+            )}
+          </SectionVisibility>
+
+          {(whatYouReceive || whatWeAsk) && (
+            <div className="mt-12 grid gap-9 md:grid-cols-2 md:gap-12">
+              <TickList section={whatYouReceive} />
+              <TickList section={whatWeAsk} />
             </div>
-          </div>
-        )}
+          )}
 
-        {(faq || faqTime) && (
-          <div className="max-w-3xl mx-auto px-6 py-16 space-y-6">
-            <SectionVisibility section={faq}>
-              {(faq) => (
-                <section id={faq.anchor}>
-                  <h2 className="text-3xl font-bold mb-6 text-brand-slate">
-                    {faq.title}
-                  </h2>
-                  <dl className="space-y-5">
-                    {faq.items?.map((item, index) => (
-                      <div key={index}>
-                        <dt className="font-semibold text-brand-slate">
-                          {item.title}
-                        </dt>
-                        <dd className="text-slate-600">{item.body}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </section>
-              )}
-            </SectionVisibility>
-
-            <SectionVisibility section={faqTime}>
-              {(faqTime) => (
-                <section id={faqTime.anchor}>
-                  <h3 className="font-semibold text-brand-slate">
-                    {faqTime.title}
-                  </h3>
-                  <div className="text-slate-600">
-                    <SiteMarkdown>{faqTime.body}</SiteMarkdown>
+          <div className="mt-14 grid items-start gap-9 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-14">
+            <SectionVisibility section={demoRequest}>
+              {(demoRequest) => (
+                <div id={demoRequest.anchor} className="grid gap-[18px]">
+                  {demoRequest.eyebrow && <p className={EYEBROW}>{demoRequest.eyebrow}</p>}
+                  <h2 className="text-site-h2 text-white">{demoRequest.title}</h2>
+                  <div className={`grid gap-[18px] [&_p]:text-[#c3d2e2] ${TICKS}`}>
+                    <SiteMarkdown>{demoRequest.body}</SiteMarkdown>
                   </div>
-                </section>
+                </div>
               )}
             </SectionVisibility>
+            <DemoRequestForm heading="Request your demo" />
           </div>
-        )}
-      </div>
+
+          {(faq || faqTime) && (
+            <div className="mt-12 max-w-[880px] border-b border-[#2c5277]">
+              <SectionVisibility section={faq}>
+                {(faq) => (
+                  <div id={faq.anchor}>
+                    <h2 className="sr-only">{faq.title}</h2>
+                    {faq.items?.map((item, index) => (
+                      <details key={index} className="group border-t border-[#2c5277] py-3.5">
+                        <summary className={SUMMARY}>{item.title}</summary>
+                        <div className="mt-2.5 text-[#c3d2e2] [&_a]:text-white [&_a]:underline">
+                          <SiteMarkdown>{item.body ?? ""}</SiteMarkdown>
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                )}
+              </SectionVisibility>
+
+              <SectionVisibility section={faqTime}>
+                {(faqTime) => (
+                  <details id={faqTime.anchor} className="group border-t border-[#2c5277] py-3.5">
+                    <summary className={SUMMARY}>{faqTime.title}</summary>
+                    <div className="mt-2.5 text-[#c3d2e2]">
+                      <SiteMarkdown>{faqTime.body}</SiteMarkdown>
+                    </div>
+                  </details>
+                )}
+              </SectionVisibility>
+            </div>
+          )}
+        </SiteWrap>
+      </section>
     </>
   );
 }
