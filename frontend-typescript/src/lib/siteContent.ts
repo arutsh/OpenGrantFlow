@@ -42,7 +42,7 @@ const PAGES: SitePage[] = [
   "contact",
   "legal",
 ];
-const STATUSES: SiteSectionStatus[] = ["published", "draft"];
+export const SITE_SECTION_STATUSES: SiteSectionStatus[] = ["published", "draft"];
 const PERSONAS: SitePersona[] = ["grantee", "funder", "technical"];
 
 interface ParsedFile {
@@ -59,6 +59,30 @@ export function splitFrontmatter(raw: string): { frontmatter: unknown; body: str
   }
   const [, frontmatterYaml, body] = match;
   return { frontmatter: parseYaml(frontmatterYaml), body: body.trim() };
+}
+
+export function readFrontmatterFile(
+  raw: string,
+  path: string,
+): { data: Record<string, unknown>; body: string } {
+  let parsed: { frontmatter: unknown; body: string };
+  try {
+    parsed = splitFrontmatter(raw);
+  } catch (error) {
+    throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const { frontmatter, body } = parsed;
+  const data = (typeof frontmatter === "object" && frontmatter !== null
+    ? frontmatter
+    : {}) as Record<string, unknown>;
+  return { data, body };
+}
+
+export function isHiddenDraft(
+  status: SiteSectionStatus,
+  isProd: boolean = import.meta.env.PROD,
+): boolean {
+  return status === "draft" && isProd;
 }
 
 function validateItems(
@@ -106,7 +130,7 @@ function validateFrontmatter(
   }
   if (
     frontmatter.status !== undefined &&
-    !STATUSES.includes(frontmatter.status as SiteSectionStatus)
+    !SITE_SECTION_STATUSES.includes(frontmatter.status as SiteSectionStatus)
   ) {
     errors.push(`${path}: invalid "status" value "${String(frontmatter.status)}"`);
   }
@@ -218,8 +242,7 @@ export function buildSiteContent(
     if (!section) {
       throw new Error(`Unknown site content section "${id}"`);
     }
-    const isProd = options.isProd ?? import.meta.env.PROD;
-    if (section.status === "draft" && isProd) {
+    if (isHiddenDraft(section.status, options.isProd)) {
       return null;
     }
     return section;

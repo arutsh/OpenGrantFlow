@@ -1,5 +1,5 @@
 import type { SiteAssistantPersona } from "@/api/siteAssistantApi";
-import { splitFrontmatter } from "./siteContent";
+import { readFrontmatterFile } from "./siteContent";
 import rawSuggestions from "../content/assistant/suggested-questions.md?raw";
 
 export type SuggestionSet = "default" | SiteAssistantPersona;
@@ -10,15 +10,7 @@ const SETS: SuggestionSet[] = ["default", "grantee", "funder", "technical"];
 const MAX_PER_SET = 4;
 
 export function buildAssistantSuggestions(raw: string, path: string): AssistantSuggestions {
-  let frontmatter: unknown;
-  try {
-    ({ frontmatter } = splitFrontmatter(raw));
-  } catch (error) {
-    throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  const data = (typeof frontmatter === "object" && frontmatter !== null
-    ? frontmatter
-    : {}) as Record<string, unknown>;
+  const { data } = readFrontmatterFile(raw, path);
 
   const errors: string[] = [];
   for (const set of SETS) {

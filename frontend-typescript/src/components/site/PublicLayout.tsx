@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { Menu, X, Github, Linkedin } from "lucide-react";
 import ogfIcon from "@/assets/logos/ogf-icon.svg";
+import { PrivacyNoticeBanner } from "./PrivacyNoticeBanner";
 
 const NAV_LINKS = [
   { to: "/how-it-works", label: "How it works" },
@@ -167,6 +168,7 @@ export default function PublicLayout() {
       <PublicHeader />
       <Outlet />
       <PublicFooter />
+      <PrivacyNoticeBanner />
     </div>
   );
 }
