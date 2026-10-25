@@ -4,6 +4,7 @@ page: security
 anchor: cta
 title: Have a security question we haven't answered?
 status: published
+indexed: false
 items:
   - title: Request a demo
     href: /contact

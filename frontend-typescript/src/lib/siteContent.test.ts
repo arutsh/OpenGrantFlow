@@ -166,6 +166,16 @@ Body`,
     );
   });
 
+  it("accepts a boolean indexed flag and rejects anything else", () => {
+    const withIndexed = (value: string) =>
+      PUBLISHED.replace("status: published", `status: published\nindexed: ${value}`);
+
+    expect(() => buildSiteContent({ "/a.md": withIndexed("false") })).not.toThrow();
+    expect(() => buildSiteContent({ "/a.md": withIndexed('"false"') })).toThrow(
+      /\/a\.md: "indexed" must be true or false/,
+    );
+  });
+
   it("parses a file saved with a UTF-8 byte order mark", () => {
     const { getSection } = buildSiteContent({ "/a.md": `\uFEFF${PUBLISHED}` });
 

@@ -32,6 +32,7 @@ None.
 
 ## Impact
 
-- **Frontend only:** `src/pages/site/*`, `components/site/PublicLayout.tsx`, `SiteAssistantBox.tsx`, a new `PrivacyNoticeBanner`, `src/style.css`, and the content under `src/content/**`.
+- **ai service (one check):** site-content ingestion skips sections marked `indexed: false`, used by the per-page CTA bands.
+- **Frontend:** `src/pages/site/*`, `components/site/PublicLayout.tsx`, `SiteAssistantBox.tsx`, a new `PrivacyNoticeBanner`, `src/style.css`, and the content under `src/content/**`.
 - **Retrieval:** copy edits change the indexed text for existing IDs, so retrieval evals need a re-run.
 - **Depends on `ai-feat-site-assistant-feedback`** for the banner's go-live. That change introduces question storage and updates the "not stored" wording in `legal/privacy-processors.md`, the assistant-box notice and the `privacy-policy` spec. The banner is published in the same release. Its answer footer also gains feedback controls, which this layout leaves room for.

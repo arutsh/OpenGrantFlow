@@ -17,6 +17,21 @@ The site assistant's suggested questions SHALL be stored in a repository content
 - **WHEN** the `funder` set is missing or holds five questions
 - **THEN** content validation fails and names the file and the set
 
+### Requirement: Sections can opt out of the retrieval index
+A site-content section SHALL be able to declare `indexed: false` in its frontmatter. Such a section SHALL still render on its page but SHALL NOT be ingested into the retrieval index. Content validation SHALL fail if `indexed` is present and not a boolean. Each page's call-to-action band SHALL be marked `indexed: false`.
+
+#### Scenario: CTA band is not cited
+- **WHEN** the retrieval index is rebuilt
+- **THEN** no indexed chunk comes from a `<page>.cta` section
+
+#### Scenario: Opting out after publication
+- **WHEN** an already-indexed section gains `indexed: false`
+- **THEN** its chunk is removed from the index on the next ingestion
+
+#### Scenario: Invalid flag
+- **WHEN** a section sets `indexed: "false"` as a string
+- **THEN** content validation fails and names the file and the field
+
 ### Requirement: Privacy notice banner text is content
 The privacy notice banner's text SHALL be stored in a repository content file outside the public-site section directory, with frontmatter carrying `status` (`published` or `draft`) and a `version` string. Content validation SHALL fail if either field is missing or the body is empty.
 

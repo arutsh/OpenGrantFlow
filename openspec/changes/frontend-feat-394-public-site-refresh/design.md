@@ -39,6 +39,7 @@ The `home.browse-instead` file stays. The fallback links in `SiteAssistantBox` r
 
 **6. New copy goes in new section files, and existing IDs keep their files.**
 New sections: `home.ask-hero` (assistant headline and lede) and one `<page>.cta` per page for the band copy, except Home, whose band reuses `home.pilot-teaser` (an eval source). Section eyebrows come from a new optional `eyebrow` frontmatter field, which ingestion ignores. Rewritten sections keep their `id`/`anchor`. `home.values-summary` grows to four items. Unconfirmed wording stays `status: draft`, so the existing `TbcMarker` handles it.
+The `<page>.cta` files carry `indexed: false`, a new optional frontmatter flag that ingestion honours by skipping the section. In group 3 the indexed CTA bands outranked `security.high-risk` and `contact.demo-request` for "How do I request a demo?" and broke the pilot eval floors. A band is navigation, not a source worth citing. This reverses the reasoning in decision 3: the flag now covers one file per page, not one file, and the ingestion change is a single check.
 
 **7. Sticky header.**
 `PublicLayout`'s header gets `sticky top-0 z-20` and a background. `useHashScroll` targets need `scroll-mt-20` so anchors don't land under it.
@@ -63,4 +64,4 @@ GDPR basis: the public site sets no non-essential cookies. Question storage reli
 
 ## Migration Plan
 
-Frontend-only deploys, one per task group. Each group is independently revertible. No data or API migration. Ingestion re-hashes the changed sections on the next ai-service start.
+Frontend deploys, one per task group; group 3 also redeploys the ai service for the `indexed` check. Each group is independently revertible. No data or API migration. Ingestion re-hashes the changed sections on the next ai-service start.

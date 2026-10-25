@@ -78,6 +78,22 @@ async def test_draft_section_excluded(db_session, tmp_path):
 
 
 @pytest.mark.anyio
+async def test_section_marked_not_indexed_excluded_and_pruned(db_session, tmp_path):
+    section = dict(
+        id="about.cta", page="about", anchor="cta", title="Request a demo",
+        status="published", body="Ask about the pilot.",
+    )
+    _write_section(tmp_path, "cta.md", **section)
+    await ingest_site_content(db_session, tmp_path)
+    assert [row.content_id for row in await _all_chunks(db_session)] == ["about.cta"]
+
+    _write_section(tmp_path, "cta.md", **section, indexed="false")
+    await ingest_site_content(db_session, tmp_path)
+
+    assert await _all_chunks(db_session) == []
+
+
+@pytest.mark.anyio
 async def test_unchanged_content_not_rewritten(db_session, tmp_path):
     _write_section(
         tmp_path, "mission.md",

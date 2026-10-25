@@ -115,6 +115,9 @@ function validateFrontmatter(
       errors.push(`${path}: "${field}" must be a string`);
     }
   }
+  if (frontmatter.indexed !== undefined && typeof frontmatter.indexed !== "boolean") {
+    errors.push(`${path}: "indexed" must be true or false`);
+  }
   if (frontmatter.personas !== undefined) {
     const personas = frontmatter.personas;
     const valid =

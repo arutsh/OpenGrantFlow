@@ -54,6 +54,8 @@ def _to_chunk(frontmatter: dict) -> ChunkInput | None:
     page = frontmatter.get("page")
     if frontmatter.get("status") != "published" or page not in PAGE_ROUTES:
         return None
+    if frontmatter.get("indexed") is False:
+        return None
     if not str(frontmatter["id"]).startswith(f"{page}."):
         raise ValueError(f"id {frontmatter['id']!r} must start with '{page}.'")
     anchor = frontmatter["anchor"]
