@@ -7,7 +7,7 @@ import { SectionVisibility } from "@/components/site/SectionVisibility";
 import { ClassicHero } from "@/components/site/ClassicHero";
 import { SiteSection } from "@/components/site/SiteSection";
 import { SectionHead } from "@/components/site/SectionHead";
-import { CtaBand } from "@/components/site/CtaBand";
+import { SectionCtaBand } from "@/components/site/CtaBand";
 import { AssistantHero, HeroPlaceholder } from "@/components/site/AssistantHero";
 import { useSiteAssistantConfig } from "@/api/siteAssistantApi";
 
@@ -102,19 +102,7 @@ export default function HomePage() {
           )}
         </SectionVisibility>
 
-        <SectionVisibility section={pilotTeaser}>
-          {(pilotTeaser) => (
-            <CtaBand
-              id={pilotTeaser.anchor}
-              title={pilotTeaser.title}
-              body={<SiteMarkdown>{pilotTeaser.body}</SiteMarkdown>}
-              cta={{
-                label: pilotTeaser.items?.[0]?.title ?? "Request a demo",
-                to: pilotTeaser.items?.[0]?.href ?? "/contact",
-              }}
-            />
-          )}
-        </SectionVisibility>
+        <SectionCtaBand section={pilotTeaser} />
       </div>
     </>
   );

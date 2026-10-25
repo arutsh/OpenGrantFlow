@@ -33,9 +33,11 @@ Optional prose body, rendered as markdown (no raw HTML).
 
 - `eyebrow` — a short label shown above the section heading (e.g. "What
   we believe"). Display only; the site assistant's index does not read it.
+- `pill` — a short status label shown beside the heading (e.g. "Available
+  now"). Display only; the site assistant's index does not read it.
 - `personas` — a subset of `grantee`, `funder`, `technical`.
-- `items` — a list of structured entries (cards, steps, quotes, FAQs). Each
-  item needs a `title` or `quote`, and a `body` or `attribution`.
+- `items` — a list of structured entries (cards, steps, quotes, FAQs, links).
+  Each item needs a `title` or `quote`, and a `body`, `attribution` or `href`.
 
 ## IDs and anchors are stable
 

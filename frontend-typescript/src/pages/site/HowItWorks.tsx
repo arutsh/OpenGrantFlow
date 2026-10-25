@@ -1,186 +1,169 @@
-import { getSection } from "@/lib/siteContent";
+import { getSection, type SiteContentItem } from "@/lib/siteContent";
 import { SiteMarkdown } from "@/components/site/SiteMarkdown";
 import { SectionVisibility } from "@/components/site/SectionVisibility";
+import { PageHero } from "@/components/site/PageHero";
+import { SiteSection } from "@/components/site/SiteSection";
+import { SectionHead } from "@/components/site/SectionHead";
+import { SectionCtaBand } from "@/components/site/CtaBand";
+import { Callout } from "@/components/site/Callout";
+
+function TickItem({ item }: { item: SiteContentItem }) {
+  const separator = item.title && item.body && !/[.?!:]$/.test(item.title) ? "." : "";
+  return (
+    <li className="relative pl-7 text-slate-500 before:absolute before:left-0.5 before:top-[0.55em] before:h-[7px] before:w-3 before:-translate-y-1/2 before:-rotate-45 before:border-b-[2.5px] before:border-l-[2.5px] before:border-brand-teal">
+      <strong className="font-semibold text-brand-slate">{item.title}</strong>
+      {separator}
+      {item.body && ` ${item.body}`}
+    </li>
+  );
+}
 
 export default function HowItWorksPage() {
   const intro = getSection("how-it-works.intro");
   const fiveSteps = getSection("how-it-works.five-steps");
   const surveyEvidence = getSection("how-it-works.survey-evidence");
   const roadmap = getSection("how-it-works.roadmap");
+  const who = getSection("how-it-works.who");
   const whoGrantees = getSection("how-it-works.who-grantees");
   const whoFunders = getSection("how-it-works.who-funders");
   const sectorValidation = getSection("how-it-works.sector-validation");
+  const cta = getSection("how-it-works.cta");
 
   const quotes = sectorValidation?.items?.filter((item) => item.quote) ?? [];
   const anecdotes = sectorValidation?.items?.filter((item) => !item.quote) ?? [];
+  // When an optional parent heading is hidden, its child headings move up a level to keep the outline intact.
+  const SubHeading = fiveSteps ? "h3" : "h2";
+  const CardHeading = who ? "h3" : "h2";
 
   return (
     <>
       <title>How it works · Open Grant Flow</title>
       <div className="bg-brand-off-white">
         <SectionVisibility section={intro}>
-          {(intro) => (
-            <section id={intro.anchor} className="max-w-3xl mx-auto px-6 py-16 text-center">
-              <h1 className="text-4xl font-bold mb-6 text-brand-slate">
-                {intro.title}
-              </h1>
-              <div className="text-lg text-brand-slate">
-                <SiteMarkdown>{intro.body}</SiteMarkdown>
-              </div>
-            </section>
-          )}
+          {(intro) => <PageHero section={intro} />}
         </SectionVisibility>
 
-        <SectionVisibility section={fiveSteps}>
-          {(fiveSteps) => (
-            <section id={fiveSteps.anchor} className="max-w-5xl mx-auto px-6 py-16">
-              <h2
-                className="text-3xl font-bold mb-8 text-center text-brand-slate"
-              >
-                {fiveSteps.title}
-              </h2>
-              <ol className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {fiveSteps.items?.map((step, index) => (
-                  <li
-                    key={index}
-                    className="bg-white rounded-2xl card-shadow-lg p-6"
-                  >
-                    <p
-                      className="text-xs font-semibold uppercase tracking-widest mb-2 text-brand-gold"
+        {(fiveSteps || surveyEvidence || roadmap) && (
+          <SiteSection alt>
+            <SectionVisibility section={fiveSteps}>
+              {(fiveSteps) => (
+                <div id={fiveSteps.anchor}>
+                  <SectionHead eyebrow={fiveSteps.eyebrow} title={fiveSteps.title} />
+                  <ol role="list" className="grid max-w-[760px]">
+                    {fiveSteps.items?.map((step, index) => (
+                      <li
+                        key={index}
+                        className="grid grid-cols-[auto_1fr] gap-5 border-t border-[#d5dde6] py-[22px] first:border-t-0 first:pt-0"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="grid size-9 place-items-center rounded-full border-[1.5px] border-brand-teal bg-white font-bold text-brand-teal"
+                        >
+                          {index + 1}
+                        </span>
+                        <div>
+                          <h3 className="mb-1 text-lg font-semibold text-brand-slate">{step.title}</h3>
+                          <p className="text-slate-500">{step.body}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </SectionVisibility>
+
+            <SectionVisibility section={surveyEvidence}>
+              {(surveyEvidence) => (
+                <Callout
+                  id={surveyEvidence.anchor}
+                  className="mt-10 [&_em]:mt-1.5 [&_em]:block [&_em]:text-sm [&_em]:not-italic [&_em]:text-slate-500"
+                >
+                  <SubHeading className="sr-only">{surveyEvidence.title}</SubHeading>
+                  <SiteMarkdown>{surveyEvidence.body}</SiteMarkdown>
+                </Callout>
+              )}
+            </SectionVisibility>
+
+            <SectionVisibility section={roadmap}>
+              {(roadmap) => (
+                <div
+                  id={roadmap.anchor}
+                  className="mt-7 flex max-w-[78ch] flex-wrap items-baseline gap-x-3.5 gap-y-2 text-slate-500"
+                >
+                  <SubHeading className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-semibold uppercase tracking-widest text-brand-slate">
+                    {roadmap.title}
+                  </SubHeading>
+                  <SiteMarkdown>{roadmap.body}</SiteMarkdown>
+                </div>
+              )}
+            </SectionVisibility>
+          </SiteSection>
+        )}
+
+        {(who || whoGrantees || whoFunders) && (
+          <SiteSection>
+            <SectionVisibility section={who}>
+              {(who) => (
+                <div id={who.anchor}>
+                  <SectionHead eyebrow={who.eyebrow} title={who.title} />
+                </div>
+              )}
+            </SectionVisibility>
+            <div className="grid gap-6 md:grid-cols-2">
+              {[whoGrantees, whoFunders].map((section, index) => (
+                <SectionVisibility key={index} section={section}>
+                  {(section) => (
+                    <div
+                      id={section.anchor}
+                      className="grid content-start gap-4 rounded-2xl bg-white p-7 card-shadow-lg"
                     >
-                      Step {index + 1}
-                    </p>
-                    <h3 className="font-semibold mb-2 text-brand-slate">
-                      {step.title}
-                    </h3>
-                    <p className="text-sm text-slate-500">{step.body}</p>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
-        </SectionVisibility>
+                      <CardHeading className="text-[1.4rem] font-bold text-brand-slate">{section.title}</CardHeading>
+                      <ul className="grid gap-3">
+                        {section.items?.map((item, itemIndex) => (
+                          <TickItem key={itemIndex} item={item} />
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </SectionVisibility>
+              ))}
+            </div>
+          </SiteSection>
+        )}
 
         <SectionVisibility section={sectorValidation}>
           {(sectorValidation) => (
-            <section
-              id={sectorValidation.anchor}
-              className="px-6 py-16 bg-brand-mist"
-            >
-              <div className="max-w-5xl mx-auto">
-                <h2
-                  className="text-xs font-semibold tracking-widest uppercase mb-6 text-brand-teal"
-                >
-                  {sectorValidation.title}
-                </h2>
-
-                <div className="grid sm:grid-cols-3 gap-5">
-                  {quotes.map((quote, index) => (
-                    <div
-                      key={index}
-                      className="bg-white rounded-2xl card-shadow-lg p-6 flex flex-col gap-4"
-                    >
-                      <p className="italic flex-grow text-brand-slate">
-                        &ldquo;{quote.quote}&rdquo;
-                      </p>
-                      <p className="text-sm font-semibold text-brand-teal">
-                        {quote.attribution}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                {anecdotes.map((anecdote, index) => (
-                  <div
+            <SiteSection id={sectorValidation.anchor} alt>
+              <SectionHead eyebrow={sectorValidation.eyebrow} title={sectorValidation.title} />
+              <div className="grid gap-6 md:grid-cols-3">
+                {quotes.map((quote, index) => (
+                  <blockquote
                     key={index}
-                    className="mt-5 rounded-2xl p-6 bg-brand-teal-tint border border-brand-teal-tint-border"
+                    className="grid content-start gap-3 rounded-2xl bg-white p-6 card-shadow-lg"
                   >
-                    <p className="mb-3 text-brand-slate">
-                      {anecdote.body}
+                    <p className="text-lg font-medium leading-snug text-brand-slate">
+                      &ldquo;{quote.quote}&rdquo;
                     </p>
-                    <p className="text-sm font-semibold text-brand-teal">
-                      {anecdote.title}
-                    </p>
-                  </div>
-                ))}
-
-                <p
-                  className="mt-10 text-center text-xl font-bold text-brand-teal"
-                >
-                  {sectorValidation.body}
-                </p>
-              </div>
-            </section>
-          )}
-        </SectionVisibility>
-
-        <SectionVisibility section={surveyEvidence}>
-          {(surveyEvidence) => (
-            <section id={surveyEvidence.anchor} className="max-w-3xl mx-auto px-6 py-16">
-              <h2 className="text-3xl font-bold mb-6 text-brand-slate">
-                {surveyEvidence.title}
-              </h2>
-              <div className="text-brand-slate">
-                <SiteMarkdown>{surveyEvidence.body}</SiteMarkdown>
-              </div>
-            </section>
-          )}
-        </SectionVisibility>
-
-        {(whoGrantees || whoFunders) && (
-          <section className="px-6 py-16 bg-brand-mist">
-            <div className="max-w-5xl mx-auto text-center">
-              <h2
-                className="text-3xl font-bold mb-12 text-brand-slate"
-              >
-                Who is this for?
-              </h2>
-              <div className="grid sm:grid-cols-2 gap-8">
-                {[whoGrantees, whoFunders].map((section, index) => (
-                  <SectionVisibility key={index} section={section}>
-                    {(section) => (
-                      <div id={section.anchor} className="text-left">
-                        <h3
-                          className="font-semibold mb-4 text-center text-brand-slate"
-                        >
-                          {section.title}
-                        </h3>
-                        <div className="space-y-4">
-                          {section.items?.map((item, itemIndex) => (
-                            <div
-                              key={itemIndex}
-                              className="bg-white p-6 rounded-2xl card-shadow-lg"
-                            >
-                              <h4
-                                className="font-semibold mb-2 text-brand-slate"
-                              >
-                                {item.title}
-                              </h4>
-                              <p className="text-sm text-slate-500">{item.body}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </SectionVisibility>
+                    <cite className="text-sm not-italic text-slate-500">{quote.attribution}</cite>
+                  </blockquote>
                 ))}
               </div>
-            </div>
-          </section>
-        )}
 
-        <SectionVisibility section={roadmap}>
-          {(roadmap) => (
-            <section id={roadmap.anchor} className="max-w-3xl mx-auto px-6 py-16">
-              <h2 className="text-3xl font-bold mb-6 text-brand-slate">
-                {roadmap.title}
-              </h2>
-              <div className="text-brand-slate">
-                <SiteMarkdown>{roadmap.body}</SiteMarkdown>
+              {anecdotes.map((anecdote, index) => (
+                <Callout key={index} className="mt-6">
+                  <p className="mb-2">{anecdote.body}</p>
+                  <p className="text-sm font-semibold text-brand-teal">{anecdote.title}</p>
+                </Callout>
+              ))}
+
+              <div className="mt-8 max-w-[70ch] text-slate-500 [&_a]:text-brand-navy [&_a]:underline">
+                <SiteMarkdown>{sectorValidation.body}</SiteMarkdown>
               </div>
-            </section>
+            </SiteSection>
           )}
         </SectionVisibility>
+
+        <SectionCtaBand section={cta} />
       </div>
     </>
   );

@@ -2,7 +2,8 @@
 id: how-it-works.sector-validation
 page: how-it-works
 anchor: sector-validation
-title: From conversations across the sector
+eyebrow: From conversations across the sector
+title: The gap is not software. It is a shared workflow.
 status: published
 items:
   - quote: Even sophisticated internal systems can still require exporting files to grantees and bringing them back.

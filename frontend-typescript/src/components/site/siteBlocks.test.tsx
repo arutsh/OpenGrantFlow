@@ -51,6 +51,18 @@ describe("CtaBand", () => {
     );
     expect(document.getElementById("pilot-teaser")?.tagName).toBe("SECTION");
   });
+
+  it("opens an external CTA target in a new tab instead of routing to it", () => {
+    render(
+      <MemoryRouter>
+        <CtaBand title="Read the code" cta={{ label: "GitHub", to: "https://github.com/arutsh/OpenGrantFlow" }} />
+      </MemoryRouter>,
+    );
+
+    const link = screen.getByRole("link", { name: "GitHub" });
+    expect(link).toHaveAttribute("href", "https://github.com/arutsh/OpenGrantFlow");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
 });
 
 describe("SiteSection", () => {

@@ -66,26 +66,60 @@ describe.each(sections)("$id publication lifecycle", (section) => {
   });
 });
 
+function withContent(edit: (path: string, raw: string) => string, isProd = false) {
+  const edited = Object.fromEntries(Object.entries(files).map(([path, raw]) => [path, edit(path, raw)]));
+  vi.mocked(getSection).mockImplementation(buildSiteContent(edited, { isProd }).getSection);
+}
+
 it.each([false, true])("removes TBC after publishing security sections (production: %s)", (isProd) => {
-  const published = Object.fromEntries(Object.entries(files).map(([path, raw]) => [
-    path, raw.replace("status: draft", "status: published"),
-  ]));
-  vi.mocked(getSection).mockImplementation(buildSiteContent(published, { isProd }).getSection);
+  withContent((_, raw) => raw.replace("status: draft", "status: published"), isProd);
   render(<MemoryRouter><SecurityPage /></MemoryRouter>);
-  expect(screen.getByText("GDPR compliance")).toBeInTheDocument();
-  expect(screen.getByText("Where your data is stored")).toBeInTheDocument();
+  expect(screen.getByText("Is it GDPR compliant?")).toBeInTheDocument();
+  expect(screen.getByText("Where is our data stored?")).toBeInTheDocument();
   expect(screen.queryByText("TBC")).not.toBeInTheDocument();
 });
 
 it("renders every sector-validation anecdote, not just the first", () => {
-  const withSecondAnecdote = Object.fromEntries(Object.entries(files).map(([path, raw]) => [
-    path,
+  withContent((_, raw) =>
     raw.includes("id: how-it-works.sector-validation\n")
       ? raw.replace("items:\n", "items:\n  - title: Second source\n    body: Second anecdote body.\n")
-      : raw,
-  ]));
-  vi.mocked(getSection).mockImplementation(buildSiteContent(withSecondAnecdote).getSection);
+      : raw);
   render(<MemoryRouter><HowItWorksPage /></MemoryRouter>);
   expect(screen.getByText("Second anecdote body.")).toBeInTheDocument();
   expect(screen.getByText(/One leader of a small local nonprofit/)).toBeInTheDocument();
+});
+
+it("skips the question band when every security question is hidden", () => {
+  withContent((path, raw) =>
+    /security\/(self-hosting|ai-providers|gdpr|data-location|high-risk)\.md$/.test(path)
+      ? raw.replace("status: published", "status: draft")
+      : raw, true);
+  const { container } = render(<MemoryRouter><SecurityPage /></MemoryRouter>);
+  expect(Array.from(container.querySelectorAll("section"), (section) => section.id)).toEqual(["intro", "cta"]);
+});
+
+it("promotes the who-for card headings to h2 when the who heading is hidden", () => {
+  withContent((path, raw) =>
+    path.endsWith("how-it-works/who.md") ? raw.replace("status: published", "status: draft") : raw,
+    true);
+  render(<MemoryRouter><HowItWorksPage /></MemoryRouter>);
+  expect(screen.getByRole("heading", { level: 2, name: "If you receive grants" })).toBeInTheDocument();
+});
+
+it("promotes the callout headings to h2 when the steps section is hidden", () => {
+  withContent((path, raw) =>
+    path.endsWith("how-it-works/five-steps.md") ? raw.replace("status: published", "status: draft") : raw,
+    true);
+  render(<MemoryRouter><HowItWorksPage /></MemoryRouter>);
+  expect(screen.getByRole("heading", { level: 2, name: "What we're hearing from the sector" }))
+    .toBeInTheDocument();
+});
+
+it("does not double up punctuation after a who-for item title", () => {
+  withContent((path, raw) =>
+    path.endsWith("how-it-works/who-grantees.md")
+      ? raw.replace("title: Less time on administration", "title: Why switch?")
+      : raw);
+  render(<MemoryRouter><HowItWorksPage /></MemoryRouter>);
+  expect(screen.getByText("Why switch?").parentElement?.textContent).toMatch(/^Why switch\? Enter/);
 });

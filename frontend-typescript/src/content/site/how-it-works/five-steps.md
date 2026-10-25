@@ -2,7 +2,8 @@
 id: how-it-works.five-steps
 page: how-it-works
 anchor: five-steps
-title: Five steps
+eyebrow: The platform
+title: Five steps, one record
 status: published
 items:
   - title: Budget

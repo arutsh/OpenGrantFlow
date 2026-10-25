@@ -111,7 +111,7 @@ describe("public site routing", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("One continuous financial record, from budget to report"),
+        screen.getByText("One continuous financial record, from budget to report."),
       ).toBeInTheDocument();
     });
     expect(document.title).toBe("How it works · Open Grant Flow");
@@ -124,7 +124,7 @@ describe("public site routing", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("One continuous financial record, from budget to report"),
+        screen.getByText("One continuous financial record, from budget to report."),
       ).toBeInTheDocument();
     });
   });
@@ -134,7 +134,7 @@ describe("public site routing", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Handled with the care we'd want for our own data"),
+        screen.getByText("Handled with the care we'd want for our own data."),
       ).toBeInTheDocument();
     });
     expect(document.title).toBe("Security & data · Open Grant Flow");
@@ -147,7 +147,7 @@ describe("public site routing", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Handled with the care we'd want for our own data"),
+        screen.getByText("Handled with the care we'd want for our own data."),
       ).toBeInTheDocument();
     });
   });

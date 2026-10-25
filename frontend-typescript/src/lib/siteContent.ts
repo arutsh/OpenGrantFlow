@@ -27,6 +27,7 @@ export interface SiteSection {
   anchor: string;
   title: string;
   eyebrow?: string;
+  pill?: string;
   status: SiteSectionStatus;
   personas?: SitePersona[];
   items?: SiteContentItem[];
@@ -78,8 +79,11 @@ function validateItems(
     if (!candidate.title && !candidate.quote) {
       errors.push(`${path}: items[${index}] must have a "title" or "quote"`);
     }
-    if (!candidate.body && !candidate.attribution) {
-      errors.push(`${path}: items[${index}] must have a "body" or "attribution"`);
+    if (!candidate.body && !candidate.attribution && !candidate.href) {
+      errors.push(`${path}: items[${index}] must have a "body", "attribution" or "href"`);
+    }
+    if (candidate.href !== undefined && typeof candidate.href !== "string") {
+      errors.push(`${path}: items[${index}] "href" must be a string`);
     }
   });
 }
@@ -106,8 +110,10 @@ function validateFrontmatter(
   ) {
     errors.push(`${path}: invalid "status" value "${String(frontmatter.status)}"`);
   }
-  if (frontmatter.eyebrow !== undefined && typeof frontmatter.eyebrow !== "string") {
-    errors.push(`${path}: "eyebrow" must be a string`);
+  for (const field of ["eyebrow", "pill"] as const) {
+    if (frontmatter[field] !== undefined && typeof frontmatter[field] !== "string") {
+      errors.push(`${path}: "${field}" must be a string`);
+    }
   }
   if (frontmatter.personas !== undefined) {
     const personas = frontmatter.personas;
@@ -196,6 +202,7 @@ export function buildSiteContent(
       anchor: fm.anchor as string,
       title: fm.title as string,
       eyebrow: fm.eyebrow as string | undefined,
+      pill: fm.pill as string | undefined,
       status: fm.status as SiteSectionStatus,
       personas: fm.personas as SitePersona[] | undefined,
       items: fm.items as SiteContentItem[] | undefined,

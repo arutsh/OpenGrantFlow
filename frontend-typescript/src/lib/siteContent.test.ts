@@ -142,6 +142,30 @@ Body`,
     expect(buildSiteContent({ "/a.md": PUBLISHED }).getSection("home.hero")?.eyebrow).toBeUndefined();
   });
 
+  it("validates and exposes an optional pill", () => {
+    const withPill = PUBLISHED.replace("status: published", "status: published\npill: Available now");
+
+    expect(buildSiteContent({ "/a.md": withPill }).getSection("home.hero")?.pill).toBe("Available now");
+    expect(() =>
+      buildSiteContent({ "/a.md": PUBLISHED.replace("status: published", "status: published\npill: 3") }),
+    ).toThrow(/\/a\.md: "pill" must be a string/);
+  });
+
+  it("accepts a link item with no body, but not a bare title", () => {
+    const withItem = (item: string) =>
+      PUBLISHED.replace("status: published", `status: published\nitems:\n${item}`);
+
+    expect(() =>
+      buildSiteContent({ "/a.md": withItem("  - title: Request a demo\n    href: /contact") }),
+    ).not.toThrow();
+    expect(() => buildSiteContent({ "/a.md": withItem("  - title: Request a demo") })).toThrow(
+      /items\[0\] must have a "body", "attribution" or "href"/,
+    );
+    expect(() => buildSiteContent({ "/a.md": withItem("  - title: Request a demo\n    href: 3") })).toThrow(
+      /items\[0\] "href" must be a string/,
+    );
+  });
+
   it("parses a file saved with a UTF-8 byte order mark", () => {
     const { getSection } = buildSiteContent({ "/a.md": `\uFEFF${PUBLISHED}` });
 
