@@ -111,6 +111,6 @@ See proposal.md for motivation; requirements are in `specs/`. Facts from the cur
 ## Migration Plan
 
 1. Group 1 ships redaction. It is live immediately and only reduces what Anthropic receives.
-2. Group 2 ships the privacy wording, the box notice and the banner (when public-site-refresh has landed). The frontend deploys on Vercel.
+2. Group 2 ships the privacy wording and the box notice, and publishes the draft banner from `frontend-feat-394-public-site-refresh`. The frontend deploys on Vercel.
 3. Group 3 deploys migration 021 and starts recording every question. It's an empty table, and its downgrade drops it.
 4. Rollback means reverting the record write and redeploying. Existing rows age out through the purge, or can be removed with `TRUNCATE`. If storage is withdrawn for good, the wording is reverted too.
