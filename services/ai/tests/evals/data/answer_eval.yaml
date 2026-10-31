@@ -1,0 +1,25 @@
+# Answer-eval config (design.md Decision 4): hand-edited; the baseline lives in answer_baseline.yaml.
+caps:
+  per_run_usd: 0.50
+  monthly_usd: 1.00
+# Allowed drop below baseline (rise, for probe_model_violation_rate) before the gate fails.
+tolerances:
+  answer_rate: 0.05
+  refusal_accuracy: 0.05
+  citation_hit_rate: 0.05
+  groundedness_rate: 0.05
+  completeness_rate: 0.05
+  probe_model_violation_rate: 0.05
+judge:
+  # Must be a dated model version; undated aliases drift and are refused.
+  model: claude-haiku-4-5-20251001
+  prompt_version: v1
+# Used for the pre-run estimate until a baseline records measured tokens per question.
+default_tokens_per_question:
+  generation: {input: 3000, output: 200}
+  judge: {input: 2500, output: 150}
+# USD per million tokens, from Anthropic's pricing page; unpriced models refuse to run.
+prices:
+  as_of: "2026-10-25"
+  usd_per_mtok:
+    claude-haiku-4-5-20251001: {input: 1.00, output: 5.00}

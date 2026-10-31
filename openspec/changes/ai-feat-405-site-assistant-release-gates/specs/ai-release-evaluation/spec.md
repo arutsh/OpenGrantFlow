@@ -7,7 +7,7 @@ Measure answer quality, latency and cost of an AI feature's configuration before
 ## ADDED Requirements
 
 ### Requirement: Answer eval run over one configuration
-An answer eval run SHALL evaluate exactly one configuration, identified by its provider, model name and prompt version, against the committed golden dataset and the committed probe set. Each question SHALL be asked once per run through the same retrieval, short-circuit and citation pipeline that serves visitors, against the committed site content plus the planted-injection chunks. The run SHALL produce a machine-readable result file and a human-readable report, both naming the configuration, the judge model and judge prompt version, and a fingerprint of the dataset and probe files.
+An answer eval run SHALL evaluate exactly one configuration, identified by its provider, model name and prompt version, against the committed golden dataset and the committed probe set. Each question SHALL be asked once per run through the same retrieval, short-circuit and citation pipeline that serves visitors, against the committed site content plus the planted-injection chunks. The run SHALL produce a machine-readable result file and a human-readable report, both naming the configuration, the judge model and judge prompt version, and a fingerprint of the dataset, probe and planted-injection files.
 
 #### Scenario: Run identifies what it measured
 - **WHEN** an answer eval run completes
@@ -58,11 +58,15 @@ The judge prompt SHALL wrap the question, the answer and the cited content as de
 - **THEN** the answer is recorded as a judge error and excluded from groundedness and completeness rates, and the error count is reported
 
 ### Requirement: Cost computed from actual usage
-Run cost SHALL be computed from the input and output token counts the provider reports for every model and judge call, multiplied by a committed per-model price table. A run whose configuration or judge names a model missing from the price table SHALL refuse to start.
+Run cost SHALL be computed from the input and output token counts the provider reports for every model and judge call, multiplied by a committed per-model price table. A run whose configuration or judge names a model missing from the price table SHALL refuse to start. Models on a self-hosted provider (Ollama) SHALL be priced at zero without a table entry.
 
 #### Scenario: Unpriced model
-- **WHEN** a run is configured with a model that has no entry in the price table
+- **WHEN** a run is configured with a hosted-provider model that has no entry in the price table
 - **THEN** the run exits with an error before making any model call
+
+#### Scenario: Local model
+- **WHEN** a run is configured with an Ollama model
+- **THEN** the run proceeds and reports its cost as zero
 
 ### Requirement: Per-run spend cap
 Before its first model call, a run SHALL estimate its cost and refuse to start when the estimate exceeds the per-run cap. The estimate SHALL use the number of questions that will reach the model and the per-question token usage recorded in the committed baseline, or a committed default when no baseline exists. During the run, when the actual cost reaches the cap, the run SHALL stop making calls and SHALL report itself incomplete. An incomplete run SHALL NOT pass a gate or be written as a baseline. The default per-run cap SHALL be $0.50.
