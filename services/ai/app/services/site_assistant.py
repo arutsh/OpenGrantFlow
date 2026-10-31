@@ -118,6 +118,11 @@ def _citation(chunk: RetrievedChunk) -> Citation:
     return Citation(content_id=chunk.content_id, url=chunk.url, title=title)
 
 
+def reaches_model(chunks: list[RetrievedChunk]) -> bool:
+    """True when retrieval is strong enough to ask the model; weaker questions short-circuit."""
+    return bool(chunks) and chunks[0].score >= settings.SITE_ASSISTANT_MIN_SCORE
+
+
 def has_unverified_link(text: str) -> bool:
     """True if the text links to any host outside SITE_ASSISTANT_LINK_HOSTS."""
     for match in _LINK_RE.finditer(text):
@@ -167,7 +172,7 @@ async def ask(
         span.set_attribute("site_assistant.retrieved_scores", [c.score for c in chunks])
 
         capped: DailyCapReached | None = None
-        if not chunks or chunks[0].score < settings.SITE_ASSISTANT_MIN_SCORE:
+        if not reaches_model(chunks):
             response = _unanswerable()
         else:
             try:

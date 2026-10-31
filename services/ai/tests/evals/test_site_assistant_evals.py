@@ -24,6 +24,7 @@ from tests.evals.site_assistant_eval import (
     load_probes,
     model_violations,
     seeded_prompt,
+    site_assistant_prompts,
 )
 from tests.postgres_schema import requires_postgres
 
@@ -63,6 +64,29 @@ def test_probe_set_and_injection_corpus_are_valid():
     } <= ids
     injected = {c.content_id for c in load_injection_corpus()}
     assert {p.injected_id for p in _probes("content_injection")} == injected
+
+
+def test_production_prompt_is_v1_and_unknown_version_raises():
+    assert seeded_prompt().version == "v1"
+    assert seeded_prompt("v1") == seeded_prompt()
+    with pytest.raises(ValueError, match="unknown site_assistant prompt version 'v9'"):
+        seeded_prompt("v9")
+
+
+def test_prompt_discovery_picks_highest_numbered_migration(tmp_path):
+    def write(name: str, version: str) -> None:
+        (tmp_path / name).write_text(
+            f'PROMPT_VERSION = "{version}"\n'
+            f'SITE_ASSISTANT_SYSTEM_PROMPT = "system {version}"\n'
+            'SITE_ASSISTANT_USER_TEMPLATE = "{{ question }}"\n'
+        )
+
+    write("021_seed_v2.py", "v2")
+    write("9_seed_v1.py", "v1")
+    (tmp_path / "010_unrelated.py").write_text("X = 1\n")
+    prompts = site_assistant_prompts(tmp_path)
+    assert [p.version for p in prompts] == ["v1", "v2"]
+    assert prompts[-1].system_prompt == "system v2"
 
 
 def test_runtime_threshold_matches_retrieval_baseline():

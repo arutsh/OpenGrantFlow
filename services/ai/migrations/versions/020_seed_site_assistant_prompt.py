@@ -11,6 +11,8 @@ down_revision: Union[str, Sequence[str], None] = "019_create_site_chunks"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+PROMPT_VERSION = "v1"
+
 SITE_ASSISTANT_SYSTEM_PROMPT = """You answer questions from visitors to the OpenGrantFlow \
 website. OpenGrantFlow is open-source budgeting and reporting software for nonprofits and \
 their funders.
@@ -51,13 +53,14 @@ def upgrade() -> None:
             VALUES (
                 gen_random_uuid(),
                 'site_assistant',
-                'v1',
+                :version,
                 true,
                 :system_prompt,
                 :user_template,
                 :created_at
             )
             """).bindparams(
+            version=PROMPT_VERSION,
             system_prompt=SITE_ASSISTANT_SYSTEM_PROMPT,
             user_template=SITE_ASSISTANT_USER_TEMPLATE,
             created_at=datetime.now(timezone.utc),

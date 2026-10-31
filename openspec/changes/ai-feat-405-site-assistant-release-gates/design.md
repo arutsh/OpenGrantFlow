@@ -50,10 +50,10 @@ See proposal.md for motivation; requirements are in `specs/ai-release-evaluation
      - tolerances (0.05 each)
      - the judge model (`claude-haiku-4-5-20251001`) and judge prompt version
      - the default tokens per question for the first estimate
-     - the price table (USD per million input and output tokens, with an `as_of` date)
+     - the price table (USD per million input and output tokens, with an `as_of` date); Ollama models are free and need no entry
    - `tests/evals/answer_baseline.yaml` is written only by `run --write-baseline` from a complete run. It records:
      - configuration and judge identity
-     - the dataset fingerprint (SHA-256 of the golden and probe files)
+     - the dataset fingerprint (SHA-256 of the golden, probe and injection-corpus files)
      - every metric overall and per category
      - average tokens per model-reaching question
    - *Alternative:* one file. Rejected: `yaml.safe_dump` drops the hand-written comments.
