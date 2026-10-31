@@ -10,12 +10,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 
-from app.services.provider import resolve_site_assistant_model  # noqa: E402
+from app.services.provider import (  # noqa: E402
+    _platform_anthropic_model,
+    resolve_site_assistant_model,
+)
 from tests.evals.answer_eval import (  # noqa: E402
     EstimateOverCap,
+    EvalConfigError,
     UnpricedModel,
     format_answer_report,
     load_config,
+    load_judge_prompt,
     run_answer_eval,
     write_result,
 )
@@ -23,14 +28,25 @@ from tests.evals.site_assistant_eval import eval_corpus_session, seeded_prompt  
 
 
 async def run(result_path: Path | None) -> int:
-    config = load_config()
+    try:
+        config = load_config()
+        judge_prompt = load_judge_prompt(config.judge_prompt_version)
+    except EvalConfigError as exc:
+        print(f"Refusing to run: {exc}")
+        return 1
     resolved = resolve_site_assistant_model()
     if resolved is None:
         print("No model resolved: check SITE_ASSISTANT_PROVIDER and its key or Ollama origin.")
         return 1
+    judge = _platform_anthropic_model(config.judge_model)
+    if judge is None:
+        print("No judge model: the judge runs on the platform ANTHROPIC_API_KEY, which is unset.")
+        return 1
     try:
         async with eval_corpus_session("eval_answer_live") as db:
-            result = await run_answer_eval(db, resolved, seeded_prompt(), config)
+            result = await run_answer_eval(
+                db, resolved, seeded_prompt(), config, judge, judge_prompt
+            )
     except (UnpricedModel, EstimateOverCap) as exc:
         print(f"Refusing to run: {exc}")
         return 1

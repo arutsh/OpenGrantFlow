@@ -13,6 +13,9 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import yaml
+from jinja2 import Template, TemplateSyntaxError
+from pydantic import BaseModel
+from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import Model, ModelRequestParameters
 from pydantic_ai.models.wrapper import WrapperModel
@@ -22,8 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.services import site_assistant
 from app.services.prompt_loader import LoadedPrompt
-from app.services.provider import ResolvedModel
-from app.services.site_retrieval import retrieve
+from app.services.provider import ResolvedModel, build_agent
+from app.services.site_retrieval import RetrievedChunk, retrieve
 from tests.evals.retrieval_eval import DATASET_PATH, EVALS_DIR, GoldenEntry, load_dataset
 from tests.evals.site_assistant_eval import (
     INJECTION_CORPUS_PATH,
@@ -35,8 +38,10 @@ from tests.evals.site_assistant_eval import (
 )
 
 CONFIG_PATH = EVALS_DIR / "data" / "answer_eval.yaml"
+JUDGE_PROMPT_PATH = EVALS_DIR / "data" / "judge_prompt.yaml"
 ANSWER_BASELINE_PATH = EVALS_DIR / "answer_baseline.yaml"
 _DATED_MODEL_RE = re.compile(r"-\d{8}$")
+_JUDGE_MAX_TOKENS = 300
 # Self-hosted providers cost nothing per token, so they need no price-table entry.
 _FREE_PROVIDERS = ("ollama",)
 
@@ -145,6 +150,32 @@ def load_config(path: Path = CONFIG_PATH) -> AnswerEvalConfig:
         prices_as_of=str(_require(raw, "prices.as_of")),
         prices=prices,
     )
+
+
+def load_judge_prompt(version: str, path: Path = JUDGE_PROMPT_PATH) -> LoadedPrompt:
+    """The committed judge prompt; refuses when it isn't the version answer_eval.yaml pins."""
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    for key in ("version", "system_prompt", "user_template"):
+        if not raw.get(key):
+            raise EvalConfigError(f"judge prompt is missing {key!r}")
+    if str(raw["version"]) != version:
+        raise EvalConfigError(f"judge prompt is {raw['version']!r}, config pins {version!r}")
+    try:
+        Template(raw["user_template"])
+    except TemplateSyntaxError as exc:
+        raise EvalConfigError(f"judge prompt template is invalid: {exc}") from exc
+    return LoadedPrompt(
+        name="answer_judge",
+        version=str(raw["version"]),
+        system_prompt=raw["system_prompt"],
+        user_template=raw["user_template"],
+    )
+
+
+def render_judge_message(
+    template: Template, question: str, answer: str, chunks: list[RetrievedChunk]
+) -> str:
+    return template.render(question=question, answer=answer, chunks=chunks)
 
 
 def dataset_fingerprint(
@@ -256,9 +287,14 @@ class QuestionResult:
     model_error: bool = False
     provider_error: bool = False
     served: bool = False
+    answer: str = ""
     cited_ids: list[str] = field(default_factory=list)
     model_violations: list[str] = field(default_factory=list)
     served_violations: list[str] = field(default_factory=list)
+    judge_grounded: bool | None = None
+    judge_complete: bool | None = None
+    judge_reason: str | None = None
+    judge_error: bool = False
     calls: list[CallRecord] = field(default_factory=list)
 
 
@@ -284,6 +320,7 @@ def compute_metrics(results: list[QuestionResult]) -> dict[str, float | int | No
     answerable = [r for r in asked if r.kind == "golden" and r.answerable]
     unanswerable = [r for r in asked if r.kind == "golden" and r.answerable is False]
     served_answerable = [r for r in answerable if r.served]
+    judged = [r for r in served_answerable if r.judge_grounded is not None]
     probes = [r for r in asked if r.kind == "probe"]
     probes_reached = [r for r in probes if not r.short_circuited and not r.model_error]
     # Spend includes calls made by a question the cap then cut short.
@@ -297,6 +334,9 @@ def compute_metrics(results: list[QuestionResult]) -> dict[str, float | int | No
             sum(bool(set(r.cited_ids) & set(r.expected_content_ids)) for r in served_answerable),
             len(served_answerable),
         ),
+        "groundedness_rate": _rate(sum(bool(r.judge_grounded) for r in judged), len(judged)),
+        "completeness_rate": _rate(sum(bool(r.judge_complete) for r in judged), len(judged)),
+        "judge_errors": sum(r.judge_error for r in served_answerable),
         "probe_model_violation_rate": _rate(
             sum(bool(r.model_violations) for r in probes_reached), len(probes_reached)
         ),
@@ -345,12 +385,27 @@ def estimate_cost(model_questions: int, tokens: TokenUsage, price: Price) -> flo
     return model_questions * price.cost(tokens.input, tokens.output)
 
 
-def baseline_generation_tokens(path: Path = ANSWER_BASELINE_PATH) -> TokenUsage | None:
-    """Measured tokens per question from the committed answer baseline, if one exists."""
+def estimate_run_cost(
+    *,
+    model_questions: int,
+    generation_tokens: TokenUsage,
+    generation_price: Price,
+    judged_questions: int,
+    judge_tokens: TokenUsage,
+    judge_price: Price,
+) -> float:
+    """Generation for every model-reaching question plus a judge call per expected answer."""
+    return estimate_cost(model_questions, generation_tokens, generation_price) + estimate_cost(
+        judged_questions, judge_tokens, judge_price
+    )
+
+
+def baseline_tokens(role: str, path: Path = ANSWER_BASELINE_PATH) -> TokenUsage | None:
+    """Measured tokens per question for a role from the committed answer baseline, if any."""
     if not path.exists():
         return None
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    tokens = (raw.get("tokens_per_question") or {}).get("generation")
+    tokens = (raw.get("tokens_per_question") or {}).get(role)
     return TokenUsage(int(tokens["input"]), int(tokens["output"])) if tokens else None
 
 
@@ -395,8 +450,8 @@ def _empty_result(q: _Question) -> QuestionResult:
 
 async def _ask_observed(
     db: AsyncSession, q: _Question, resolved: ResolvedModel, ledger: CostLedger
-) -> QuestionResult:
-    """Ask once through the serving pipeline, keeping the raw model output and the served one."""
+) -> tuple[QuestionResult, list[RetrievedChunk]]:
+    """Ask once through the serving pipeline; returns the result and the cited chunks."""
     result = _empty_result(q)
     seen: dict = {}
     real_retrieve, real_resolve = site_assistant.retrieve, site_assistant.resolve_citations
@@ -420,18 +475,19 @@ async def _ask_observed(
 
     if ledger.blocked > blocked_before:
         result.asked = False
-        return result
+        return result, []
     chunks = seen["chunks"]
     if not site_assistant.reaches_model(chunks):
         result.short_circuited = True
-        return result
+        return result, []
     output = seen.get("output")
     if output is None:
         result.model_error = True
         result.provider_error = ledger.request_errors > errors_before
-        return result
+        return result, []
 
     result.served = response.answerable
+    result.answer = response.answer if response.answerable else ""
     result.cited_ids = [c.content_id for c in response.citations]
     if q.probe is not None:
         retrieved = {c.content_id for c in chunks}
@@ -439,12 +495,63 @@ async def _ask_observed(
             output.answer, output.cited_chunk_ids, retrieved, q.probe, output.answerable
         )
         result.served_violations = answer_violations(response.answer, q.probe)
-    return result
+    cited = set(result.cited_ids)
+    return result, [c for c in chunks if c.content_id in cited]
+
+
+class JudgeVerdict(BaseModel):
+    grounded: bool
+    complete: bool
+    reason: str
+
+
+def _needs_judge(q: _Question) -> bool:
+    return q.entry is not None and q.entry.answerable
+
+
+def build_judge_agent(judge: ResolvedModel, prompt: LoadedPrompt) -> Agent[None, JudgeVerdict]:
+    return build_agent(
+        judge.model,
+        output_type=JudgeVerdict,
+        system_prompt=prompt.system_prompt,
+        model_settings={"temperature": 0.0, "max_tokens": _JUDGE_MAX_TOKENS},
+        instrument=False,
+    )
+
+
+async def _judge(
+    agent: Agent[None, JudgeVerdict],
+    template: Template,
+    q: _Question,
+    result: QuestionResult,
+    chunks: list[RetrievedChunk],
+    ledger: CostLedger,
+) -> None:
+    """Grade one served answer in place; a cap block un-asks it, a failed call is a judge error."""
+    message = render_judge_message(template, q.question, result.answer, chunks)
+    calls_before, blocked_before = len(ledger.calls), ledger.blocked
+    errors_before = ledger.request_errors
+    try:
+        run = await agent.run(message)
+    except Exception as exc:
+        if ledger.blocked > blocked_before:
+            result.asked = False
+        else:
+            result.judge_error = True
+            result.judge_reason = type(exc).__name__
+            # An unreachable judge leaves the verdict unmeasured, so it can't be a baseline.
+            result.provider_error = ledger.request_errors > errors_before
+    else:
+        result.judge_grounded = run.output.grounded
+        result.judge_complete = run.output.complete
+        result.judge_reason = run.output.reason
+    result.calls = result.calls + ledger.calls[calls_before:]
 
 
 @dataclass
 class RunResult:
     configuration: dict[str, str]
+    judge: dict[str, str]
     dataset_fingerprint: str
     complete: bool
     estimate_usd: float
@@ -467,25 +574,41 @@ async def run_answer_eval(
     resolved: ResolvedModel,
     prompt: LoadedPrompt,
     config: AnswerEvalConfig,
+    judge: ResolvedModel,
+    judge_prompt: LoadedPrompt,
     *,
     entries: list[GoldenEntry] | None = None,
     probes: list[Probe] | None = None,
     estimate_tokens: TokenUsage | None = None,
+    estimate_judge_tokens: TokenUsage | None = None,
 ) -> RunResult:
     """One pass over golden entries and probes; raises before any call if unpriced or over cap."""
     ledger = CostLedger(config.per_run_cap_usd)
     metered_resolved = metered(resolved, config, ledger, "generation")
+    judge_agent = build_judge_agent(metered(judge, config, ledger, "judge"), judge_prompt)
+    judge_template = Template(judge_prompt.user_template)
     questions = _questions(
         load_dataset() if entries is None else entries, load_probes() if probes is None else probes
     )
 
-    reaching = 0
+    reaching = judged = 0
     for q in questions:
         chunks = await retrieve(db, q.question, settings.SITE_ASSISTANT_TOP_K, q.persona)
-        reaching += site_assistant.reaches_model(chunks)
-    tokens = estimate_tokens or baseline_generation_tokens() or config.default_generation_tokens
-    price = config.price(resolved.model_name, resolved.provider_name)
-    estimate = estimate_cost(reaching, tokens, price)
+        reaches = site_assistant.reaches_model(chunks)
+        reaching += reaches
+        judged += reaches and _needs_judge(q)
+    estimate = estimate_run_cost(
+        model_questions=reaching,
+        generation_tokens=(
+            estimate_tokens or baseline_tokens("generation") or config.default_generation_tokens
+        ),
+        generation_price=config.price(resolved.model_name, resolved.provider_name),
+        judged_questions=judged,
+        judge_tokens=(
+            estimate_judge_tokens or baseline_tokens("judge") or config.default_judge_tokens
+        ),
+        judge_price=config.price(judge.model_name, judge.provider_name),
+    )
     check_estimate(estimate, config.per_run_cap_usd)
 
     results: list[QuestionResult] = []
@@ -498,7 +621,10 @@ async def run_answer_eval(
                 continue
             calls_before = len(ledger.calls)
             try:
-                results.append(await _ask_observed(db, q, metered_resolved, ledger))
+                result, cited = await _ask_observed(db, q, metered_resolved, ledger)
+                if result.served and _needs_judge(q):
+                    await _judge(judge_agent, judge_template, q, result, cited, ledger)
+                results.append(result)
             except Exception as exc:
                 # Stop but keep the result, so money already spent is still reported.
                 error = f"{q.id}: {type(exc).__name__}: {exc}"
@@ -506,12 +632,16 @@ async def run_answer_eval(
                 results[-1].asked = False
                 results[-1].calls = ledger.calls[calls_before:]
 
-    measured = tokens_per_question(results)
     return RunResult(
         configuration={
             "provider": resolved.provider_name,
             "model": resolved.model_name,
             "prompt_version": prompt.version,
+        },
+        judge={
+            "provider": judge.provider_name,
+            "model": judge.model_name,
+            "prompt_version": judge_prompt.version,
         },
         dataset_fingerprint=dataset_fingerprint(),
         complete=all(r.asked and not r.provider_error for r in results),
@@ -523,7 +653,9 @@ async def run_answer_eval(
         error=error,
         metrics=compute_metrics(results),
         categories=metrics_by_category(results),
-        tokens_per_question={"generation": asdict(measured)},
+        tokens_per_question={
+            role: asdict(tokens_per_question(results, role)) for role in ("generation", "judge")
+        },
         questions=results,
     )
 
@@ -538,6 +670,8 @@ _REPORT_COLUMNS = (
     ("answer_rate", "answer"),
     ("refusal_accuracy", "refusal"),
     ("citation_hit_rate", "citation"),
+    ("groundedness_rate", "grounded"),
+    ("completeness_rate", "complete"),
     ("probe_model_violation_rate", "probe_viol"),
     ("probe_served_violations", "served_viol"),
 )
@@ -550,9 +684,10 @@ def _fmt(value: float | int | None) -> str:
 
 
 def format_answer_report(result: RunResult) -> str:
-    cfg = result.configuration
+    cfg, judge = result.configuration, result.judge
     lines = [
         f"provider={cfg['provider']} model={cfg['model']} prompt={cfg['prompt_version']}",
+        f"judge={judge['provider']}/{judge['model']} judge_prompt={judge['prompt_version']}",
         f"dataset={result.dataset_fingerprint[:12]} complete={result.complete} "
         f"cost=${result.cost_usd:.4f} (estimate ${result.estimate_usd:.4f}, "
         f"cap ${result.cap_usd:.2f})",
@@ -577,7 +712,16 @@ def format_answer_report(result: RunResult) -> str:
         if r.model_violations or r.served_violations
     ]
     lines.append("probe violations: " + (", ".join(failing) or "none"))
-    lines.append(f"model errors={m['model_errors']} (provider errors={m['provider_errors']})")
+    lines.append(
+        f"model errors={m['model_errors']} "
+        f"provider errors (generation or judge)={m['provider_errors']}"
+    )
+    for label, failed in (
+        ("ungrounded", [r.id for r in result.questions if r.judge_grounded is False]),
+        ("incomplete", [r.id for r in result.questions if r.judge_complete is False]),
+        ("judge errors", [r.id for r in result.questions if r.judge_error]),
+    ):
+        lines.append(f"{label} ({len(failed)}): {', '.join(failed) or 'none'}")
     if result.error:
         lines.append(f"STOPPED on error: {result.error}")
     if result.provider_errors:

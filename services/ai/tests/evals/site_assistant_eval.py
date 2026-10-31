@@ -3,7 +3,7 @@
 import importlib.util
 import re
 from collections import defaultdict
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -129,16 +129,17 @@ async def eval_corpus_session(prefix: str) -> AsyncGenerator[AsyncSession, None]
 
 
 class ScriptedModel:
-    """FunctionModel that records calls and returns a fixed output-tool payload."""
+    """FunctionModel that records calls and returns an output-tool payload, fixed or per-call."""
 
-    def __init__(self, args: dict):
+    def __init__(self, args: dict | Callable[[list], dict]):
         self.args = args
         self.calls: list = []
         self.model = FunctionModel(self._respond)
 
     def _respond(self, messages, info: AgentInfo) -> ModelResponse:
         self.calls.append(messages)
-        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, self.args)])
+        args = self.args(messages) if callable(self.args) else self.args
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, args)])
 
     @property
     def prompt_text(self) -> str:
