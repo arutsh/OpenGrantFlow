@@ -1,46 +1,93 @@
-"""
-Tests for Budget.total_amount staying in sync with its budget lines.
+"""Budget.total_amount is derived from its lines on read (money-integrity Decision 5)."""
 
-Recalculation happens via app.crud.budget_crud.recalculate_budget_total,
-called from create/update/delete_budget_line_service. These tests mock the
-crud layer (matching this service's existing test convention — no real DB
-session) and assert recalculation is triggered with the correct budget_id.
-"""
-
+from decimal import Decimal
 from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from tests.factories.user import ValidUserFactory
-from tests.factories.budget import BudgetFactory, BudgetLineFactory
-from app.schemas import BudgetLineCreate, BudgetLineUpdate
-from app.services.budget_line_services import (
-    create_budget_line_service,
-    update_budget_line_service,
-    delete_budget_line_service,
-)
+from tests.factories.budget import BudgetCategoryFactory, BudgetFactory, BudgetLineFactory
+from app.models.budget import BudgetModel
+from app.schemas import BudgetLineCreate
+from app.services.budget_line_services import create_budget_line_service
 
 pytestmark = pytest.mark.anyio
 
-USER_ID = str(uuid4())
-CUSTOMER_ID = str(uuid4())
-DB = object()  # session is never actually used — every crud call is mocked
+OWNER_ID = str(uuid4())
 
 
-def _valid_user():
-    return ValidUserFactory(user_id=USER_ID, customer_id=CUSTOMER_ID)
+async def _seed(db, *amounts):
+    budget = BudgetFactory.build(owner_id=OWNER_ID)
+    category = BudgetCategoryFactory.build(budget=budget)
+    lines = [
+        BudgetLineFactory.build(
+            budget=budget, category=category, category_id=category.id, amount=Decimal(a)
+        )
+        for a in amounts
+    ]
+    db.add_all([budget, category, *lines])
+    await db.commit()
+    return budget.id, category.id, [line.id for line in lines]
 
 
-class TestTotalAmountRecalculation:
-    async def test_create_budget_line_recalculates_total(self):
-        budget = BudgetFactory.build(id=uuid4(), owner_id=CUSTOMER_ID)
-        line = BudgetLineFactory.build(budget_id=budget.id, created_by=USER_ID)
+async def _total(db, budget_id):
+    query = select(BudgetModel.total_amount).where(BudgetModel.id == budget_id)
+    return (await db.execute(query)).scalar_one()
+
+
+class TestDerivedTotalViaRoutes:
+    async def test_budget_with_no_lines_totals_zero(self, db):
+        budget_id, _, _ = await _seed(db)
+
+        assert await _total(db, budget_id) == 0
+
+    async def test_adding_a_line_raises_the_total(self, db, make_client):
+        budget_id, category_id, _ = await _seed(db, "1000")
+        client = make_client(db=db, customer_id=OWNER_ID)
+
+        response = client.post(
+            "/api/v1/budget-lines/",
+            json={
+                "budget_id": str(budget_id),
+                "category_id": str(category_id),
+                "description": "Coordinator",
+                "amount": 500,
+            },
+        )
+
+        assert response.status_code == 200
+        assert await _total(db, budget_id) == Decimal("1500")
+
+    async def test_updating_a_line_amount_changes_the_total(self, db, make_client):
+        budget_id, _, (line_id, _) = await _seed(db, "500", "1000")
+        client = make_client(db=db, customer_id=OWNER_ID)
+
+        response = client.patch(
+            f"/api/v1/budget-lines/{line_id}/",
+            json={"budget_id": str(budget_id), "amount": 300},
+        )
+
+        assert response.status_code == 200
+        assert await _total(db, budget_id) == Decimal("1300")
+
+    async def test_deleting_a_line_lowers_the_total(self, db, make_client):
+        budget_id, _, (line_id, _) = await _seed(db, "300", "1000")
+        client = make_client(db=db, customer_id=OWNER_ID)
+
+        response = client.delete(f"/api/v1/budget-lines/{line_id}/")
+
+        assert response.status_code == 200
+        assert await _total(db, budget_id) == Decimal("1000")
+
+
+class TestCreateLineTransaction:
+    async def test_new_category_joins_the_line_commit(self):
+        budget = BudgetFactory.build(owner_id=OWNER_ID)
+        line = BudgetLineFactory.build(budget=budget)
         payload = BudgetLineCreate(
-            budget_id=budget.id,
-            description="Coordinator salary",
-            amount=500.0,
-            category_name="Personnel",
+            budget_id=budget.id, description="Travel", amount=100, category_name="Travel"
         )
 
         with (
@@ -48,157 +95,11 @@ class TestTotalAmountRecalculation:
             patch(
                 "app.services.budget_line_services.get_or_create_category_service",
                 return_value=line.category,
-            ),
+            ) as mock_category,
             patch("app.services.budget_line_services.create_budget_line", return_value=line),
-            patch("app.services.budget_line_services.recalculate_budget_total") as mock_recalc,
         ):
-            result = await create_budget_line_service(DB, _valid_user(), payload)
+            user = ValidUserFactory(customer_id=OWNER_ID)
+            await create_budget_line_service(object(), user, payload)
 
-        assert result is line
-        mock_recalc.assert_called_once_with(DB, budget.id)
-
-    async def test_update_budget_line_recalculates_total(self):
-        budget = BudgetFactory.build(id=uuid4(), owner_id=CUSTOMER_ID)
-        existing_line = BudgetLineFactory.build(budget_id=budget.id, amount=500.0)
-        updated_line = BudgetLineFactory.build(budget_id=budget.id, amount=300.0)
-        payload = BudgetLineUpdate(budget_id=budget.id, amount=300.0)
-
-        with (
-            patch(
-                "app.services.budget_line_services.get_budget_line_by_id_service",
-                return_value=existing_line,
-            ),
-            patch("app.services.budget_line_services.get_budget", return_value=budget),
-            patch(
-                "app.services.budget_line_services.update_budget_line",
-                return_value=updated_line,
-            ),
-            patch("app.services.budget_line_services.recalculate_budget_total") as mock_recalc,
-        ):
-            result = await update_budget_line_service(DB, _valid_user(), existing_line.id, payload)
-
-        assert result is updated_line
-        mock_recalc.assert_called_once_with(DB, budget.id)
-
-    async def test_delete_budget_line_recalculates_total(self):
-        budget_id = uuid4()
-        existing_line = BudgetLineFactory.build(budget_id=budget_id)
-        budget = BudgetFactory.build(id=budget_id, owner_id=CUSTOMER_ID)
-
-        with (
-            patch(
-                "app.services.budget_line_services.get_budget_line_by_id_service",
-                return_value=existing_line,
-            ),
-            patch("app.services.budget_line_services.get_budget", return_value=budget),
-            patch("app.services.budget_line_services.delete_budget_line", return_value=True),
-            patch("app.services.budget_line_services.recalculate_budget_total") as mock_recalc,
-        ):
-            result = await delete_budget_line_service(existing_line.id, _valid_user(), DB)
-
-        assert result is True
-        mock_recalc.assert_called_once_with(DB, budget_id)
-
-    async def test_delete_budget_line_not_found_skips_recalculation(self):
-        with (
-            patch(
-                "app.services.budget_line_services.get_budget_line_by_id_service",
-                return_value=None,
-            ),
-            patch("app.services.budget_line_services.recalculate_budget_total") as mock_recalc,
-        ):
-            result = await delete_budget_line_service(uuid4(), _valid_user(), DB)
-
-        assert result is False
-        mock_recalc.assert_not_called()
-
-
-class TestRecalculateBudgetTotalCrud:
-    """Direct coverage of the SQL aggregation itself, against a real sqlite session."""
-
-    async def test_sums_line_amounts_and_ignores_null_amounts(self):
-        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-        from sqlalchemy.pool import StaticPool
-        from app.models.base import Base
-        from app.models.budget import BudgetModel, BudgetLineModel
-        from app.crud.budget_crud import recalculate_budget_total
-
-        engine = create_async_engine(
-            "sqlite+aiosqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-        async with engine.begin() as conn:
-            await conn.run_sync(
-                Base.metadata.create_all, tables=[BudgetModel.__table__, BudgetLineModel.__table__]
-            )
-        session = async_sessionmaker(engine, expire_on_commit=False)()
-
-        budget = BudgetFactory.build()
-        session.add(budget)
-        await session.commit()
-
-        session.add_all(
-            [
-                BudgetLineFactory.build(budget=budget, category=None, amount=500.0),
-                BudgetLineFactory.build(budget=budget, category=None, amount=300.0),
-                BudgetLineFactory.build(budget=budget, category=None, amount=None),
-            ]
-        )
-        await session.commit()
-
-        updated = await recalculate_budget_total(session, budget.id)
-
-        assert updated.total_amount == 800.0
-        await session.close()
-        await engine.dispose()
-
-    async def test_returns_zero_when_budget_has_no_lines(self):
-        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-        from sqlalchemy.pool import StaticPool
-        from app.models.base import Base
-        from app.models.budget import BudgetModel, BudgetLineModel
-        from app.crud.budget_crud import recalculate_budget_total
-
-        engine = create_async_engine(
-            "sqlite+aiosqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-        async with engine.begin() as conn:
-            await conn.run_sync(
-                Base.metadata.create_all, tables=[BudgetModel.__table__, BudgetLineModel.__table__]
-            )
-        session = async_sessionmaker(engine, expire_on_commit=False)()
-
-        budget = BudgetFactory.build()
-        session.add(budget)
-        await session.commit()
-
-        updated = await recalculate_budget_total(session, budget.id)
-
-        assert updated.total_amount == 0
-        await session.close()
-        await engine.dispose()
-
-    async def test_returns_none_for_unknown_budget(self):
-        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-        from sqlalchemy.pool import StaticPool
-        from app.models.base import Base
-        from app.models.budget import BudgetModel, BudgetLineModel
-        from app.crud.budget_crud import recalculate_budget_total
-
-        engine = create_async_engine(
-            "sqlite+aiosqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-        async with engine.begin() as conn:
-            await conn.run_sync(
-                Base.metadata.create_all, tables=[BudgetModel.__table__, BudgetLineModel.__table__]
-            )
-        session = async_sessionmaker(engine, expire_on_commit=False)()
-
-        assert await recalculate_budget_total(session, uuid4()) is None
-        await session.close()
-        await engine.dispose()
+        # sqlite can't prove the savepoint rollback, so assert the flag instead.
+        assert mock_category.call_args.kwargs["commit"] is False

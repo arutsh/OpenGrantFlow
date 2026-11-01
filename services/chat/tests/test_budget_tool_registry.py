@@ -84,9 +84,8 @@ class TestListTools:
             assert "budget_id" not in tool.parameters.get("properties", {})
 
     async def test_no_internal_fields_leak_through(self):
-        """The raw OpenAPI schema exposes owner_id/funding_customer_id/status/
-        total_amount/created_by/updated_by/created_at/updated_at on
-        create_budget and update_budget — all must be hidden from the model."""
+        """Internal fields in the raw create/update schemas must stay hidden; total_amount
+        is no longer in the spec at all, but stays listed as a regression guard."""
         registry = await _registry(_json_handler(200, {}))
         internal_fields = {
             "owner_id",

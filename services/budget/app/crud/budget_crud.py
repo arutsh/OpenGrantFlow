@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from app.models.budget import BudgetModel, BudgetLineModel, BudgetStatus
+from app.models.budget import BudgetModel, BudgetStatus
 from uuid import UUID
 
 
@@ -20,7 +20,6 @@ async def create_budget(
     actual_currency: str | None = None,
     start_date: date | None = None,
     duration_months: int | None = None,
-    total_amount: Decimal | None = None,
     donor_total_amount: Decimal | None = None,
     estimated_exchange_rate: Decimal | None = None,
     load_lines: bool = False,
@@ -44,7 +43,6 @@ async def create_budget(
                 "actual_currency": actual_currency,
                 "start_date": start_date,
                 "duration_months": duration_months,
-                "total_amount": total_amount,
                 "donor_total_amount": donor_total_amount,
                 "estimated_exchange_rate": estimated_exchange_rate,
             }.items()
@@ -57,8 +55,9 @@ async def create_budget(
         await session.commit()
     else:
         await session.flush()
-    if load_lines:
-        await session.refresh(budget, attribute_names=["lines"])
+    # total_amount is a column_property, so an INSERT never loads it; async can't lazy-load.
+    attribute_names = ["total_amount", "lines"] if load_lines else ["total_amount"]
+    await session.refresh(budget, attribute_names=attribute_names)
     return budget
 
 
@@ -107,17 +106,6 @@ async def list_budgets(
         query = query.options(selectinload(BudgetModel.lines))
     result = await session.execute(query.limit(limit))
     return list(result.scalars().all())
-
-
-async def update_budget_name(
-    session: AsyncSession, budget_id: UUID, new_name: str
-) -> BudgetModel | None:
-    budget = await get_budget(session, budget_id)
-    if not budget:
-        return None
-    budget.name = new_name
-    await session.commit()
-    return budget
 
 
 async def update_budget(
@@ -184,6 +172,7 @@ async def update_budget(
     elif confirmed_at is not None:
         budget.confirmed_at = confirmed_at
     await session.commit()
+    await session.refresh(budget, attribute_names=["total_amount"])
     return budget
 
 
@@ -223,9 +212,7 @@ async def get_funded_budgets_summary(session: AsyncSession, funding_customer_id:
         await session.execute(
             select(
                 BudgetModel.actual_currency,
-                func.sum(
-                    func.coalesce(BudgetModel.total_amount, 0) / BudgetModel.estimated_exchange_rate
-                ),
+                func.sum(BudgetModel.total_amount / BudgetModel.estimated_exchange_rate),
             )
             .where(
                 BudgetModel.funding_customer_id == funding_customer_id,
@@ -269,9 +256,9 @@ async def get_funded_grantees(session: AsyncSession, funding_customer_id: UUID) 
             select(
                 BudgetModel.owner_id,
                 BudgetModel.actual_currency,
-                func.sum(
-                    func.coalesce(BudgetModel.total_amount, 0) / BudgetModel.estimated_exchange_rate
-                ).label("total_allocated"),
+                func.sum(BudgetModel.total_amount / BudgetModel.estimated_exchange_rate).label(
+                    "total_allocated"
+                ),
             )
             .where(
                 BudgetModel.funding_customer_id == funding_customer_id,
@@ -302,24 +289,6 @@ async def get_funded_grantees(session: AsyncSession, funding_customer_id: UUID) 
     return list(grantees.values())
 
 
-async def recalculate_budget_total(
-    session: AsyncSession, budget_id: UUID, commit: bool = True
-) -> BudgetModel | None:
-    """Recompute total_amount from this budget's lines and persist it."""
-    budget = await get_budget(session, budget_id)
-    if not budget:
-        return None
-
-    total = (
-        await session.execute(
-            select(func.coalesce(func.sum(BudgetLineModel.amount), 0)).where(
-                BudgetLineModel.budget_id == budget_id
-            )
-        )
-    ).scalar()
-    budget.total_amount = total
-    if commit:
-        await session.commit()
-    else:
-        await session.flush()
-    return budget
+async def reload_total_amount(session: AsyncSession, budget: BudgetModel) -> None:
+    """Re-read the derived total after this session changed the budget's lines."""
+    await session.refresh(budget, attribute_names=["total_amount"])

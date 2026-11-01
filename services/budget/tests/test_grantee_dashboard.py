@@ -80,7 +80,7 @@ async def _make_budget(
         funding_customer_id=funding_customer_id,
         external_funder_name=external_funder_name,
         status=status,
-        total_amount=total_amount,
+        lines=[BudgetLineModel(description="seed", amount=Decimal(str(total_amount)))],
         local_currency=local_currency,
         actual_currency=actual_currency,
         donor_total_amount=donor_total_amount,

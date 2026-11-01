@@ -13,9 +13,11 @@ from sqlalchemy import (
     DateTime,
     Enum as SQLEnum,
     UniqueConstraint,
+    func,
+    select,
     text,
 )
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.orm import column_property, relationship, Mapped, mapped_column
 from app.utils.db import GUID
 
 from app.models.base import Base
@@ -54,9 +56,6 @@ class BudgetModel(Base, AuditMixin):
     )
     donor_template_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("donor_templates.id"), nullable=True
-    )
-    total_amount: Mapped[Decimal | None] = mapped_column(
-        Numeric(18, 4), nullable=True, default=0, server_default=text("0")
     )
     # Donor's stated commitment (in actual_currency) and the grantee's own
     # planning-time rate estimate — distinct from the currency-ledger's real,
@@ -98,7 +97,7 @@ class BudgetLineModel(Base, AuditMixin):
         GUID(), primary_key=True, index=True, default=lambda: uuid.uuid4()
     )
     budget_id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False
+        GUID(), ForeignKey("budgets.id", ondelete="CASCADE"), nullable=False, index=True
     )
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("budget_categories.id", ondelete="SET NULL"), nullable=True
@@ -116,6 +115,15 @@ class BudgetLineModel(Base, AuditMixin):
     report_lines: Mapped[list["ReportLineModel"]] = relationship(
         "ReportLineModel", back_populates="budget_line"
     )
+
+
+# Derived on read, never stored, so it can't drift (money-integrity design.md Decision 5).
+BudgetModel.total_amount = column_property(
+    select(func.coalesce(func.sum(BudgetLineModel.amount), 0))
+    .where(BudgetLineModel.budget_id == BudgetModel.id)
+    .correlate_except(BudgetLineModel)
+    .scalar_subquery()
+)
 
 
 class BudgetCategoryModel(Base, AuditMixin):

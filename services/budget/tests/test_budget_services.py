@@ -371,7 +371,7 @@ class TestAiDraftBudgetStatus:
                 return_value={"Personnel": line.category},
             ),
             patch("app.services.budget_services.bulk_create_budget_lines", return_value=[line]),
-            patch("app.services.budget_services.recalculate_budget_total"),
+            patch("app.services.budget_services.reload_total_amount"),
             patch(
                 "app.services.budget_services.get_budget_service",
                 new_callable=AsyncMock,
@@ -446,7 +446,7 @@ class TestCreateBudgetFieldsPersist:
                 return_value={"Personnel": line.category},
             ),
             patch("app.services.budget_services.bulk_create_budget_lines", return_value=[line]),
-            patch("app.services.budget_services.recalculate_budget_total"),
+            patch("app.services.budget_services.reload_total_amount"),
             patch(
                 "app.services.budget_services.get_budget_service",
                 new_callable=AsyncMock,
@@ -522,7 +522,7 @@ class TestCreateBudgetFieldsPersist:
                 return_value={"Personnel": line.category},
             ),
             patch("app.services.budget_services.bulk_create_budget_lines", return_value=[line]),
-            patch("app.services.budget_services.recalculate_budget_total"),
+            patch("app.services.budget_services.reload_total_amount"),
             patch(
                 "app.services.budget_services.get_budget_service",
                 new_callable=AsyncMock,
@@ -556,7 +556,7 @@ class TestCreateBudgetFieldsPersist:
                 return_value={"Personnel": line.category},
             ),
             patch("app.services.budget_services.bulk_create_budget_lines", return_value=[line]),
-            patch("app.services.budget_services.recalculate_budget_total"),
+            patch("app.services.budget_services.reload_total_amount"),
             patch(
                 "app.services.budget_services.get_budget_service",
                 new_callable=AsyncMock,

@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.schemas.budget_schema import (
     BudgetCreate,
     BudgetUpdate,
+    BudgetUpdateResponse,
     BudgetWithLines,
     FundedBudgetsSummary,
     GranteeSummary,
@@ -137,7 +138,7 @@ async def list_budget_export_templates_endpoint(
     return await list_candidate_templates(db, valid_user, budget)
 
 
-@router.patch("/{budget_id}", response_model=BudgetUpdate)
+@router.patch("/{budget_id}", response_model=BudgetUpdateResponse)
 async def update_budget_endpoint(
     budget_id: UUID,
     budget: BudgetUpdate,
@@ -166,7 +167,7 @@ async def save_budget_as_template_endpoint(
     return template
 
 
-@router.post("/{budget_id}/restore", response_model=BudgetUpdate)
+@router.post("/{budget_id}/restore", response_model=BudgetUpdateResponse)
 async def restore_budget_endpoint(
     budget_id: UUID,
     db: AsyncSession = Depends(get_db),

@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from main import app
 from app.api.budget_routes import get_db
 from app.models.base import Base
-from app.models.budget import BudgetModel
+from app.models.budget import BudgetLineModel, BudgetModel
 from tests.conftest import _token_for
 
 pytestmark = pytest.mark.anyio
@@ -37,7 +37,9 @@ async def sessions_db():
         poolclass=StaticPool,
     )
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all, tables=[BudgetModel.__table__])
+        await conn.run_sync(
+            Base.metadata.create_all, tables=[BudgetModel.__table__, BudgetLineModel.__table__]
+        )
     maker = async_sessionmaker(engine, expire_on_commit=False)
     async with maker() as session:
         yield session
