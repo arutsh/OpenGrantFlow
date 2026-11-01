@@ -7,7 +7,8 @@ import math
 import re
 import time
 from collections import defaultdict
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -69,6 +70,10 @@ class EstimateOverCap(Exception):
         super().__init__(f"estimated ${estimate_usd:.4f} exceeds the per-run cap ${cap_usd:.2f}")
         self.estimate_usd = estimate_usd
         self.cap_usd = cap_usd
+
+
+class BaselineRefused(Exception):
+    """A baseline can only be written from a complete run."""
 
 
 class SpendCapReached(Exception):
@@ -569,6 +574,37 @@ class RunResult:
         return asdict(self)
 
 
+async def _estimate_questions(
+    db: AsyncSession,
+    questions: list[_Question],
+    resolved: ResolvedModel,
+    judge: ResolvedModel,
+    config: AnswerEvalConfig,
+    *,
+    estimate_tokens: TokenUsage | None = None,
+    estimate_judge_tokens: TokenUsage | None = None,
+) -> float:
+    """Free retrieval pass that counts the questions reaching the model, then prices them."""
+    reaching = judged = 0
+    for q in questions:
+        chunks = await retrieve(db, q.question, settings.SITE_ASSISTANT_TOP_K, q.persona)
+        reaches = site_assistant.reaches_model(chunks)
+        reaching += reaches
+        judged += reaches and _needs_judge(q)
+    return estimate_run_cost(
+        model_questions=reaching,
+        generation_tokens=(
+            estimate_tokens or baseline_tokens("generation") or config.default_generation_tokens
+        ),
+        generation_price=config.price(resolved.model_name, resolved.provider_name),
+        judged_questions=judged,
+        judge_tokens=(
+            estimate_judge_tokens or baseline_tokens("judge") or config.default_judge_tokens
+        ),
+        judge_price=config.price(judge.model_name, judge.provider_name),
+    )
+
+
 async def run_answer_eval(
     db: AsyncSession,
     resolved: ResolvedModel,
@@ -581,6 +617,7 @@ async def run_answer_eval(
     probes: list[Probe] | None = None,
     estimate_tokens: TokenUsage | None = None,
     estimate_judge_tokens: TokenUsage | None = None,
+    enforce_estimate: bool = True,
 ) -> RunResult:
     """One pass over golden entries and probes; raises before any call if unpriced or over cap."""
     ledger = CostLedger(config.per_run_cap_usd)
@@ -591,25 +628,17 @@ async def run_answer_eval(
         load_dataset() if entries is None else entries, load_probes() if probes is None else probes
     )
 
-    reaching = judged = 0
-    for q in questions:
-        chunks = await retrieve(db, q.question, settings.SITE_ASSISTANT_TOP_K, q.persona)
-        reaches = site_assistant.reaches_model(chunks)
-        reaching += reaches
-        judged += reaches and _needs_judge(q)
-    estimate = estimate_run_cost(
-        model_questions=reaching,
-        generation_tokens=(
-            estimate_tokens or baseline_tokens("generation") or config.default_generation_tokens
-        ),
-        generation_price=config.price(resolved.model_name, resolved.provider_name),
-        judged_questions=judged,
-        judge_tokens=(
-            estimate_judge_tokens or baseline_tokens("judge") or config.default_judge_tokens
-        ),
-        judge_price=config.price(judge.model_name, judge.provider_name),
+    estimate = await _estimate_questions(
+        db,
+        questions,
+        resolved,
+        judge,
+        config,
+        estimate_tokens=estimate_tokens,
+        estimate_judge_tokens=estimate_judge_tokens,
     )
-    check_estimate(estimate, config.per_run_cap_usd)
+    if enforce_estimate:
+        check_estimate(estimate, config.per_run_cap_usd)
 
     results: list[QuestionResult] = []
     error: str | None = None
@@ -662,6 +691,217 @@ async def run_answer_eval(
 
 def write_result(result: RunResult, path: Path) -> None:
     path.write_text(json.dumps(result.to_dict(), indent=2) + "\n", encoding="utf-8")
+
+
+# Baseline
+
+
+def write_baseline(result: RunResult, path: Path = ANSWER_BASELINE_PATH) -> None:
+    """Record a complete run as the new baseline; leaves the file untouched otherwise."""
+    if not result.complete or result.error:
+        raise BaselineRefused("only a complete run can be written as the baseline")
+    baseline = {
+        "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "configuration": result.configuration,
+        "judge": result.judge,
+        "dataset_fingerprint": result.dataset_fingerprint,
+        "metrics": result.metrics,
+        "categories": result.categories,
+        "tokens_per_question": result.tokens_per_question,
+    }
+    header = "# Written by `eval_site_assistant.py run --write-baseline`; do not hand-edit.\n"
+    path.write_text(header + yaml.safe_dump(baseline, sort_keys=False), encoding="utf-8")
+
+
+def load_baseline(path: Path = ANSWER_BASELINE_PATH) -> dict[str, Any]:
+    if not path.exists():
+        raise EvalConfigError(f"no answer baseline at {path}; run with --write-baseline first")
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+# Gate
+
+_REPORT_ONLY = ("p95_latency_s", "input_tokens", "output_tokens", "cost_usd")
+_EPSILON = 1e-9
+
+
+@dataclass(frozen=True)
+class GateRow:
+    metric: str
+    baseline: float | int | None
+    value: float | int | None
+    tolerance: float | None
+    status: str  # "pass", "fail" or "report" (shown, never failing)
+
+
+@dataclass(frozen=True)
+class GateReport:
+    rows: list[GateRow]
+    failures: list[str]
+
+    @property
+    def passed(self) -> bool:
+        return not self.failures
+
+
+def _fmt_metric(metric: str, value: float | int | None) -> str:
+    if value is None:
+        return "-"
+    if metric in TOLERANCE_METRICS:
+        return f"{value:.1%}"
+    return f"{value:.4g}" if isinstance(value, float) else str(value)
+
+
+def _judge_row(metric: str, base: Any, value: Any, tolerance: float) -> GateRow:
+    if base is None:
+        status = "pass"
+    elif value is None:
+        status = "fail"
+    elif metric in LOWER_IS_BETTER:
+        status = "pass" if value <= base + tolerance + _EPSILON else "fail"
+    else:
+        status = "pass" if value >= base - tolerance - _EPSILON else "fail"
+    return GateRow(metric, base, value, tolerance, status)
+
+
+def evaluate_gate(
+    result: RunResult, baseline: dict[str, Any], config: AnswerEvalConfig
+) -> GateReport:
+    """Compare a run to the committed baseline; served violations get no tolerance."""
+    base_metrics = baseline["metrics"]
+    failures: list[str] = []
+    if not result.complete:
+        failures.append("run is incomplete (spend cap reached or provider errors)")
+    if result.dataset_fingerprint != baseline["dataset_fingerprint"]:
+        failures.append(
+            "dataset, probe or injection files changed since the baseline: "
+            "a new baseline is needed (run --write-baseline)"
+        )
+
+    served = result.metrics["probe_served_violations"]
+    rows = [
+        GateRow(
+            "probe_served_violations",
+            base_metrics["probe_served_violations"],
+            served,
+            0,
+            "fail" if served else "pass",
+        )
+    ]
+    if served:
+        failures.append(f"probe_served_violations: {served} (zero tolerance)")
+    for metric in TOLERANCE_METRICS:
+        row = _judge_row(
+            metric, base_metrics[metric], result.metrics[metric], config.tolerances[metric]
+        )
+        rows.append(row)
+        if row.status == "fail":
+            failures.append(
+                f"{metric}: {_fmt_metric(metric, row.value)} vs baseline "
+                f"{_fmt_metric(metric, row.baseline)} "
+                f"(tolerance {row.tolerance:.2f})"
+            )
+    rows += [GateRow(m, base_metrics[m], result.metrics[m], None, "report") for m in _REPORT_ONLY]
+    return GateReport(rows, failures)
+
+
+def format_gate_report(report: GateReport) -> str:
+    header = f"{'metric':<28}{'baseline':>12}{'run':>12}{'tolerance':>11}  status"
+    lines = [header, "-" * len(header)]
+    for row in report.rows:
+        tolerance = "-" if row.tolerance is None else f"{row.tolerance:.2f}"
+        lines.append(
+            f"{row.metric:<28}{_fmt_metric(row.metric, row.baseline):>12}"
+            f"{_fmt_metric(row.metric, row.value):>12}"
+            f"{tolerance:>11}  {row.status}"
+        )
+    lines.append("")
+    lines.append("GATE PASSED" if report.passed else "GATE FAILED")
+    lines += [f"  - {failure}" for failure in report.failures]
+    return "\n".join(lines)
+
+
+# Comparison
+
+_COMPARE_METRICS = TOLERANCE_METRICS + ("probe_served_violations", "judge_errors") + _REPORT_ONLY
+
+
+async def run_comparison(
+    db: AsyncSession,
+    production: tuple[ResolvedModel, LoadedPrompt],
+    candidate: tuple[ResolvedModel, LoadedPrompt],
+    config: AnswerEvalConfig,
+    judge: ResolvedModel,
+    judge_prompt: LoadedPrompt,
+    **kwargs: Any,
+) -> tuple[RunResult, RunResult]:
+    """Run both configurations under one per-run cap: combined estimate, then shared spend."""
+    entries, probes = kwargs.get("entries"), kwargs.get("probes")
+    questions = _questions(
+        load_dataset() if entries is None else entries, load_probes() if probes is None else probes
+    )
+    estimate = 0.0
+    for resolved, _ in (production, candidate):
+        estimate += await _estimate_questions(
+            db,
+            questions,
+            resolved,
+            judge,
+            config,
+            estimate_tokens=kwargs.get("estimate_tokens"),
+            estimate_judge_tokens=kwargs.get("estimate_judge_tokens"),
+        )
+    check_estimate(estimate, config.per_run_cap_usd)
+
+    prod_result = await run_answer_eval(
+        db, *production, config, judge, judge_prompt, enforce_estimate=False, **kwargs
+    )
+    remaining = max(config.per_run_cap_usd - prod_result.cost_usd, 0.0)
+    cand_result = await run_answer_eval(
+        db,
+        *candidate,
+        replace(config, per_run_cap_usd=remaining),
+        judge,
+        judge_prompt,
+        enforce_estimate=False,
+        **kwargs,
+    )
+    return prod_result, cand_result
+
+
+def _diff(metric: str, a: float | int | None, b: float | int | None) -> str:
+    if a is None or b is None:
+        return "-"
+    delta = b - a
+    return f"{delta * 100:+.1f}pt" if metric in TOLERANCE_METRICS else f"{delta:+.4g}"
+
+
+def format_comparison(production: RunResult, candidate: RunResult) -> str:
+    def describe(label: str, r: RunResult) -> str:
+        cfg = r.configuration
+        return (
+            f"{label}: {cfg['provider']}/{cfg['model']} prompt={cfg['prompt_version']} "
+            f"complete={r.complete} cost=${r.cost_usd:.4f}"
+        )
+
+    lines = [
+        describe("production", production),
+        describe("candidate ", candidate),
+        f"judge={production.judge['model']} judge_prompt={production.judge['prompt_version']}",
+        "",
+    ]
+    header = f"{'metric':<28}{'production':>12}{'candidate':>12}{'diff':>12}"
+    lines += [header, "-" * len(header)]
+    for metric in _COMPARE_METRICS:
+        a, b = production.metrics[metric], candidate.metrics[metric]
+        lines.append(
+            f"{metric:<28}{_fmt_metric(metric, a):>12}{_fmt_metric(metric, b):>12}"
+            f"{_diff(metric, a, b):>12}"
+        )
+    for label, r in (("production", production), ("candidate", candidate)):
+        if not r.complete:
+            lines.append(f"{label.upper()} INCOMPLETE, not asked: {', '.join(r.not_asked) or '-'}")
+    return "\n".join(lines)
 
 
 # Report

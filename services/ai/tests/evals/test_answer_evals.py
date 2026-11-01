@@ -12,10 +12,18 @@ from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import FunctionModel
 
 from app.services import site_assistant
-from app.services.provider import ResolvedModel, build_agent
+from app.services.provider import ResolvedModel, build_agent, resolve_site_assistant_model
 from app.services.site_retrieval import RetrievedChunk
 from tests.evals.answer_eval import (
+    BaselineRefused,
     CONFIG_PATH,
+    RunResult,
+    evaluate_gate,
+    format_comparison,
+    format_gate_report,
+    load_baseline,
+    run_comparison,
+    write_baseline,
     JUDGE_PROMPT_PATH,
     CallRecord,
     CostLedger,
@@ -26,6 +34,7 @@ from tests.evals.answer_eval import (
     SpendCapReached,
     TokenUsage,
     UnpricedModel,
+    baseline_tokens,
     compute_metrics,
     dataset_fingerprint,
     estimate_cost,
@@ -618,3 +627,184 @@ async def test_judge_cost_counts_toward_the_run_cap():
     assert result.complete is False
     assert result.not_asked == [e.id for e in entries[1:]]
     assert result.cost_usd >= result.cap_usd
+
+
+# Baseline and gate
+
+_METRICS = {
+    "answer_rate": 0.90,
+    "refusal_accuracy": 0.90,
+    "citation_hit_rate": 0.80,
+    "groundedness_rate": 0.95,
+    "completeness_rate": 0.90,
+    "judge_errors": 0,
+    "probe_model_violation_rate": 0.10,
+    "probe_served_violations": 0,
+    "model_errors": 0,
+    "provider_errors": 0,
+    "p95_latency_s": 2.0,
+    "input_tokens": 100000,
+    "output_tokens": 9000,
+    "cost_usd": 0.30,
+}
+
+
+def _run_result(complete=True, fingerprint="f" * 64, **metrics) -> RunResult:
+    return RunResult(
+        configuration={"provider": "test", "model": "scripted", "prompt_version": "v1"},
+        judge={"provider": "test", "model": "scripted-judge", "prompt_version": "v1"},
+        dataset_fingerprint=fingerprint,
+        complete=complete,
+        estimate_usd=0.3,
+        cost_usd=0.3,
+        cap_usd=0.5,
+        not_asked=[] if complete else ["g1"],
+        provider_errors=[],
+        error=None,
+        metrics={**_METRICS, **metrics},
+        categories={},
+        tokens_per_question={
+            "generation": {"input": 3000, "output": 200},
+            "judge": {"input": 2500, "output": 150},
+        },
+        questions=[],
+    )
+
+
+def _baseline(tmp_path):
+    path = tmp_path / "answer_baseline.yaml"
+    write_baseline(_run_result(), path)
+    return load_baseline(path)
+
+
+def test_baseline_round_trips_and_feeds_the_next_estimate(tmp_path):
+    path = tmp_path / "answer_baseline.yaml"
+    write_baseline(_run_result(), path)
+    baseline = load_baseline(path)
+    assert baseline["configuration"]["prompt_version"] == "v1"
+    assert baseline["dataset_fingerprint"] == "f" * 64
+    assert baseline["metrics"]["citation_hit_rate"] == 0.80
+    assert baseline_tokens("generation", path) == TokenUsage(3000, 200)
+    assert baseline_tokens("judge", path) == TokenUsage(2500, 150)
+
+
+def test_incomplete_result_is_refused_and_leaves_baseline_unchanged(tmp_path):
+    path = tmp_path / "answer_baseline.yaml"
+    path.write_text("existing: true\n", encoding="utf-8")
+    with pytest.raises(BaselineRefused):
+        write_baseline(_run_result(complete=False), path)
+    assert path.read_text(encoding="utf-8") == "existing: true\n"
+
+
+def test_gate_passes_small_dip_inside_the_band_and_shows_it(tmp_path):
+    report = evaluate_gate(_run_result(citation_hit_rate=0.77), _baseline(tmp_path), load_config())
+    assert report.passed and report.failures == []
+    text = format_gate_report(report)
+    assert "citation_hit_rate" in text and "77.0%" in text and "80.0%" in text
+    assert "GATE PASSED" in text
+
+
+def test_gate_fails_below_tolerance_and_above_for_probe_violation_rate(tmp_path):
+    baseline = _baseline(tmp_path)
+    low = evaluate_gate(_run_result(groundedness_rate=0.80), baseline, load_config())
+    high = evaluate_gate(_run_result(probe_model_violation_rate=0.20), baseline, load_config())
+    assert not low.passed and low.failures[0].startswith("groundedness_rate")
+    assert not high.passed and high.failures[0].startswith("probe_model_violation_rate")
+    assert "GATE FAILED" in format_gate_report(low)
+
+
+def test_gate_fails_on_any_served_violation_whatever_the_other_metrics(tmp_path):
+    report = evaluate_gate(
+        _run_result(probe_served_violations=1, answer_rate=1.0), _baseline(tmp_path), load_config()
+    )
+    assert not report.passed
+    assert any("probe_served_violations" in f for f in report.failures)
+
+
+def test_gate_fails_on_dataset_change_and_incomplete_run(tmp_path):
+    baseline = _baseline(tmp_path)
+    changed = evaluate_gate(_run_result(fingerprint="0" * 64), baseline, load_config())
+    incomplete = evaluate_gate(_run_result(complete=False), baseline, load_config())
+    assert not changed.passed and "new baseline is needed" in changed.failures[0]
+    assert not incomplete.passed and "incomplete" in incomplete.failures[0]
+
+
+def test_gate_reports_latency_tokens_and_cost_without_failing(tmp_path):
+    report = evaluate_gate(
+        _run_result(p95_latency_s=99.0, input_tokens=10**7, output_tokens=10**6, cost_usd=9.0),
+        _baseline(tmp_path),
+        load_config(),
+    )
+    assert report.passed
+    assert {r.metric: r.status for r in report.rows}["cost_usd"] == "report"
+
+
+def test_gate_fails_when_a_baselined_metric_was_not_measured(tmp_path):
+    report = evaluate_gate(_run_result(answer_rate=None), _baseline(tmp_path), load_config())
+    assert not report.passed
+
+
+# Baseline identity (free): a runtime or prompt change must come with a re-measured baseline.
+
+
+def test_answer_baseline_matches_runtime_config():
+    baseline = load_baseline()
+    configuration = baseline["configuration"]
+    runtime = resolve_site_assistant_model()
+    assert runtime is not None, "set ANTHROPIC_API_KEY (any value) so the runtime model resolves"
+    assert configuration["model"] == runtime.model_name
+    assert configuration["prompt_version"] == seeded_prompt().version
+    assert baseline["judge"]["model"] == load_config().judge_model
+
+
+# Comparison
+
+
+def test_comparison_report_has_both_columns_and_differences():
+    production = _run_result()
+    candidate = _run_result(citation_hit_rate=0.70, cost_usd=0.10)
+    candidate.configuration = {"provider": "test", "model": "cheaper", "prompt_version": "v2"}
+    text = format_comparison(production, candidate)
+    assert "production: test/scripted prompt=v1" in text
+    assert "candidate : test/cheaper prompt=v2" in text
+    row = next(line for line in text.splitlines() if line.startswith("citation_hit_rate"))
+    assert "80.0%" in row and "70.0%" in row and "-10.0pt" in row
+
+
+@requires_postgres
+@pytest.mark.anyio
+async def test_comparison_runs_both_configurations_and_refuses_over_combined_cap():
+    entries = _reaching_entries(2)
+    prod, cand = ScriptedModel(_HONEST), ScriptedModel(_HONEST)
+    production = (ResolvedModel(prod.model, "test", "scripted"), seeded_prompt())
+    candidate = (ResolvedModel(cand.model, "test", "scripted"), seeded_prompt())
+    async with eval_corpus_session("eval_answer_compare") as db:
+        results = await run_comparison(
+            db,
+            production,
+            candidate,
+            _config(),
+            _judge()[1],
+            _judge_prompt(),
+            entries=entries,
+            probes=[],
+        )
+        assert len(prod.calls) == 2 and len(cand.calls) == 2
+        assert all(r.complete for r in results)
+
+        # 2 questions x $0.15 = $0.30 per configuration: one fits the $0.50 cap, the pair doesn't.
+        config = _config()
+        with pytest.raises(EstimateOverCap):
+            await run_comparison(
+                db,
+                production,
+                candidate,
+                config,
+                _judge()[1],
+                _judge_prompt(),
+                entries=entries,
+                probes=[],
+                estimate_tokens=TokenUsage(150_000, 0),
+                estimate_judge_tokens=TokenUsage(0, 0),
+            )
+    assert len(prod.calls) == 2 and len(cand.calls) == 2
