@@ -7,6 +7,7 @@ export const CURRENCY_CODES = [
   "GBP",
   "USD",
   "EUR",
+  "AMD",
   "KES",
   "UGX",
   "TZS",
