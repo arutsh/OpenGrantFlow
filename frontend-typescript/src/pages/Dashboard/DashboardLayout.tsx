@@ -108,18 +108,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </button>
                 {isGranteesExpanded && (
                   <ul className="mt-1 space-y-1">
-                    <li
-                      className="px-4 py-2 pl-11 text-sm text-slate-400 cursor-default"
-                      title="Coming soon"
-                    >
-                      List of Grantees
-                    </li>
-                    <li
-                      className="px-4 py-2 pl-11 text-sm text-slate-400 cursor-default"
-                      title="Coming soon"
-                    >
-                      Budgets
-                    </li>
+                    {/* "List of Grantees" and "Budgets" are hidden until those
+                        pages are built (they were non-clickable placeholders). */}
                     <li>
                       <Link
                         to="/reports/funded"

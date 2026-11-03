@@ -90,10 +90,12 @@ describe("DonorDashboard", () => {
     // Portfolio summary figures — the hero total is in the donor's own
     // currency (EUR), not either grantee's local operating currency (GBP).
     expect(screen.getByText("EUR across 2 budgets")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
-    expect(screen.getByText("funded budgets")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText("grantee organisations")).toBeInTheDocument();
+    // Counts follow confirmed budgets only (2 here), not the summary's
+    // all-status total_budgets (3), and only grantees with a confirmed budget.
+    expect(screen.getByText("funded budgets").previousElementSibling).toHaveTextContent("2");
+    expect(screen.getByText("grantee organisations").previousElementSibling).toHaveTextContent(
+      "2",
+    );
 
     // Grantee cards — proves both name occurrences (card + budgets-table
     // owner column) render fine, and the card total is in donor currency too.
@@ -147,8 +149,8 @@ describe("DonorDashboard", () => {
       {
         id: "b1",
         name: "GBP Budget",
-        status: "draft",
-        total_amount: 3000,
+        status: "confirmed",
+        total_amount: 2500,
         local_currency: "GBP",
         owner: { id: "g1", name: "Multi-Currency NGO" },
       },
@@ -280,7 +282,7 @@ describe("DonorDashboard", () => {
       {
         id: "b1",
         name: "Clean Water Phase 1",
-        status: "draft",
+        status: "confirmed",
         total_amount: 1000,
         local_currency: "GBP",
         owner: { id: "g1", name: "Hope Relief NGO" },
@@ -332,5 +334,103 @@ describe("DonorDashboard", () => {
     renderDashboard();
 
     await waitFor(() => expect(screen.getAllByText("Clean Water Phase 1").length).toBe(2));
+  });
+
+  it("hides grantees and budgets that are not confirmed from the cards and counts", async () => {
+    getFundedBudgetsSummaryMock.mockResolvedValue({
+      total_budgets: 3,
+      total_allocated_by_currency: [{ currency: "EUR", total_allocated: 1000 }],
+    });
+    getFundedGranteesMock.mockResolvedValue([
+      {
+        id: "g1",
+        name: "Confirmed NGO",
+        country: "GB",
+        budgets_count: 2,
+        total_allocated_by_currency: [{ currency: "EUR", total_allocated: 1000 }],
+      },
+      {
+        id: "g2",
+        name: "Draft Only NGO",
+        country: "GB",
+        budgets_count: 1,
+        total_allocated_by_currency: [],
+      },
+    ]);
+    getFundedBudgetsMock.mockResolvedValue([
+      {
+        id: "b1",
+        name: "Confirmed Budget",
+        status: "confirmed",
+        total_amount: 1000,
+        local_currency: "EUR",
+        actual_currency: "EUR",
+        estimated_exchange_rate: 1,
+        owner: { id: "g1", name: "Confirmed NGO" },
+      },
+      {
+        id: "b2",
+        name: "Archived Budget",
+        status: "archived",
+        total_amount: 500,
+        local_currency: "EUR",
+        owner: { id: "g1", name: "Confirmed NGO" },
+      },
+      {
+        id: "b3",
+        name: "Draft Budget",
+        status: "draft",
+        total_amount: 500,
+        local_currency: "EUR",
+        owner: { id: "g2", name: "Draft Only NGO" },
+      },
+    ]);
+
+    renderDashboard();
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Confirmed Budget").length).toBeGreaterThan(0),
+    );
+    expect(screen.getByText("funded budgets").previousElementSibling).toHaveTextContent("1");
+    expect(screen.getByText("grantee organisations").previousElementSibling).toHaveTextContent(
+      "1",
+    );
+    expect(screen.queryByText("Draft Only NGO")).not.toBeInTheDocument();
+    expect(screen.getByText("1 budget")).toBeInTheDocument();
+  });
+
+  it("falls back to the budget owner's name when the grantee name is missing, and hides a missing country", async () => {
+    getFundedBudgetsSummaryMock.mockResolvedValue({
+      total_budgets: 1,
+      total_allocated_by_currency: [{ currency: "EUR", total_allocated: 1000 }],
+    });
+    getFundedGranteesMock.mockResolvedValue([
+      {
+        id: "g1",
+        name: null,
+        country: null,
+        budgets_count: 1,
+        total_allocated_by_currency: [{ currency: "EUR", total_allocated: 1000 }],
+      },
+    ]);
+    getFundedBudgetsMock.mockResolvedValue([
+      {
+        id: "b1",
+        name: "Confirmed Budget",
+        status: "confirmed",
+        total_amount: 1000,
+        local_currency: "EUR",
+        actual_currency: "EUR",
+        estimated_exchange_rate: 1,
+        owner: { id: "g1", name: "Hayq Youth Network" },
+      },
+    ]);
+
+    renderDashboard();
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Hayq Youth Network").length).toBeGreaterThan(1),
+    );
+    expect(screen.getByText("HY")).toBeInTheDocument();
   });
 });
