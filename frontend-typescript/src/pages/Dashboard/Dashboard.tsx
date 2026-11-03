@@ -1,13 +1,26 @@
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getUserProfile } from "@/api/usersApi";
+import { getUserIdFromToken } from "@/utils/token";
 import GranteeDashboard from "./GranteeDashboard";
 import DonorDashboard from "@/pages/DonorDashboard/DonorDashboard";
 
 type DashboardView = "grantee" | "donor";
 
 export default function Dashboard() {
-  const { username, isRegistering, isNgo, isDonor } = useAuth();
+  const { token, isRegistering, isNgo, isDonor } = useAuth();
+  // Greet by the first name given at sign-up; fall back to a neutral "there"
+  // so the login email is never shown in the heading.
+  const userId = getUserIdFromToken(token);
+  const profileQuery = useQuery({
+    queryKey: ["userProfile", userId],
+    queryFn: () => getUserProfile(userId as string),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const firstName = profileQuery.data?.first_name?.trim();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,7 +43,7 @@ export default function Dashboard() {
       <div className="mb-12">
         <div className="flex items-center justify-between mb-2 flex-wrap gap-4">
           <h1 className="text-4xl font-bold text-slate-900">
-            Welcome back, <span className="text-slate-800 font-bold">{username}</span> 👋
+            Hi {firstName || "there"} 👋
           </h1>
           {hasBothRoles && (
             <div

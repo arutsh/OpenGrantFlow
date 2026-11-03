@@ -134,3 +134,16 @@ export const requestEmailChange = async (newEmail: string) => {
   });
   return data;
 };
+
+export interface UserProfile {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  email: string;
+}
+
+// Own profile via the existing GET /users/{id} (self-access is allowed).
+export const getUserProfile = async (userId: string): Promise<UserProfile> => {
+  const { data } = await gatewayApi.get(`/users/${userId}`);
+  return data;
+};

@@ -8,6 +8,16 @@ import { AuthProvider } from "@/context/AuthContext";
 import * as dashboardApi from "@/api/dashboardApi";
 import { GranteeDashboardSummary } from "@/api/dashboardApi";
 import * as donorDashboardApi from "@/api/donorDashboardApi";
+import * as usersApi from "@/api/usersApi";
+
+vi.mock("@/api/usersApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/usersApi")>();
+  return {
+    ...actual,
+    getUserProfile: vi.fn(),
+  };
+});
+const getUserProfileMock = usersApi.getUserProfile as unknown as Mock;
 
 vi.mock("@/api/dashboardApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/dashboardApi")>();
@@ -327,6 +337,35 @@ describe("Dashboard", () => {
         ).toBeInTheDocument(),
       );
       expect(screen.getByText("No confirmed budgets yet.")).toBeInTheDocument();
+    });
+  });
+
+  describe("greeting", () => {
+    it("greets the user by their registered first name", async () => {
+      localStorage.setItem("token", makeFakeJwt({ is_ngo: true, user_id: "u1" }));
+      localStorage.setItem("username", "toby+demo@example.com");
+      getUserProfileMock.mockResolvedValue({
+        id: "u1",
+        first_name: "Toby",
+        email: "toby+demo@example.com",
+      });
+      getGranteeDashboardSummaryMock.mockResolvedValue(makeSummary());
+      renderDashboard();
+
+      await waitFor(() => expect(screen.getByText(/Hi Toby/)).toBeInTheDocument());
+      expect(getUserProfileMock).toHaveBeenCalledWith("u1");
+      expect(screen.queryByText(/toby\+demo@example\.com/)).not.toBeInTheDocument();
+    });
+
+    it("falls back to 'Hi there' instead of the email when no first name is available", async () => {
+      localStorage.setItem("token", makeFakeJwt({ is_ngo: true, user_id: "u1" }));
+      localStorage.setItem("username", "toby+demo@example.com");
+      getUserProfileMock.mockResolvedValue({ id: "u1", first_name: null, email: "x" });
+      getGranteeDashboardSummaryMock.mockResolvedValue(makeSummary());
+      renderDashboard();
+
+      await waitFor(() => expect(screen.getByText(/Hi there/)).toBeInTheDocument());
+      expect(screen.queryByText(/toby\+demo@example\.com/)).not.toBeInTheDocument();
     });
   });
 });
