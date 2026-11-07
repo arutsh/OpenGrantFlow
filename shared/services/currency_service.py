@@ -2,6 +2,9 @@
 
 import pycountry
 
+# Precious metals, the test code, "no currency" and bond units: ISO 4217 codes but not money.
+NON_TENDER_CODES = {"XAU", "XAG", "XPT", "XPD", "XTS", "XXX", "XBA", "XBB", "XBC", "XBD"}
+
 # Build a quick cache of ISO currencies
 CURRENCIES = {
     currency.alpha_3: {
@@ -10,6 +13,7 @@ CURRENCIES = {
         "symbol": ("$" if currency.alpha_3 in ["USD", "CAD", "AUD"] else ""),  # Simplified
     }
     for currency in pycountry.currencies
+    if currency.alpha_3 not in NON_TENDER_CODES
 }
 
 

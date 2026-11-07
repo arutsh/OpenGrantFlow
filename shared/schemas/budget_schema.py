@@ -2,13 +2,14 @@
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from uuid import UUID
 from shared.schemas.budget_line_schema import BudgetLine
 from datetime import datetime, date
 
 from enum import Enum
 from shared.schemas.money import CalculatedMoney, Money, Rate
+from shared.services.currency_service import validate_currency
 
 
 class BudgetStatus(str, Enum):
@@ -27,6 +28,20 @@ class RejectTotalAmountMixin(BaseModel):
         if isinstance(data, dict) and "total_amount" in data:
             raise ValueError("total_amount is derived from budget lines and cannot be set")
         return data
+
+
+class ValidateCurrencyCodesMixin(BaseModel):
+    """Input schemas only: reads must keep returning legacy codes, so BudgetBase is untouched."""
+
+    @field_validator("local_currency", "actual_currency", check_fields=False)
+    @classmethod
+    def _validate_currency_code(cls, v: str | None) -> str | None:
+        v = v.strip() if v else v
+        if not v:
+            return None
+        if not validate_currency(v):
+            raise ValueError(f"{v} is not a valid ISO 4217 currency code")
+        return v.upper()
 
 
 # Budget Schemass
@@ -51,7 +66,7 @@ class BudgetBase(BaseModel):
     created_at: datetime | None = None
 
 
-class BudgetCreate(BudgetBase, RejectTotalAmountMixin):
+class BudgetCreate(BudgetBase, RejectTotalAmountMixin, ValidateCurrencyCodesMixin):
     name: str
 
     @model_validator(mode="after")
@@ -61,7 +76,7 @@ class BudgetCreate(BudgetBase, RejectTotalAmountMixin):
         return self
 
 
-class BudgetUpdate(BudgetBase, RejectTotalAmountMixin):
+class BudgetUpdate(BudgetBase, RejectTotalAmountMixin, ValidateCurrencyCodesMixin):
     id: UUID | None = None
     # Override BudgetBase's status default: on a PATCH, omitting `status`
     # must mean "leave it unchanged", not silently coerce to `draft` (the

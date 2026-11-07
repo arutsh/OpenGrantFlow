@@ -10,6 +10,7 @@ from app.services.tool_registry import ToolRegistry
 from shared.ai_client import AiClient, AiClientError, AiRateLimitedError, AiUnavailableError
 from shared.ai_client.schemas import ExcelExtractionResult
 from shared.schemas.excel_import_schema import ExcelPrepareImportResult
+from shared.services.currency_service import validate_currency
 
 # Below this, a line's raw row goes into extra_fields instead of being trusted as-is.
 CONFIDENCE_THRESHOLD = 0.6
@@ -20,6 +21,12 @@ class ImportExcelError(Exception):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+
+
+def _valid_currency_or_none(code: str | None) -> str | None:
+    """Unset (None) for blank or non-ISO codes so budget falls back to the org default."""
+    code = (code or "").strip()
+    return code.upper() if code and validate_currency(code) else None
 
 
 def _default_budget_name(source: str) -> str:
@@ -127,7 +134,7 @@ async def run_import_excel(
 
     if prepared.matched:
         line_dicts = [line.model_dump(mode="json") for line in (prepared.lines or [])]
-        local_currency = prepared.currency
+        local_currency = _valid_currency_or_none(prepared.currency)
         donor_template_id = prepared.donor_template_id
         excel_import_fingerprint = None
         excel_import_structure = None
@@ -151,10 +158,10 @@ async def run_import_excel(
         # owning org's own default currency. See budget-export-from-excel
         # design.md Decision 8.
         local_currency_confidence = extraction.local_currency_confidence or 0.0
-        local_currency = (
+        local_currency = _valid_currency_or_none(
             extraction.local_currency if local_currency_confidence >= CONFIDENCE_THRESHOLD else None
         )
-        actual_currency = extraction.target_currency
+        actual_currency = _valid_currency_or_none(extraction.target_currency)
         donor_total_amount = extraction.donor_total_amount
         duration_months = extraction.duration_months
         if donor_total_amount:

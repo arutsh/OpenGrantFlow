@@ -199,6 +199,44 @@ class TestNoMatchCallsAi:
         assert line["amount"] == 225000.0
         assert line["extra_fields"] is None
 
+    async def test_invalid_extracted_currencies_are_dropped_to_unset(self):
+        http = _http(
+            _http_response(
+                200,
+                {"matched": False, "fingerprint": "fp-c", "rows": [["A", "B", "1"]]},
+            )
+        )
+        ai_client = MagicMock()
+        ai_client.extract_budget_excel_lines = AsyncMock(
+            return_value=ExcelExtractionResult(
+                local_currency="US Dollars",
+                local_currency_confidence=0.95,
+                target_currency="$",
+                lines=[
+                    ExcelExtractionLine(
+                        category_name="A",
+                        description="B",
+                        local_amount=1.0,
+                        target_amount=None,
+                        confidence=0.9,
+                    )
+                ],
+                column_map=ExcelExtractionColumnMap(
+                    category_col=0, description_col=1, amount_col=2
+                ),
+            )
+        )
+        registry = _tool_registry(ToolResult(success=True, message="ok", created_resource_id="b-c"))
+
+        await run_import_excel(
+            _upload_file(), token="tok", http=http, ai_client=ai_client, tool_registry=registry
+        )
+
+        params = registry.call_tool.call_args.args[1]
+        assert params["local_currency"] is None
+        assert params["actual_currency"] is None
+        assert params["excel_import_structure"]["currency"] is None
+
     async def test_dual_currency_sheet_uses_local_amount_and_derives_exchange_rate(self):
         """See budget-export-from-excel design.md Decision 8: line amounts come
         from the local-currency column, donor_total_amount is the sheet's own

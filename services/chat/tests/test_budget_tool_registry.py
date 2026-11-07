@@ -166,6 +166,19 @@ class TestCallCreateBudget:
         assert result.success is False
         assert "Failed to create budget" in result.message
 
+    async def test_invalid_currency_422_relayed_with_detail(self):
+        detail = "actual_currency: Value error, ABC is not a valid ISO 4217 currency code"
+        registry = await _registry(_json_handler(422, {"detail": detail}))
+
+        result = await registry.call_tool(
+            "create_budget_with_lines",
+            {"budget_name": "X", "external_funder_name": "Y", "lines": []},
+            token="tok",
+        )
+
+        assert result.success is False
+        assert "ISO 4217" in result.message
+
 
 class TestCallCreateBudgetWithLines:
     async def test_success_returns_budget_id(self):
