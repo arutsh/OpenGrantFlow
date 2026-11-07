@@ -41,9 +41,7 @@ async def sum_committed_by_currency(
     result = await session.execute(
         select(
             BudgetModel.actual_currency,
-            func.sum(
-                func.coalesce(BudgetModel.total_amount, 0) / BudgetModel.estimated_exchange_rate
-            ),
+            func.sum(BudgetModel.total_amount / BudgetModel.estimated_exchange_rate),
         )
         .where(
             *_owned_confirmed_clause(customer_id),

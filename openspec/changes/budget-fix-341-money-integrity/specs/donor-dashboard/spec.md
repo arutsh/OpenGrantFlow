@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Budget Total Amount Tracking
-Each `Budget` SHALL carry a `total_amount` field equal to the sum of its budget lines' `amount`, kept up to date whenever a budget line belonging to it is created, updated, or deleted. The line change and the updated `total_amount` SHALL be persisted together or not at all, so a failed write never leaves a stale total. `total_amount` SHALL be server-derived only: a budget create or update request that supplies it SHALL be rejected with a 422 response.
+Each `Budget` SHALL expose a `total_amount` field equal to the sum of its budget lines' `amount`, derived from the lines whenever the budget is read rather than stored separately, so it can never disagree with them. `total_amount` SHALL be server-derived only: a budget create or update request that supplies it SHALL be rejected with a 422 response.
 
 #### Scenario: Budget line added
 - **WHEN** a new budget line with `amount = 500` is added to a budget whose current `total_amount` is 1000
@@ -17,9 +17,9 @@ Each `Budget` SHALL carry a `total_amount` field equal to the sum of its budget 
 - **WHEN** a budget line with `amount = 300` is deleted from a budget whose current `total_amount` is 1300
 - **THEN** the budget's `total_amount` SHALL become 1000
 
-#### Scenario: Failed recalculation rolls back the line change
-- **WHEN** a budget line is added but persisting the recalculated `total_amount` fails
-- **THEN** neither the new line nor a changed total is persisted, and the budget's lines and `total_amount` remain consistent
+#### Scenario: Budget with no lines
+- **WHEN** a budget has no budget lines
+- **THEN** its `total_amount` is `0`
 
 #### Scenario: Client-supplied total rejected
 - **WHEN** a client creates or updates a budget with a `total_amount` field in the request body

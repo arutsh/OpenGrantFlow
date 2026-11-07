@@ -1,4 +1,5 @@
 alembic==1.16.4
+pycountry==24.6.1
 pydantic-ai-slim[anthropic,openai]==2.1.0
 anthropic==0.111.0
 cryptography==44.0.3

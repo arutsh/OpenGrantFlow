@@ -84,9 +84,8 @@ class TestListTools:
             assert "budget_id" not in tool.parameters.get("properties", {})
 
     async def test_no_internal_fields_leak_through(self):
-        """The raw OpenAPI schema exposes owner_id/funding_customer_id/status/
-        total_amount/created_by/updated_by/created_at/updated_at on
-        create_budget and update_budget — all must be hidden from the model."""
+        """Internal fields in the raw create/update schemas must stay hidden; total_amount
+        is no longer in the spec at all, but stays listed as a regression guard."""
         registry = await _registry(_json_handler(200, {}))
         internal_fields = {
             "owner_id",
@@ -166,6 +165,19 @@ class TestCallCreateBudget:
 
         assert result.success is False
         assert "Failed to create budget" in result.message
+
+    async def test_invalid_currency_422_relayed_with_detail(self):
+        detail = "actual_currency: Value error, ABC is not a valid ISO 4217 currency code"
+        registry = await _registry(_json_handler(422, {"detail": detail}))
+
+        result = await registry.call_tool(
+            "create_budget_with_lines",
+            {"budget_name": "X", "external_funder_name": "Y", "lines": []},
+            token="tok",
+        )
+
+        assert result.success is False
+        assert "ISO 4217" in result.message
 
 
 class TestCallCreateBudgetWithLines:

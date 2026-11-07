@@ -30,6 +30,7 @@ async def get_or_create_category_service(
     budget_id: UUID,
     category_id: UUID | None = None,
     category_name: str | None = None,
+    commit: bool = True,
 ) -> BudgetCategoryModel:
     """Get an existing category by id/name, or create "Miscellaneous", scoped to budget_id."""
     if category_id:
@@ -42,7 +43,9 @@ async def get_or_create_category_service(
         return category
 
     name = category_name if category_name else "Miscellaneous"
-    result = await get_or_create_categories_by_names_service(db, valid_user, budget_id, [name])
+    result = await get_or_create_categories_by_names_service(
+        db, valid_user, budget_id, [name], commit=commit
+    )
     return result[name]
 
 
@@ -74,8 +77,7 @@ async def get_or_create_categories_by_names_service(
                     db, valid_user["user_id"], budget_id, names_and_codes, commit=commit
                 )
         except IntegrityError:
-            # budget_id is freshly created by the caller, so nothing else can
-            # already reference it — this race almost impossible situation.
+            # A concurrent request created the same name for this budget; re-read it.
             if commit:
                 await db.rollback()
             created = await get_budget_categories_by_names(db, budget_id, unique_names)

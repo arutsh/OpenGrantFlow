@@ -94,6 +94,11 @@ class TestSchemaParity:
         for name, tool in tools.items():
             assert "budget_id" not in tool.parameters.get("properties", {}), name
 
+    async def test_no_tool_schema_accepts_total_amount(self):
+        tools = await _schema_tools()
+        for name, tool in tools.items():
+            assert "total_amount" not in tool.parameters.get("properties", {}), name
+
 
 class TestSpecFetchFallback:
     async def test_uses_live_spec_when_reachable(self):

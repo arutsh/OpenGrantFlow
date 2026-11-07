@@ -1,3 +1,4 @@
+from decimal import Decimal
 import pytest
 from typing import Any
 from unittest.mock import patch, MagicMock, AsyncMock
@@ -111,7 +112,7 @@ class TestCreateBudgetWithLinesEndpoint:
                 return_value=_mock_categories_by_name("Personnel", "Supplies"),
             ),
             patch("app.services.budget_services.bulk_create_budget_lines", return_value=mock_lines),
-            patch("app.services.budget_services.recalculate_budget_total"),
+            patch("app.services.budget_services.reload_total_amount"),
             patch(
                 "app.services.budget_services.get_budget_service",
                 new_callable=AsyncMock,
@@ -138,7 +139,7 @@ class TestCreateBudgetWithLinesEndpoint:
             patch(
                 "app.services.budget_services.bulk_create_budget_lines", return_value=[mock_line]
             ),
-            patch("app.services.budget_services.recalculate_budget_total"),
+            patch("app.services.budget_services.reload_total_amount"),
             patch(
                 "app.services.budget_services.get_budget_service",
                 new_callable=AsyncMock,
@@ -214,7 +215,7 @@ class TestCreateBudgetWithLinesEndpoint:
             patch(
                 "app.services.budget_services.bulk_create_budget_lines", return_value=[mock_line]
             ),
-            patch("app.services.budget_services.recalculate_budget_total"),
+            patch("app.services.budget_services.reload_total_amount"),
             patch(
                 "app.services.budget_services.get_budget_service",
                 new_callable=AsyncMock,
@@ -246,7 +247,7 @@ class TestCreateBudgetWithLinesEndpoint:
                 return_value=_mock_categories_by_name("Personnel", "Supplies"),
             ),
             patch("app.services.budget_services.bulk_create_budget_lines", return_value=mock_lines),
-            patch("app.services.budget_services.recalculate_budget_total"),
+            patch("app.services.budget_services.reload_total_amount"),
             patch(
                 "app.services.budget_services.get_budget_service",
                 new_callable=AsyncMock,
@@ -314,6 +315,7 @@ class TestCreateBudgetWithLinesAtomicity:
 
         assert mock_commit.await_count == 1
         assert len(result["lines"]) == 2
+        assert result["total_amount"] == Decimal("1200")
 
     async def test_failure_after_lines_flushed_commits_nothing(self, db):
         user = ValidUserFactory()
@@ -326,10 +328,8 @@ class TestCreateBudgetWithLinesAtomicity:
             ],
         )
 
-        with patch(
-            "app.services.budget_services.recalculate_budget_total",
-            side_effect=RuntimeError("simulated failure after budget/category/line flush"),
-        ):
+        failure = RuntimeError("simulated failure after budget/category/line flush")
+        with patch.object(db, "commit", side_effect=failure):
             with pytest.raises(HTTPException):
                 await create_budget_with_lines_service(request, user, db)
 

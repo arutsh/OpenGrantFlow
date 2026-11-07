@@ -1,8 +1,5 @@
 from fastapi import status
-from app.crud.budget_crud import (
-    get_budget,
-    recalculate_budget_total,
-)
+from app.crud.budget_crud import get_budget
 from app.crud.budget_line_crud import (
     create_budget_line,
     get_budget_line,
@@ -41,6 +38,7 @@ async def create_budget_line_service(
         budget_id=budget_line.budget_id,
         category_id=budget_line.category_id,
         category_name=budget_line.category_name,
+        commit=False,
     )
 
     created_line = await create_budget_line(
@@ -52,7 +50,6 @@ async def create_budget_line_service(
         amount=budget_line.amount,
         extra_fields=budget_line.extra_fields,
     )
-    await recalculate_budget_total(db, budget_line.budget_id)
     return created_line
 
 
@@ -137,7 +134,6 @@ async def update_budget_line_service(
             "Budget Line not found",
             status.HTTP_404_NOT_FOUND,
         )
-    await recalculate_budget_total(db, updated_line.budget_id)
     return updated_line
 
 
@@ -151,7 +147,5 @@ async def delete_budget_line_service(budget_line_id: UUID, valid_user: dict, db)
         budget_id = valid_budget_line.budget_id
         budget = await get_budget(db, budget_id)
         _assert_budget_editable(budget)
-        result = await delete_budget_line(session=db, budget_line=valid_budget_line)
-        await recalculate_budget_total(db, budget_id)
-        return result
+        return await delete_budget_line(session=db, budget_line=valid_budget_line)
     return False

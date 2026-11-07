@@ -44,12 +44,17 @@ Scale 4 covers every ISO 4217 minor unit (max 4, e.g. CLF). Rates get their own,
 - **Python accumulators:** accumulators and defaults like `allocated_total = 0.0` / `line.amount or 0.0` become `Decimal(0)`.
 - **Excel export:** openpyxl writes `Decimal` cells natively.
 
-**5. Single-line writes commit once.**
-Mirror #286's pattern: `create_budget_line`/`update_budget_line`/`delete_budget_line` take `commit: bool` (`update_budget_line` currently has none). The service passes `commit=False`, then calls `recalculate_budget_total(..., commit=True)`, so the line and the total land in one commit.
-*Alternative:* an ORM flush event listener recalculating on any line mutation. Rejected because aggregate queries inside flush events are fragile under async sessions and hide the write from the reader of the service.
+**5. `total_amount` is computed on read, not stored.**
+`BudgetModel.total_amount` becomes a `column_property`: a correlated `COALESCE(SUM(budget_lines.amount), 0)` scalar subquery, loaded with the budget row and usable inside SQL expressions such as the dashboard aggregates. The `budgets.total_amount` column is dropped, and `recalculate_budget_total` is deleted with all its callers. A new index on `budget_lines.budget_id` keeps the subquery an index scan; Postgres doesn't index foreign-key columns automatically.
+Why: the stored copy is the only reason line writes needed a second commit, a row lock against concurrent writers, and a recalculation call on every write path, including `ledger-budget`'s upcoming ones. At current scale (tens to hundreds of lines per budget) the sum is negligible, and confirmed budgets lock their lines, so no snapshot is needed.
+*Alternatives:*
+- **Stored column, committed once per write** (this decision's earlier form): needs `SELECT … FOR NO KEY UPDATE` on the budget against lost updates between concurrent line writes, and every write path must remember to recalculate.
+- **Postgres trigger maintaining the column:** hides the logic in the DB and diverges from the SQLite unit-test schema.
+
+Add a stored or cached total back only if measurement shows reads need it.
 
 **6. `total_amount` is response-only and rejected on input.**
-It moves off `BudgetBase` onto the response schemas. `BudgetCreate` and `CreateBudgetWithLinesRequest` reject it with a 422. Removing the field alone isn't enough: under Pydantic's default `extra="ignore"` it would still be silently dropped. Both input schemas therefore reject the key explicitly (a before-mode check on its presence), so the 422 in the donor-dashboard spec holds. No client sends it today (the frontend builds update payloads field by field), and the `hide=True` entries for it in chat's `mcp_bridge.py` become removable. `recalculate_budget_total` logs a warning when the budget isn't found.
+It moves off `BudgetBase` onto the response schemas. `BudgetCreate`, `BudgetUpdate` (the PATCH body) and `CreateBudgetWithLinesRequest` reject it with a 422. `BudgetUpdate` was also the PATCH/restore `response_model`, and the frontend writes that response into its budget cache, so those routes now return a separate `BudgetUpdateResponse` that keeps `total_amount` (plus `confirmed_at`, `estimated_local_cap`, `can_save_as_template`). Removing the field alone isn't enough: under Pydantic's default `extra="ignore"` it would still be silently dropped. All three input schemas therefore reject the key explicitly (a before-mode check on its presence), so the 422 in the donor-dashboard spec holds. No client sends it today (the frontend builds update payloads field by field), and the `hide=True` entries for it in chat's `mcp_bridge.py` must be removed in the same release: FastMCP raises on a hide for an argument the live spec no longer has.
 
 **7. Currency validation lives on input schemas only.**
 A `field_validator` on `BudgetCreate` and `CreateBudgetWithLinesRequest` (the update path also uses `BudgetCreate`), matching `admin_management_schema.py` in users: uppercase the code, reject anything not in ISO 4217. It is deliberately **not** on `BudgetBase`, because response schemas inherit from it and one legacy row with a bad code would turn a GET into a 500.
@@ -65,9 +70,12 @@ A `field_validator` on `BudgetCreate` and `CreateBudgetWithLinesRequest` (the up
 - **[Risk] Existing rows carry float artefacts** (e.g. `0.30000000000000004`). → Mitigation: the migration casts with `round(col::numeric, 4)` / `round(col::numeric, 10)`. Totals are recomputed from the rounded lines afterwards, so `total_amount` still equals its line sum.
 - **[Trade-off] Client-side sums stay float.** Accepted under Decision 1. A ledger balance shown in the UI may be summed in JS, but the authoritative balance (`LedgerBalance`) is computed server-side.
 - **[Risk] Migration number collision** with `budget-feat-313-excel-export` group 5 (`000017`/`000018`, unmerged) and `budget-feat-326-customer-profile-cache`. → Mitigation: this change lands first and takes `000017`. The group-5 branch renumbers its two migrations and their `down_revision` on rebase.
+- **[Risk] Stale value in the session.** The `column_property` is loaded with the row, so code that writes lines and then reads `total_amount` in the same session (create-with-lines) must refresh it first. → Mitigation: refresh after the line writes, covered by a create-with-lines test.
+- **[Risk] Aggregates over a correlated subquery** (`SUM(total_amount / estimated_exchange_rate)` in the dashboard queries). → Mitigation: verify on Postgres; if it's rejected or slow, join a `GROUP BY budget_id` lines subquery instead.
 
 ## Migration Plan
 
 1. One Alembic migration: for each of the 9 columns, `ALTER COLUMN ... TYPE numeric(p, s) USING round(col::numeric, s)`, then recompute `budgets.total_amount` from its lines. At current data volumes the table rewrite is negligible.
 2. Deploy the migration and code together in one release. Old code tolerates `numeric` columns during the brief overlap, because SQLAlchemy's `Float` type converts returned `Decimal`s to `float`.
 3. **Rollback:** roll the code back first (for the same reason, it's safe on `numeric`), then optionally run the downgrade, which casts back to `double precision`. Values stay correct, and only exactness is lost.
+4. **Derived total (`000022`):** index `budget_lines(budget_id)` and drop `budgets.total_amount`. The downgrade re-adds it as `numeric(18, 4)` and backfills it from the lines. Old code reads the column, so on rollback run the downgrade *before* rolling back the code.

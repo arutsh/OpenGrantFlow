@@ -49,10 +49,10 @@ class TestColumnRoundTrip:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         from app.models.base import Base
-        from app.models.budget import BudgetModel
+        from app.models.budget import BudgetModel, BudgetLineModel
 
         engine = create_engine("sqlite:///:memory:")
-        Base.metadata.create_all(engine, tables=[BudgetModel.__table__])
+        Base.metadata.create_all(engine, tables=[BudgetModel.__table__, BudgetLineModel.__table__])
         session = sessionmaker(bind=engine)()
 
         confirmed_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -79,10 +79,10 @@ class TestColumnRoundTrip:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         from app.models.base import Base
-        from app.models.budget import BudgetModel
+        from app.models.budget import BudgetModel, BudgetLineModel
 
         engine = create_engine("sqlite:///:memory:")
-        Base.metadata.create_all(engine, tables=[BudgetModel.__table__])
+        Base.metadata.create_all(engine, tables=[BudgetModel.__table__, BudgetLineModel.__table__])
         session = sessionmaker(bind=engine)()
 
         budget = BudgetModel(name="Plain", owner_id=uuid4())

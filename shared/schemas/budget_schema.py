@@ -1,12 +1,15 @@
 # /services/budget/app/schemas/budget.py
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from uuid import UUID
 from shared.schemas.budget_line_schema import BudgetLine
 from datetime import datetime, date
 
 from enum import Enum
 from shared.schemas.money import CalculatedMoney, Money, Rate
+from shared.services.currency_service import validate_currency
 
 
 class BudgetStatus(str, Enum):
@@ -14,6 +17,31 @@ class BudgetStatus(str, Enum):
     draft = "draft"
     confirmed = "confirmed"
     archived = "archived"
+
+
+class RejectTotalAmountMixin(BaseModel):
+    """Input schemas only: total_amount is server-derived, so supplying it is a 422."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_total_amount(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "total_amount" in data:
+            raise ValueError("total_amount is derived from budget lines and cannot be set")
+        return data
+
+
+class ValidateCurrencyCodesMixin(BaseModel):
+    """Input schemas only: reads must keep returning legacy codes, so BudgetBase is untouched."""
+
+    @field_validator("local_currency", "actual_currency", check_fields=False)
+    @classmethod
+    def _validate_currency_code(cls, v: str | None) -> str | None:
+        v = v.strip() if v else v
+        if not v:
+            return None
+        if not validate_currency(v):
+            raise ValueError(f"{v} is not a valid ISO 4217 currency code")
+        return v.upper()
 
 
 # Budget Schemass
@@ -27,7 +55,6 @@ class BudgetBase(BaseModel):
     status: BudgetStatus = BudgetStatus.draft
     duration_months: int | None = None
     external_funder_name: str | None = None
-    total_amount: Money | None = None
     # Donor's stated commitment (in actual_currency) and the grantee's own
     # planning-time rate estimate, directly entered — never derived. Locked
     # once the budget is confirmed, same as local_currency/actual_currency.
@@ -39,7 +66,7 @@ class BudgetBase(BaseModel):
     created_at: datetime | None = None
 
 
-class BudgetCreate(BudgetBase):
+class BudgetCreate(BudgetBase, RejectTotalAmountMixin, ValidateCurrencyCodesMixin):
     name: str
 
     @model_validator(mode="after")
@@ -49,7 +76,7 @@ class BudgetCreate(BudgetBase):
         return self
 
 
-class BudgetUpdate(BudgetBase):
+class BudgetUpdate(BudgetBase, RejectTotalAmountMixin, ValidateCurrencyCodesMixin):
     id: UUID | None = None
     # Override BudgetBase's status default: on a PATCH, omitting `status`
     # must mean "leave it unchanged", not silently coerce to `draft` (the
@@ -57,10 +84,13 @@ class BudgetUpdate(BudgetBase):
     # for "unset"). BudgetBase's default only makes sense for BudgetCreate,
     # where a brand-new budget really does start as a draft.
     status: BudgetStatus | None = None
-    # Also the PATCH response shape (response_model=BudgetUpdate) — declared
-    # here, same as on Budget/BudgetWithLines, so a confirm/revert or a
-    # donor-commitment edit doesn't leave the caller with a stale value until
-    # it refetches (see budget_services._budget_update_response).
+
+
+class BudgetUpdateResponse(BudgetBase):
+    # PATCH/restore response; split from BudgetUpdate so the request can reject total_amount.
+    id: UUID | None = None
+    status: BudgetStatus | None = None
+    total_amount: Money | None = None
     confirmed_at: datetime | None = None
     estimated_local_cap: CalculatedMoney | None = None
     # Whether an optional "save as reusable template" prompt should be
@@ -72,6 +102,7 @@ class BudgetUpdate(BudgetBase):
 
 class Budget(BudgetBase):
     id: UUID
+    total_amount: Money | None = None
     # Read-only: set by the server (confirm transition) / derived at read
     # time (donor_total_amount × estimated_exchange_rate) — never accepted
     # from BudgetCreate/BudgetUpdate payloads since they don't inherit these.

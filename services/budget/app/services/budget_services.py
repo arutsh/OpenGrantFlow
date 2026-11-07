@@ -14,7 +14,7 @@ from app.crud.budget_crud import (
     delete_budget,
     get_funded_budgets_summary,
     get_funded_grantees,
-    recalculate_budget_total,
+    reload_total_amount,
 )
 from app.crud.budget_line_crud import bulk_create_budget_lines
 from app.services.budget_category_services import get_or_create_categories_by_names_service
@@ -37,7 +37,7 @@ from app.schemas.budget_schema import (
     BudgetCreate,
     BudgetStatus,
     BudgetStatusCount,
-    BudgetUpdate,
+    BudgetUpdateResponse,
     CurrencyAmount,
     ConversionProgress,
     BudgetBreakdownRow,
@@ -105,7 +105,6 @@ async def create_budget_service(
         actual_currency=budget.actual_currency,
         start_date=budget.start_date,
         duration_months=budget.duration_months,
-        total_amount=budget.total_amount,
         donor_total_amount=budget.donor_total_amount,
         estimated_exchange_rate=budget.estimated_exchange_rate,
         load_lines=include_user_datails,
@@ -607,7 +606,7 @@ async def create_budget_with_lines_service(
             # Fall back to the org's default currency (Decision 8); errors propagate, no silent GBP.
             local_currency = (await get_customer_cached(owner_id)).get("currency")
 
-        # commit=False throughout: budget + categories + lines + total are flushed only,
+        # commit=False throughout: budget + categories + lines are flushed only,
         # one db.commit() below makes the whole operation atomic (design.md Decision 5).
         new_budget = await create_budget_service(
             BudgetCreate(
@@ -649,7 +648,6 @@ async def create_budget_with_lines_service(
         created_lines = await bulk_create_budget_lines(
             db, valid_user["user_id"], new_budget.id, line_specs, commit=False
         )
-        await recalculate_budget_total(db, new_budget.id, commit=False)
 
         # Excel-import provenance, set only by chat's import-excel orchestration.
         if any(
@@ -667,6 +665,7 @@ async def create_budget_with_lines_service(
             new_budget.excel_import_lines_locked_count = request.excel_import_lines_locked_count
 
         await db.commit()
+        await reload_total_amount(db, new_budget)
 
         from app.schemas.budget_line_schema import BudgetLine
 
@@ -719,20 +718,10 @@ def _can_save_as_template(budget: BudgetModel) -> bool:
     return all(line.updated_at is None for line in budget.lines)
 
 
-def _budget_update_response(budget: BudgetModel) -> BudgetUpdate:
-    """PATCH /budgets/{id} response shape (response_model=BudgetUpdate).
-
-    Unlike Budget/BudgetWithLines — which are always built from an already-
-    enriched dict via populate_budget_with_user_details — handing the raw ORM
-    object straight to response_model=BudgetUpdate raises a pydantic
-    ValidationError (BudgetBase has no `from_attributes` config). Building a
-    real BudgetUpdate instance here also lets confirmed_at (a real column,
-    but excluded from BudgetBase) and estimated_local_cap (never a column at
-    all) round-trip on this response, matching what a follow-up GET would
-    return instead of leaving the caller with stale values until it
-    refetches.
-    """
-    return BudgetUpdate(
+def _budget_update_response(budget: BudgetModel) -> BudgetUpdateResponse:
+    """PATCH/restore response, including derived fields (estimated_local_cap,
+    can_save_as_template) so the caller isn't left with stale values until it refetches."""
+    return BudgetUpdateResponse(
         id=budget.id,
         name=budget.name,
         owner_id=budget.owner_id,

@@ -123,7 +123,6 @@ def _transform_config(*, budget_id: str | None) -> ToolTransform:
                     # treatment (SingleBudgetView auto-opens edit mode for
                     # ai_draft) rather than the plain-create default "draft".
                     "status": ArgTransformConfig(hide=True, default="ai_draft"),
-                    "total_amount": ArgTransformConfig(hide=True),
                     "created_by": ArgTransformConfig(hide=True),
                     "updated_by": ArgTransformConfig(hide=True),
                     "updated_at": ArgTransformConfig(hide=True),
@@ -145,7 +144,6 @@ def _transform_config(*, budget_id: str | None) -> ToolTransform:
                     "owner_id": ArgTransformConfig(hide=True),
                     "funding_customer_id": ArgTransformConfig(hide=True),
                     "status": ArgTransformConfig(hide=True),
-                    "total_amount": ArgTransformConfig(hide=True),
                     "created_by": ArgTransformConfig(hide=True),
                     "updated_by": ArgTransformConfig(hide=True),
                     "updated_at": ArgTransformConfig(hide=True),
@@ -156,10 +154,6 @@ def _transform_config(*, budget_id: str | None) -> ToolTransform:
                     # field.
                     "actual_currency": ArgTransformConfig(hide=True),
                     "start_date": ArgTransformConfig(hide=True),
-                    # Response-only fields on BudgetUpdate; hide from the request schema.
-                    "confirmed_at": ArgTransformConfig(hide=True),
-                    "estimated_local_cap": ArgTransformConfig(hide=True),
-                    "can_save_as_template": ArgTransformConfig(hide=True),
                 },
             ),
             GET_BUDGET_SUMMARY: ToolTransformConfig(

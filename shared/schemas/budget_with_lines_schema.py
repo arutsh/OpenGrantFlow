@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Any
 from uuid import UUID
+from shared.schemas.budget_schema import RejectTotalAmountMixin, ValidateCurrencyCodesMixin
 from shared.schemas.money import Money, Rate
 
 
@@ -11,7 +12,7 @@ class BudgetLineInput(BaseModel):
     extra_fields: dict[str, Any] | None = None
 
 
-class CreateBudgetWithLinesRequest(BaseModel):
+class CreateBudgetWithLinesRequest(RejectTotalAmountMixin, ValidateCurrencyCodesMixin):
     budget_name: str
     external_funder_name: str
     owner_id: UUID | None = None
