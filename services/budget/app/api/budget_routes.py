@@ -12,6 +12,7 @@ from app.schemas.budget_schema import (
     BudgetUpdate,
     BudgetUpdateResponse,
     BudgetWithLines,
+    CurrencyOption,
     FundedBudgetsSummary,
     GranteeSummary,
     FundedBudgetListItem,
@@ -43,6 +44,7 @@ from app.services.excel_import_service import prepare_excel_import_service
 from app.services.export_template_service import list_candidate_templates
 from app.crud.budget_crud import get_budgets_by_creator
 from shared.observability import set_span_attributes
+from shared.services.currency_service import get_all_currencies
 from shared.security.dependencies import get_validated_user
 from shared.storage.storage_service import safe_content_disposition
 
@@ -94,6 +96,12 @@ async def get_dashboard_summary_endpoint(
     valid_user=Depends(get_validated_user),
 ):
     return await get_grantee_dashboard_summary_service(valid_user.get("customer_id"), db)
+
+
+@router.get("/currencies", response_model=list[CurrencyOption])
+async def list_currencies_endpoint(valid_user=Depends(get_validated_user)):
+    currencies = sorted(get_all_currencies(), key=lambda c: c["code"])
+    return [{"code": c["code"], "name": c["name"]} for c in currencies]
 
 
 @router.get("/{budget_id}", response_model=BudgetWithLines)

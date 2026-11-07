@@ -16,6 +16,11 @@ from shared.schemas.budget_schema import FundedBudgetListItem  # noqa: F401
 from shared.schemas.money import CalculatedMoney, Money
 
 
+class CurrencyOption(BaseModel):
+    code: str
+    name: str
+
+
 class BudgetStatusCount(BaseModel):
     status: BudgetStatus
     count: int

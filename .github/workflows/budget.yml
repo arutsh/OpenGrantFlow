@@ -29,8 +29,22 @@ jobs:
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: grandflow_budget
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
-      BUDGET_DATABASE_URL: ${{ secrets.BUDGET_DATABASE_URL }}
+      BUDGET_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/grandflow_budget
       CUSTOMER_SERVICE_URL: ${{ secrets.CUSTOMER_SERVICE_URL }}
       PYTHONPATH: ${{ github.workspace }}/services/budget:${{ github.workspace }}
       USER_SERVICE_URL: http://localhost:8000
@@ -60,6 +74,13 @@ jobs:
           black --check ./app
           mypy ./app
           flake8 ./app
+
+      - name: Migration round-trip
+        working-directory: ./services/budget
+        run: |
+          alembic upgrade head
+          alembic downgrade -1
+          alembic upgrade head
 
       - name: Run tests
         working-directory: ./services/budget

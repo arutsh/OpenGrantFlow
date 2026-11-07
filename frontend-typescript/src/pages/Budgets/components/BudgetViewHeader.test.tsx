@@ -16,6 +16,7 @@ vi.mock("@/api/budgetApi", async (importOriginal) => {
     editBudget: vi.fn(),
     saveBudgetAsTemplate: vi.fn(),
     exportBudgetWorkbook: vi.fn(),
+    listCurrencies: vi.fn(),
   };
 });
 
@@ -55,6 +56,7 @@ const saveBudgetAsTemplateMock = budgetApi.saveBudgetAsTemplate as unknown as Re
 const exportBudgetWorkbookMock = budgetApi.exportBudgetWorkbook as unknown as ReturnType<
   typeof vi.fn
 >;
+const listCurrenciesMock = budgetApi.listCurrencies as unknown as Mock;
 const getCurrentCustomerIdMock = roleAccess.getCurrentCustomerId as unknown as ReturnType<
   typeof vi.fn
 >;
@@ -68,6 +70,11 @@ const getCustomersByIdsMock = customerApi.getCustomersByIds as unknown as Mock;
 // so this default survives every describe block's own beforeEach and only
 // needs overriding in the tests that actually exercise the picker.
 listDonorGranteesMock.mockResolvedValue([]);
+listCurrenciesMock.mockResolvedValue([
+  { code: "EUR", name: "Euro" },
+  { code: "JPY", name: "Yen" },
+  { code: "USD", name: "US Dollar" },
+]);
 
 function renderHeader(ui: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -393,6 +400,7 @@ describe("BudgetViewHeader currency-only edit via editTrigger", () => {
     expect(screen.queryByDisplayValue("Clean Water Phase 1")).not.toBeInTheDocument();
     expect(screen.getByText("Clean Water Phase 1")).toBeInTheDocument();
     expect(screen.getByText(/only the actual currency can be updated/i)).toBeInTheDocument();
+    await screen.findByRole("option", { name: /USD/ });
 
     await user.selectOptions(screen.getByRole("combobox"), "USD");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
@@ -730,6 +738,7 @@ describe("BudgetViewHeader metadata edit", () => {
 
     await user.click(screen.getByRole("button", { name: "Edit" }));
     const currencySelect = screen.getByText("Currency").nextElementSibling as HTMLSelectElement;
+    await screen.findAllByRole("option", { name: /USD/ });
     await user.selectOptions(currencySelect, "USD");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
 
@@ -739,6 +748,21 @@ describe("BudgetViewHeader metadata edit", () => {
         expect.objectContaining({ local_currency: "USD" }),
       ),
     );
+  });
+
+  it("offers currencies from the server list, beyond the old fixed subset", async () => {
+    const user = userEvent.setup();
+
+    renderHeader(
+      <BudgetViewHeader
+        budget={makeBudget({ local_currency: "EUR" })}
+        isLocked={false}
+        onBudgetUpdated={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(await screen.findAllByRole("option", { name: /JPY — Yen/ })).toHaveLength(2);
   });
 
   it("shows local currency as read-only text, not a select, during a currency-only edit", () => {
