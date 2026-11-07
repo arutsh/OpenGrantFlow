@@ -49,7 +49,7 @@ The system SHALL provide an endpoint that lists budgets where the authenticated 
 - **THEN** the system SHALL respond with 403 Forbidden
 
 ### Requirement: Budget Total Amount Tracking
-Each `Budget` SHALL carry a `total_amount` field equal to the sum of its budget lines' `amount`, kept up to date whenever a budget line belonging to it is created, updated, or deleted.
+Each `Budget` SHALL expose a `total_amount` field equal to the sum of its budget lines' `amount`, derived from the lines whenever the budget is read rather than stored separately, so it can never disagree with them. `total_amount` SHALL be server-derived only: a budget create or update request that supplies it SHALL be rejected with a 422 response.
 
 #### Scenario: Budget line added
 - **WHEN** a new budget line with `amount = 500` is added to a budget whose current `total_amount` is 1000
@@ -62,6 +62,14 @@ Each `Budget` SHALL carry a `total_amount` field equal to the sum of its budget 
 #### Scenario: Budget line deleted
 - **WHEN** a budget line with `amount = 300` is deleted from a budget whose current `total_amount` is 1300
 - **THEN** the budget's `total_amount` SHALL become 1000
+
+#### Scenario: Budget with no lines
+- **WHEN** a budget has no budget lines
+- **THEN** its `total_amount` is `0`
+
+#### Scenario: Client-supplied total rejected
+- **WHEN** a client creates or updates a budget with a `total_amount` field in the request body
+- **THEN** the system responds 422 stating `total_amount` is derived from budget lines, and no change is written
 
 ### Requirement: Donor Dashboard Page
 The system SHALL provide a donor dashboard page displaying the donor's total budgets, total allocated amount, grantee directory, and funded-budgets list, with a "View Reports" action per budget that is disabled and mocked pending the separate report-review feature. At viewport widths below `sm` (640px), the grantee directory SHALL render as a horizontally scrolling row of cards and the funded-budgets list SHALL render as a vertical list of compact rows (name, grantee, amount, status) instead of the table used at `sm` and above.
