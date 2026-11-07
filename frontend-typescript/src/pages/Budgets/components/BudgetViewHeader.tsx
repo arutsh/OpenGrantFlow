@@ -15,7 +15,7 @@ import {
   isBudgetOwner,
 } from "@/utils/roleAccess";
 import { formatDateOnly } from "@/utils/datetime";
-import { CURRENCY_CODES } from "@/utils/currency";
+import { useCurrencies } from "@/hooks/useCurrencies";
 import { Budget } from "../types/budget";
 import { STATUS_LABELS, STATUS_STYLES } from "../constants/budgetStatus";
 
@@ -83,6 +83,9 @@ export function BudgetViewHeader({
     number | ""
   >(budget.estimated_exchange_rate ?? "");
   const [isSaving, setIsSaving] = useState(false);
+  const currenciesQuery = useCurrencies(isEditMode);
+  const currencies = currenciesQuery.data ?? [];
+  const codes = currencies.map((c) => c.code);
   const [error, setError] = useState("");
   // True when edit mode was entered via editTrigger on an already-locked
   // (confirmed) budget — restricts the form to the actual-currency field
@@ -397,12 +400,12 @@ export function BudgetViewHeader({
                 >
                   {/* Always offer the current value, even if off-list. */}
                   {localCurrency &&
-                    !CURRENCY_CODES.includes(localCurrency) && (
+                    !codes.includes(localCurrency) && (
                       <option value={localCurrency}>{localCurrency}</option>
                     )}
-                  {CURRENCY_CODES.map((code) => (
+                  {currencies.map(({ code, name }) => (
                     <option key={code} value={code}>
-                      {code}
+                      {code} — {name}
                     </option>
                   ))}
                 </select>
@@ -422,16 +425,14 @@ export function BudgetViewHeader({
                   className="mt-0.5 border border-slate-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
                 >
                   <option value="">—</option>
-                  {/* Current value always offered, even if outside the fixed
-                    list below, so an existing budget's actual_currency is
-                    never silently blanked out just by entering edit mode. */}
+                  {/* Current value stays offered so entering edit mode never blanks it. */}
                   {actualCurrency &&
-                    !CURRENCY_CODES.includes(actualCurrency) && (
+                    !codes.includes(actualCurrency) && (
                       <option value={actualCurrency}>{actualCurrency}</option>
                     )}
-                  {CURRENCY_CODES.map((code) => (
+                  {currencies.map(({ code, name }) => (
                     <option key={code} value={code}>
-                      {code}
+                      {code} — {name}
                     </option>
                   ))}
                 </select>

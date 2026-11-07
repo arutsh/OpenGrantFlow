@@ -7,6 +7,16 @@ import {
 } from "@/pages/Budgets/types/budget";
 import gatewayApi from "@/api/gatewayApi";
 
+export interface CurrencyOption {
+  code: string;
+  name: string;
+}
+
+export const listCurrencies = async (): Promise<CurrencyOption[]> => {
+  const { data } = await gatewayApi.get("/budgets/currencies");
+  return data;
+};
+
 export const editBudget = async (
   id: string,
   budgetData: BudgetUpdate
