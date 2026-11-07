@@ -1,0 +1,229 @@
+# Written by `eval_site_assistant.py run --write-baseline`; do not hand-edit.
+recorded_at: '2026-11-01T18:03:56+00:00'
+configuration:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  prompt_version: v1
+judge:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  prompt_version: v1
+dataset_fingerprint: 4bc29565a1d1b085c8f87e94ed3c7dfd64e7cbd4c3440c07b81a5bc154bf2c9d
+metrics:
+  answer_rate: 0.96
+  refusal_accuracy: 1.0
+  citation_hit_rate: 0.9375
+  groundedness_rate: 0.9166666666666666
+  completeness_rate: 0.9375
+  judge_errors: 0
+  probe_model_violation_rate: 0.0
+  probe_served_violations: 0
+  model_errors: 0
+  provider_errors: 0
+  p95_latency_s: 2.6059932010030025
+  input_tokens: 194558
+  output_tokens: 15383
+  cost_usd: 0.271473
+categories:
+  about:
+    answer_rate: 1.0
+    refusal_accuracy: null
+    citation_hit_rate: 0.75
+    groundedness_rate: 1.0
+    completeness_rate: 1.0
+    judge_errors: 0
+    probe_model_violation_rate: null
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 1.8579923260003852
+    input_tokens: 11325
+    output_tokens: 946
+    cost_usd: 0.016055
+  budgeting:
+    answer_rate: 1.0
+    refusal_accuracy: null
+    citation_hit_rate: 1.0
+    groundedness_rate: 1.0
+    completeness_rate: 1.0
+    judge_errors: 0
+    probe_model_violation_rate: null
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 2.699482320000243
+    input_tokens: 30929
+    output_tokens: 2228
+    cost_usd: 0.042069
+  content_injection:
+    answer_rate: null
+    refusal_accuracy: null
+    citation_hit_rate: null
+    groundedness_rate: null
+    completeness_rate: null
+    judge_errors: 0
+    probe_model_violation_rate: 0.0
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 2.432972951002739
+    input_tokens: 9842
+    output_tokens: 724
+    cost_usd: 0.013462
+  currency:
+    answer_rate: 1.0
+    refusal_accuracy: null
+    citation_hit_rate: 1.0
+    groundedness_rate: 1.0
+    completeness_rate: 1.0
+    judge_errors: 0
+    probe_model_violation_rate: null
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 2.7329025300023204
+    input_tokens: 17797
+    output_tokens: 1479
+    cost_usd: 0.025192
+  dashboards:
+    answer_rate: 0.8
+    refusal_accuracy: null
+    citation_hit_rate: 1.0
+    groundedness_rate: 1.0
+    completeness_rate: 1.0
+    judge_errors: 0
+    probe_model_violation_rate: null
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 2.2318217789979826
+    input_tokens: 15220
+    output_tokens: 1280
+    cost_usd: 0.02162
+  export:
+    answer_rate: 1.0
+    refusal_accuracy: null
+    citation_hit_rate: 1.0
+    groundedness_rate: 0.6666666666666666
+    completeness_rate: 1.0
+    judge_errors: 0
+    probe_model_violation_rate: null
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 1.9331440779969853
+    input_tokens: 11057
+    output_tokens: 817
+    cost_usd: 0.015142
+  hallucination:
+    answer_rate: null
+    refusal_accuracy: null
+    citation_hit_rate: null
+    groundedness_rate: null
+    completeness_rate: null
+    judge_errors: 0
+    probe_model_violation_rate: 0.0
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 1.710800074000872
+    input_tokens: 5757
+    output_tokens: 332
+    cost_usd: 0.007417
+  open-source:
+    answer_rate: 1.0
+    refusal_accuracy: null
+    citation_hit_rate: 1.0
+    groundedness_rate: 0.6
+    completeness_rate: 0.6
+    judge_errors: 0
+    probe_model_violation_rate: null
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 2.0947186859993963
+    input_tokens: 14826
+    output_tokens: 1300
+    cost_usd: 0.021325999999999998
+  pilot:
+    answer_rate: 1.0
+    refusal_accuracy: null
+    citation_hit_rate: 0.5
+    groundedness_rate: 1.0
+    completeness_rate: 1.0
+    judge_errors: 0
+    probe_model_violation_rate: null
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 2.0439622909980244
+    input_tokens: 11332
+    output_tokens: 1118
+    cost_usd: 0.016922
+  question_injection:
+    answer_rate: null
+    refusal_accuracy: null
+    citation_hit_rate: null
+    groundedness_rate: null
+    completeness_rate: null
+    judge_errors: 0
+    probe_model_violation_rate: 0.0
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 2.6059932010030025
+    input_tokens: 11221
+    output_tokens: 729
+    cost_usd: 0.014866
+  reporting:
+    answer_rate: 0.8888888888888888
+    refusal_accuracy: null
+    citation_hit_rate: 1.0
+    groundedness_rate: 1.0
+    completeness_rate: 1.0
+    judge_errors: 0
+    probe_model_violation_rate: null
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 2.3033102299996244
+    input_tokens: 30686
+    output_tokens: 2360
+    cost_usd: 0.042486
+  security-privacy:
+    answer_rate: 1.0
+    refusal_accuracy: null
+    citation_hit_rate: 1.0
+    groundedness_rate: 0.8571428571428571
+    completeness_rate: 0.8571428571428571
+    judge_errors: 0
+    probe_model_violation_rate: null
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 2.230317354998988
+    input_tokens: 20965
+    output_tokens: 1826
+    cost_usd: 0.030095
+  unanswerable:
+    answer_rate: null
+    refusal_accuracy: 1.0
+    citation_hit_rate: null
+    groundedness_rate: null
+    completeness_rate: null
+    judge_errors: 0
+    probe_model_violation_rate: null
+    probe_served_violations: 0
+    model_errors: 0
+    provider_errors: 0
+    p95_latency_s: 1.7676456070003042
+    input_tokens: 3601
+    output_tokens: 244
+    cost_usd: 0.004821
+tokens_per_question:
+  generation:
+    input: 2069
+    output: 147
+  judge:
+    input: 1251
+    output: 122
