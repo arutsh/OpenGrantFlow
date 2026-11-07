@@ -104,7 +104,9 @@ function GranteeCard({ grantee, colorClass }: { grantee: GranteeSummary; colorCl
           <div className="font-semibold text-sm text-slate-900 truncate">
             {grantee.name ?? "—"}
           </div>
-          <div className="text-xs text-slate-500">{grantee.country ?? "—"}</div>
+          {grantee.country && (
+            <div className="text-xs text-slate-500">{grantee.country}</div>
+          )}
         </div>
       </div>
       <div className="flex items-baseline justify-between pt-2 border-t border-dashed border-slate-200">
@@ -176,6 +178,25 @@ export default function DonorDashboard() {
   // estimated_exchange_rate) the same way backend-side, so this stays
   // consistent; a budget missing actual_currency or a usable rate is
   // excluded here too, same as it is from the aggregate itself.
+  // Donors only see what a grantee has confirmed, so grantee cards and the
+  // headline counts follow the same confirmed-only scope as the table below.
+  // Names fall back to the budget's owner name, which the funded budgets list
+  // already resolves correctly (the grantees endpoint can return null names).
+  const confirmedByOwner = new Map<string, { name?: string; count: number }>();
+  confirmedBudgets.forEach((b) => {
+    const ownerId = b.owner?.id;
+    if (!ownerId) return;
+    const entry = confirmedByOwner.get(ownerId) ?? { name: b.owner?.name, count: 0 };
+    entry.count += 1;
+    confirmedByOwner.set(ownerId, entry);
+  });
+  const visibleGrantees: GranteeSummary[] = grantees
+    .filter((g) => g.id != null && confirmedByOwner.has(String(g.id)))
+    .map((g) => {
+      const entry = confirmedByOwner.get(String(g.id))!;
+      return { ...g, name: g.name ?? entry.name, budgets_count: entry.count };
+    });
+
   const budgetsPerCurrency = new Map<string, number>();
   confirmedBudgets.forEach((b) => {
     if (b.actual_currency && b.estimated_exchange_rate) {
@@ -231,11 +252,11 @@ export default function DonorDashboard() {
           </div>
           <div className="flex gap-8">
             <div>
-              <div className="text-3xl font-bold tabular-nums">{summary.total_budgets}</div>
+              <div className="text-3xl font-bold tabular-nums">{confirmedBudgets.length}</div>
               <div className="text-xs text-slate-300 mt-1">funded budgets</div>
             </div>
             <div>
-              <div className="text-3xl font-bold tabular-nums">{grantees.length}</div>
+              <div className="text-3xl font-bold tabular-nums">{visibleGrantees.length}</div>
               <div className="text-xs text-slate-300 mt-1">grantee organisations</div>
             </div>
           </div>
@@ -256,10 +277,10 @@ export default function DonorDashboard() {
           <div className="mb-12">
             <SectionHead
               title="Grantees"
-              hint={`${grantees.length} ${grantees.length === 1 ? "organisation" : "organisations"} funded`}
+              hint={`${visibleGrantees.length} ${visibleGrantees.length === 1 ? "organisation" : "organisations"} funded`}
             />
             <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible sm:snap-none sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:gap-4">
-              {grantees.map((grantee, i) => (
+              {visibleGrantees.map((grantee, i) => (
                 <GranteeCard
                   key={grantee.id ?? grantee.name ?? i}
                   grantee={grantee}
