@@ -20,6 +20,7 @@ vi.mock("@/api/currencyLedgerApi", async (importOriginal) => {
     deleteCurrencyConversion: vi.fn(),
     listCurrencyConversionsByBudget: vi.fn(),
     getLedgerBalance: vi.fn(),
+    resetLedger: vi.fn(),
   };
 });
 
@@ -47,6 +48,7 @@ const deleteCurrencyConversionMock =
 const listCurrencyConversionsByBudgetMock =
   currencyLedgerApi.listCurrencyConversionsByBudget as unknown as Mock;
 const getLedgerBalanceMock = currencyLedgerApi.getLedgerBalance as unknown as Mock;
+const resetLedgerMock = currencyLedgerApi.resetLedger as unknown as Mock;
 const getCurrentCustomerIdMock = roleAccess.getCurrentCustomerId as unknown as Mock;
 const isBudgetOwnerMock = roleAccess.isBudgetOwner as unknown as Mock;
 const isBudgetFunderMock = roleAccess.isBudgetFunder as unknown as Mock;
@@ -546,6 +548,119 @@ describe("CurrencyLedgerPanel", () => {
       await waitFor(() => expect(screen.getByText(allocatedDetail)).toBeInTheDocument());
       expect(screen.getByText("Conversion")).toBeInTheDocument();
       expect(screen.getByText(/rate 0.8000/)).toBeInTheDocument();
+    });
+  });
+
+  describe("reset ledger", () => {
+    const receipt = {
+      id: "r1",
+      budget_id: "b1",
+      amount: 5000,
+      received_at: "2026-06-01",
+    } as FundingReceipt;
+    const conversion = {
+      id: "c1",
+      budget_id: "b1",
+      donor_amount: 3000,
+      local_amount: 3750,
+      converted_at: "2026-06-03",
+    } as CurrencyConversion;
+
+    beforeEach(() => {
+      listFundingReceiptsByBudgetMock.mockResolvedValue([receipt]);
+      listCurrencyConversionsByBudgetMock.mockResolvedValue([conversion]);
+    });
+
+    async function openResetDialog(user: ReturnType<typeof userEvent.setup>) {
+      await waitFor(() => expect(screen.getByText("Funding receipt")).toBeInTheDocument());
+      await user.click(screen.getByRole("button", { name: "Reset Ledger" }));
+    }
+
+    it("hides the Reset Ledger action from the funder", async () => {
+      isBudgetOwnerMock.mockReturnValue(false);
+      isBudgetFunderMock.mockReturnValue(true);
+      renderPanel(makeBudget());
+
+      await waitFor(() => expect(screen.getByText("Funding receipt")).toBeInTheDocument());
+      expect(screen.queryByRole("button", { name: "Reset Ledger" })).not.toBeInTheDocument();
+    });
+
+    it("disables Reset Ledger when there is nothing to reset", async () => {
+      listFundingReceiptsByBudgetMock.mockResolvedValue([]);
+      listCurrencyConversionsByBudgetMock.mockResolvedValue([]);
+      renderPanel(makeBudget());
+
+      await waitFor(() =>
+        expect(
+          screen.getByText("No funding receipts or conversions recorded yet."),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.getByRole("button", { name: "Reset Ledger" })).toBeDisabled();
+    });
+
+    it("states what will be deleted and sends nothing until confirmed", async () => {
+      const user = userEvent.setup();
+      renderPanel(makeBudget());
+
+      await openResetDialog(user);
+
+      expect(
+        screen.getByText(/permanently deletes 1 funding receipt and 1 currency conversion/),
+      ).toBeInTheDocument();
+      expect(resetLedgerMock).not.toHaveBeenCalled();
+    });
+
+    it("sends nothing and keeps the ledger when the dialog is cancelled", async () => {
+      const user = userEvent.setup();
+      renderPanel(makeBudget());
+
+      await openResetDialog(user);
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByRole("heading", { name: "Reset Ledger" })).not.toBeInTheDocument();
+      expect(resetLedgerMock).not.toHaveBeenCalled();
+      expect(screen.getByText("Funding receipt")).toBeInTheDocument();
+      expect(screen.getByText("Conversion")).toBeInTheDocument();
+    });
+
+    it("resets on confirm, clearing the history and zeroing the balances", async () => {
+      const user = userEvent.setup();
+      resetLedgerMock.mockResolvedValue({ receipts_deleted: 1, conversions_deleted: 1 });
+      renderPanel(makeBudget());
+
+      await openResetDialog(user);
+      expect(screen.getByText("£12,000")).toBeInTheDocument();
+      expect(screen.getByText("£3,400")).toBeInTheDocument();
+      listFundingReceiptsByBudgetMock.mockResolvedValue([]);
+      listCurrencyConversionsByBudgetMock.mockResolvedValue([]);
+      getLedgerBalanceMock.mockResolvedValue(makeBalance({ donor_balance: 0, local_balance: 0 }));
+      await user.click(screen.getAllByRole("button", { name: "Reset Ledger" })[1]);
+
+      await waitFor(() => expect(resetLedgerMock).toHaveBeenCalledWith("b1"));
+      await waitFor(() =>
+        expect(
+          screen.getByText("No funding receipts or conversions recorded yet."),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.queryByRole("heading", { name: "Reset Ledger" })).not.toBeInTheDocument();
+      expect(screen.queryByText("£12,000")).not.toBeInTheDocument();
+      expect(screen.queryByText("£3,400")).not.toBeInTheDocument();
+      // Received-to-date, ready-to-spend and awaiting-conversion all read zero.
+      expect(screen.getAllByText("£0")).toHaveLength(3);
+      expect(getLedgerBalanceMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the dialog open and shows the backend error when the reset fails", async () => {
+      const user = userEvent.setup();
+      resetLedgerMock.mockRejectedValue({ response: { data: { detail: "Not allowed" } } });
+      renderPanel(makeBudget());
+
+      await openResetDialog(user);
+      await user.click(screen.getAllByRole("button", { name: "Reset Ledger" })[1]);
+
+      await waitFor(() => expect(screen.getByText("Not allowed")).toBeInTheDocument());
+      expect(screen.getByRole("heading", { name: "Reset Ledger" })).toBeInTheDocument();
+      expect(screen.getByText("Funding receipt")).toBeInTheDocument();
     });
   });
 });

@@ -13,6 +13,7 @@ from app.crud.currency_conversion_crud import (
     create_currency_conversion,
     delete_allocations_for_report_line,
     delete_currency_conversion,
+    delete_ledger_for_budget,
     get_currency_conversion,
     list_currency_conversions,
     list_unconsumed_lots,
@@ -262,6 +263,15 @@ async def delete_conversion_service(db, valid_user: dict, conversion_id: UUID) -
     async with budget_ledger_lock(db, budget.id):
         await _reject_if_allocated(db, conversion.id)
         return await delete_currency_conversion(db, conversion)
+
+
+async def reset_ledger_service(db, valid_user: dict, budget_id: UUID) -> dict:
+    """Wipes the budget's whole ledger regardless of allocation state; the
+    frontend's confirm dialog is the only guard against an accidental reset."""
+    budget = await _require_owned_budget(db, valid_user, budget_id)
+    async with budget_ledger_lock(db, budget.id):
+        receipts_deleted, conversions_deleted = await delete_ledger_for_budget(db, budget.id)
+    return {"receipts_deleted": receipts_deleted, "conversions_deleted": conversions_deleted}
 
 
 async def list_currency_conversions_service(db, valid_user: dict, budget_id: UUID):

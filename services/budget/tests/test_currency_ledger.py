@@ -15,7 +15,11 @@ from sqlalchemy import select
 
 from app.models.budget import BudgetModel, BudgetLineModel
 from app.models.report import ReportModel
-from app.models.currency_ledger import ReportLineConversionAllocationModel
+from app.models.currency_ledger import (
+    CurrencyConversionModel,
+    FundingReceiptModel,
+    ReportLineConversionAllocationModel,
+)
 from app.crud.currency_conversion_crud import list_unconsumed_lots, list_unsatisfied_report_lines
 from app.crud.report_line_crud import list_report_lines
 from app.schemas.budget_schema import BudgetStatus
@@ -42,6 +46,7 @@ from app.services.currency_ledger_services import (
     delete_receipt_service,
     update_conversion_service,
     delete_conversion_service,
+    reset_ledger_service,
 )
 from tests.factories.user import ValidUserFactory
 
@@ -633,3 +638,62 @@ class TestCurrencyConversionCorrection:
     async def test_unknown_conversion_is_rejected(self, db):
         with pytest.raises(DomainError):
             await delete_conversion_service(db, _valid_user(), uuid4())
+
+
+@pytest.mark.anyio
+class TestLedgerReset:
+    async def test_reset_clears_receipts_conversions_and_allocations(self, db):
+        budget = await _make_budget(db)
+        budget_line = await _make_budget_line(db, budget.id)
+        report = await _make_report(db, budget.id)
+        await _record_receipt(db, budget, amount=500.0, received_at=date(2026, 1, 1))
+        await _record_conversion(
+            db, budget, donor_amount=500.0, local_amount=550.0, converted_at=date(2026, 1, 2)
+        )
+        expense = await _make_expense(db, report, budget_line, amount=100.0)
+        assert await _allocations_for(db, expense.id)
+
+        result = await reset_ledger_service(db, _valid_user(), budget.id)
+
+        assert result == {"receipts_deleted": 1, "conversions_deleted": 1}
+        assert await list_funding_receipts_service(db, _valid_user(), budget.id) == []
+        assert await list_currency_conversions_service(db, _valid_user(), budget.id) == []
+        assert await _allocations_for(db, expense.id) == []
+        balance = await get_ledger_balance_service(db, _valid_user(), budget.id)
+        assert balance.donor_balance == Decimal(0)
+        # Expenses survive the reset, now unsatisfied, so local balance shows them as overspend.
+        assert balance.local_balance == Decimal("-100")
+
+    async def test_reset_leaves_other_budgets_untouched(self, db):
+        budget = await _make_budget(db)
+        other = await _make_budget(db)
+        await _record_receipt(db, budget, amount=500.0, received_at=date(2026, 1, 1))
+        await _record_receipt(db, other, amount=700.0, received_at=date(2026, 1, 1))
+        await _record_conversion(
+            db, other, donor_amount=100.0, local_amount=110.0, converted_at=date(2026, 1, 2)
+        )
+
+        await reset_ledger_service(db, _valid_user(), budget.id)
+
+        assert len(await list_funding_receipts_service(db, _valid_user(), other.id)) == 1
+        assert len(await list_currency_conversions_service(db, _valid_user(), other.id)) == 1
+
+    async def test_reset_on_empty_ledger_is_a_no_op(self, db):
+        budget = await _make_budget(db)
+
+        result = await reset_ledger_service(db, _valid_user(), budget.id)
+
+        assert result == {"receipts_deleted": 0, "conversions_deleted": 0}
+
+    async def test_funder_and_stranger_cannot_reset(self, db):
+        budget = await _make_budget(db, funding_customer_id=FUNDER_ID)
+        await _record_receipt(db, budget, amount=500.0, received_at=date(2026, 1, 1))
+
+        with pytest.raises(PermissionDenied):
+            await reset_ledger_service(db, _valid_user(FUNDER_ID), budget.id)
+        with pytest.raises(DomainError):
+            await reset_ledger_service(db, _valid_user(STRANGER_ID), budget.id)
+
+        rows = (await db.execute(select(FundingReceiptModel))).scalars().all()
+        assert len(rows) == 1
+        assert (await db.execute(select(CurrencyConversionModel))).scalars().all() == []

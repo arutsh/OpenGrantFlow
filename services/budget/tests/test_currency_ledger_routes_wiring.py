@@ -127,3 +127,18 @@ class TestCurrencyConversionRoutesWiring:
             response = client.delete(f"/api/v1/currency-conversions/{conversion_id}")
         mock_set_span_attrs.assert_any_call(conversion_id=conversion_id)
         assert response.json() == {"success": True}
+
+    def test_reset_route_sets_span_attributes(self, make_client):
+        client = make_client()
+        budget_id = uuid4()
+        result = {"receipts_deleted": 2, "conversions_deleted": 1}
+        with (
+            patch(
+                "app.api.currency_conversion_routes.reset_ledger_service",
+                return_value=result,
+            ),
+            patch("app.api.currency_conversion_routes.set_span_attributes") as mock_set_span_attrs,
+        ):
+            response = client.post(f"/api/v1/currency-conversions/reset/{budget_id}")
+        mock_set_span_attrs.assert_any_call(budget_id=budget_id)
+        assert response.json() == result

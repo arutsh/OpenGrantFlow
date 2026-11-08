@@ -19,6 +19,7 @@ import {
   deleteCurrencyConversion,
   listCurrencyConversionsByBudget,
   getLedgerBalance,
+  resetLedger,
 } from "@/api/currencyLedgerApi";
 import {
   fundingReceiptsQueryKey,
@@ -70,6 +71,7 @@ export function CurrencyLedgerPanel({
   const [editingConversion, setEditingConversion] = useState<CurrencyConversion | null>(null);
   const [historyError, setHistoryError] = useState("");
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   // Hooks always run (Rules of Hooks) — visibility is decided below, after
   // they're called, same as ReportsList's shouldShow pattern.
@@ -259,9 +261,21 @@ export function CurrencyLedgerPanel({
         </div>
 
         <div className="pt-4 border-t border-dashed border-slate-200">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-            History
-          </h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              History
+            </h3>
+            {owner && (
+              <Button
+                variant="danger"
+                className="text-xs py-1 px-2"
+                disabled={history.length === 0}
+                onClick={() => setIsResetModalOpen(true)}
+              >
+                Reset Ledger
+              </Button>
+            )}
+          </div>
           {historyError && <p className="text-sm text-red-600 mb-2">{historyError}</p>}
           {history.length === 0 ? (
             <p className="text-sm text-slate-500">
@@ -377,7 +391,74 @@ export function CurrencyLedgerPanel({
           }}
         />
       )}
+      {isResetModalOpen && (
+        <ResetLedgerModal
+          budget={budget}
+          receiptCount={receipts.length}
+          conversionCount={conversions.length}
+          onClose={() => setIsResetModalOpen(false)}
+        />
+      )}
     </Card>
+  );
+}
+
+function ResetLedgerModal({
+  budget,
+  receiptCount,
+  conversionCount,
+  onClose,
+}: {
+  budget: Budget;
+  receiptCount: number;
+  conversionCount: number;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [isResetting, setIsResetting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleReset = async () => {
+    setIsResetting(true);
+    setError("");
+    try {
+      await resetLedger(budget.id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: fundingReceiptsQueryKey(budget.id) }),
+        queryClient.invalidateQueries({ queryKey: currencyConversionsQueryKey(budget.id) }),
+        queryClient.invalidateQueries({ queryKey: ledgerBalanceQueryKey(budget.id) }),
+      ]);
+      onClose();
+    } catch (err) {
+      setError(errorDetail(err) || "Failed to reset the ledger. Please try again.");
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+  return (
+    <Modal isOpen onClose={onClose} title="Reset Ledger">
+      <p className="text-sm text-slate-700 mb-2">
+        This permanently deletes {plural(receiptCount, "funding receipt")} and{" "}
+        {plural(conversionCount, "currency conversion")} recorded for this budget, along with how
+        report expenses were matched to those conversions.
+      </p>
+      <p className="text-sm text-slate-500 mb-4">
+        Report lines are kept, but will show as not yet covered by converted funds. This cannot be
+        undone.
+      </p>
+      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="secondary" onClick={onClose} disabled={isResetting}>
+          Cancel
+        </Button>
+        <Button type="button" variant="danger" onClick={handleReset} disabled={isResetting}>
+          {isResetting ? "Resetting..." : "Reset Ledger"}
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
