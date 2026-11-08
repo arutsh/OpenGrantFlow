@@ -35,6 +35,26 @@ async def get_funding_receipt(
     return result.scalar_one_or_none()
 
 
+async def update_funding_receipt(
+    session: AsyncSession,
+    receipt: FundingReceiptModel,
+    amount: Decimal | None = None,
+    received_at: date | None = None,
+) -> FundingReceiptModel:
+    if amount is not None:
+        receipt.amount = amount
+    if received_at is not None:
+        receipt.received_at = received_at
+    await session.commit()
+    return receipt
+
+
+async def delete_funding_receipt(session: AsyncSession, receipt: FundingReceiptModel) -> bool:
+    await session.delete(receipt)
+    await session.commit()
+    return True
+
+
 async def list_funding_receipts(
     session: AsyncSession, budget_id: UUID | None = None
 ) -> list[FundingReceiptModel]:

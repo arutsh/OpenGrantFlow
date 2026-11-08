@@ -5,11 +5,17 @@ from typing import List
 from uuid import UUID
 
 from app.db.session import get_db
-from app.schemas.currency_ledger_schema import FundingReceipt, FundingReceiptCreate
+from app.schemas.currency_ledger_schema import (
+    FundingReceipt,
+    FundingReceiptCreate,
+    FundingReceiptUpdate,
+)
 from app.services.currency_ledger_services import (
     record_receipt_service,
     get_funding_receipt_service,
     list_funding_receipts_service,
+    update_receipt_service,
+    delete_receipt_service,
 )
 from shared.observability import set_span_attributes
 from shared.security.dependencies import get_validated_user
@@ -35,6 +41,25 @@ async def get_funding_receipt_view(
 ):
     set_span_attributes(funding_receipt_id=receipt_id)
     return await get_funding_receipt_service(db, valid_user, receipt_id)
+
+
+@router.patch("/{receipt_id}", response_model=FundingReceipt)
+async def update_funding_receipt_view(
+    receipt_id: UUID,
+    receipt: FundingReceiptUpdate,
+    db: AsyncSession = Depends(get_db),
+    valid_user=Depends(get_validated_user),
+):
+    set_span_attributes(funding_receipt_id=receipt_id)
+    return await update_receipt_service(db, valid_user, receipt_id, receipt)
+
+
+@router.delete("/{receipt_id}")
+async def delete_funding_receipt_view(
+    receipt_id: UUID, db: AsyncSession = Depends(get_db), valid_user=Depends(get_validated_user)
+):
+    set_span_attributes(funding_receipt_id=receipt_id)
+    return {"success": await delete_receipt_service(db, valid_user, receipt_id)}
 
 
 @router.get("/by-budget/{budget_id}", response_model=List[FundingReceipt])

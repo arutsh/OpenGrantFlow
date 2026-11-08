@@ -224,6 +224,11 @@ export interface FundingReceiptCreate {
   received_at: string;
 }
 
+export interface FundingReceiptUpdate {
+  amount?: number;
+  received_at?: string;
+}
+
 export interface CurrencyConversion {
   id: string;
   budget_id?: string;

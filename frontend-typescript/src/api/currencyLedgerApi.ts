@@ -2,6 +2,7 @@ import gatewayApi from "@/api/gatewayApi";
 import {
   FundingReceipt,
   FundingReceiptCreate,
+  FundingReceiptUpdate,
   CurrencyConversion,
   CurrencyConversionCreate,
   LedgerBalance,
@@ -23,6 +24,18 @@ export const listFundingReceiptsByBudget = async (
     `/funding-receipts/by-budget/${budgetId}`
   );
   return data;
+};
+
+export const updateFundingReceipt = async (
+  receiptId: string,
+  receipt: FundingReceiptUpdate
+): Promise<FundingReceipt> => {
+  const { data } = await gatewayApi.patch(`/funding-receipts/${receiptId}`, receipt);
+  return data;
+};
+
+export const deleteFundingReceipt = async (receiptId: string): Promise<void> => {
+  await gatewayApi.delete(`/funding-receipts/${receiptId}`);
 };
 
 // Currency conversions
