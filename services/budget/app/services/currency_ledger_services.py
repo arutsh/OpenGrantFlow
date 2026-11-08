@@ -19,14 +19,17 @@ from app.crud.currency_conversion_crud import (
 )
 from app.crud.funding_receipt_crud import (
     create_funding_receipt,
+    delete_funding_receipt,
     get_funding_receipt,
     list_funding_receipts,
+    update_funding_receipt,
 )
 from app.models.currency_ledger import CurrencyConversionModel
 from app.models.report import ReportLineModel
 from app.schemas.currency_ledger_schema import (
     CurrencyConversionCreate,
     FundingReceiptCreate,
+    FundingReceiptUpdate,
     LedgerBalance,
 )
 from app.services.report_services import _get_report_or_404, get_viewable_budget, is_owner
@@ -110,6 +113,27 @@ async def get_funding_receipt_service(db, valid_user: dict, receipt_id: UUID):
     receipt = await _get_funding_receipt_or_404(db, receipt_id)
     await get_viewable_budget(db, valid_user, receipt.budget_id)
     return receipt
+
+
+async def update_receipt_service(
+    db, valid_user: dict, receipt_id: UUID, receipt_in: FundingReceiptUpdate
+):
+    receipt = await _get_funding_receipt_or_404(db, receipt_id)
+    budget = await _require_owned_budget(db, valid_user, receipt.budget_id)
+    async with budget_ledger_lock(db, budget.id):
+        return await update_funding_receipt(
+            session=db,
+            receipt=receipt,
+            amount=receipt_in.amount,
+            received_at=receipt_in.received_at,
+        )
+
+
+async def delete_receipt_service(db, valid_user: dict, receipt_id: UUID) -> bool:
+    receipt = await _get_funding_receipt_or_404(db, receipt_id)
+    budget = await _require_owned_budget(db, valid_user, receipt.budget_id)
+    async with budget_ledger_lock(db, budget.id):
+        return await delete_funding_receipt(db, receipt)
 
 
 async def list_funding_receipts_service(db, valid_user: dict, budget_id: UUID):

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from uuid import UUID
 from datetime import date, datetime
 from shared.schemas.money import Money
@@ -18,6 +18,19 @@ class FundingReceiptCreate(FundingReceiptBase):
     budget_id: UUID
     amount: Money
     received_at: date
+
+
+class FundingReceiptUpdate(BaseModel):
+    amount: Money | None = None
+    received_at: date | None = None
+
+    @field_validator("amount", "received_at")
+    @classmethod
+    def reject_explicit_null(cls, v):
+        # Only runs for fields the client sent; omitting a field leaves it unchanged.
+        if v is None:
+            raise ValueError("must not be null; omit the field to leave it unchanged")
+        return v
 
 
 class FundingReceipt(FundingReceiptBase):

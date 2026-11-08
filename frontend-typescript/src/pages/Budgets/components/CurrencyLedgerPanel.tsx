@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
+import Button, { ConfirmDeleteButton } from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -10,6 +11,8 @@ import { formatDateOnly } from "@/utils/datetime";
 import { getCurrentCustomerId, isBudgetFunder, isBudgetOwner } from "@/utils/roleAccess";
 import {
   createFundingReceipt,
+  updateFundingReceipt,
+  deleteFundingReceipt,
   listFundingReceiptsByBudget,
   createCurrencyConversion,
   listCurrencyConversionsByBudget,
@@ -27,6 +30,12 @@ function impliedRate(conversion: CurrencyConversion): string {
   const { donor_amount, local_amount } = conversion;
   if (!donor_amount || !local_amount) return "—";
   return (donor_amount / local_amount).toFixed(4);
+}
+
+// String-only: a 422's `detail` is a list of objects and would crash React if rendered.
+function errorDetail(err: unknown): string | undefined {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  return typeof detail === "string" ? detail : undefined;
 }
 
 type HistoryEntry =
@@ -52,8 +61,12 @@ export function CurrencyLedgerPanel({
   // in principle exist on a since-reverted budget — deliberately kept
   // simple for now rather than mirroring that edge case unasked.
   const isConfirmed = budget.status === "confirmed";
+  const queryClient = useQueryClient();
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [editingReceipt, setEditingReceipt] = useState<FundingReceipt | null>(null);
   const [isConversionModalOpen, setIsConversionModalOpen] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
 
   // Hooks always run (Rules of Hooks) — visibility is decided below, after
   // they're called, same as ReportsList's shouldShow pattern.
@@ -73,6 +86,24 @@ export function CurrencyLedgerPanel({
     queryFn: () => getLedgerBalance(budget.id),
     enabled: canView && isConfirmed && hasActualCurrency,
   });
+
+  const handleDeleteReceipt = async (receiptId: string) => {
+    setHistoryError("");
+    setDeletingReceiptId(receiptId);
+    try {
+      await deleteFundingReceipt(receiptId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: fundingReceiptsQueryKey(budget.id) }),
+        queryClient.invalidateQueries({ queryKey: ledgerBalanceQueryKey(budget.id) }),
+      ]);
+    } catch (err) {
+      setHistoryError(
+        errorDetail(err) || "Failed to delete funding receipt. Please try again."
+      );
+    } finally {
+      setDeletingReceiptId(null);
+    }
+  };
 
   // Owner or funder may view the ledger, matching the backend's read
   // endpoints — recording a receipt/conversion, and setting the actual
@@ -221,6 +252,7 @@ export function CurrencyLedgerPanel({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
             History
           </h3>
+          {historyError && <p className="text-sm text-red-600 mb-2">{historyError}</p>}
           {history.length === 0 ? (
             <p className="text-sm text-slate-500">
               No funding receipts or conversions recorded yet.
@@ -241,6 +273,28 @@ export function CurrencyLedgerPanel({
                       <span className="text-slate-400 text-xs">
                         {formatDateOnly(entry.date) ?? "—"}
                       </span>
+                      {owner && (
+                        <span className="flex items-center gap-1">
+                          <Button
+                            variant="icon"
+                            title="Edit funding receipt"
+                            onClick={() => {
+                              setHistoryError("");
+                              setEditingReceipt(entry.item as FundingReceipt);
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                          <ConfirmDeleteButton
+                            variant="icon-danger"
+                            title="Delete funding receipt"
+                            disabled={deletingReceiptId !== null}
+                            onConfirm={() => handleDeleteReceipt(entry.item.id)}
+                          >
+                            <Trash2 size={14} />
+                          </ConfirmDeleteButton>
+                        </span>
+                      )}
                     </>
                   ) : (
                     <>
@@ -269,11 +323,15 @@ export function CurrencyLedgerPanel({
         </div>
       </CardContent>
 
-      {isReceiptModalOpen && (
-        <RecordFundingReceiptModal
+      {(isReceiptModalOpen || editingReceipt) && (
+        <FundingReceiptModal
           budget={budget}
-          isOpen={isReceiptModalOpen}
-          onClose={() => setIsReceiptModalOpen(false)}
+          receipt={editingReceipt ?? undefined}
+          isOpen
+          onClose={() => {
+            setIsReceiptModalOpen(false);
+            setEditingReceipt(null);
+          }}
         />
       )}
       {isConversionModalOpen && (
@@ -287,18 +345,22 @@ export function CurrencyLedgerPanel({
   );
 }
 
-function RecordFundingReceiptModal({
+// Records a new receipt, or edits `receipt` when one is passed.
+function FundingReceiptModal({
   budget,
+  receipt,
   isOpen,
   onClose,
 }: {
   budget: Budget;
+  receipt?: FundingReceipt;
   isOpen: boolean;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [amount, setAmount] = useState("");
-  const [receivedAt, setReceivedAt] = useState("");
+  const isEdit = !!receipt;
+  const [amount, setAmount] = useState(receipt?.amount != null ? String(receipt.amount) : "");
+  const [receivedAt, setReceivedAt] = useState(receipt?.received_at ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -307,23 +369,39 @@ function RecordFundingReceiptModal({
     setIsSaving(true);
     setError("");
     try {
-      await createFundingReceipt({
-        budget_id: budget.id,
-        amount: Number(amount),
-        received_at: receivedAt,
-      });
+      if (receipt) {
+        await updateFundingReceipt(receipt.id, {
+          amount: Number(amount),
+          received_at: receivedAt,
+        });
+      } else {
+        await createFundingReceipt({
+          budget_id: budget.id,
+          amount: Number(amount),
+          received_at: receivedAt,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: fundingReceiptsQueryKey(budget.id) });
       queryClient.invalidateQueries({ queryKey: ledgerBalanceQueryKey(budget.id) });
       onClose();
-    } catch {
-      setError("Failed to record funding receipt. Please try again.");
+    } catch (err) {
+      setError(
+        errorDetail(err) ||
+          (isEdit
+            ? "Failed to update funding receipt. Please try again."
+            : "Failed to record funding receipt. Please try again.")
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Record Payment Received">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEdit ? "Edit Payment Received" : "Record Payment Received"}
+    >
       <form onSubmit={handleSubmit} className="flex flex-col">
         <Input
           label={`Amount (${budget.actual_currency})`}
@@ -349,7 +427,7 @@ function RecordFundingReceiptModal({
             Cancel
           </Button>
           <Button type="submit" disabled={isSaving || !amount || !receivedAt}>
-            {isSaving ? "Saving..." : "Record Receipt"}
+            {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Record Receipt"}
           </Button>
         </div>
       </form>

@@ -1,8 +1,5 @@
-"""Route-level wiring checks for funding_receipt_routes.py and
-currency_conversion_routes.py's business-context span attributes, matching
-test_report_routes.py's TestReportRoutesWiring convention. (Service-layer
-ledger tests live in test_currency_ledger.py; this file is route-level
-only.) Both routers only expose create endpoints (no update/delete)."""
+"""Route-level span-attribute wiring for the funding-receipt and currency-conversion routers.
+Service-layer ledger tests live in test_currency_ledger.py."""
 
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -31,6 +28,41 @@ class TestFundingReceiptRoutesWiring:
             )
         mock_set_span_attrs.assert_any_call(budget_id=budget_id)
         mock_set_span_attrs.assert_any_call(funding_receipt_id=receipt_id)
+
+    def test_update_route_sets_span_attributes(self, make_client):
+        client = make_client()
+        receipt_id = uuid4()
+        with (
+            patch(
+                "app.api.funding_receipt_routes.update_receipt_service",
+                return_value=SimpleNamespace(id=receipt_id),
+            ) as mock_update,
+            patch("app.api.funding_receipt_routes.set_span_attributes") as mock_set_span_attrs,
+        ):
+            client.patch(f"/api/v1/funding-receipts/{receipt_id}", json={"amount": 5.0})
+        mock_set_span_attrs.assert_any_call(funding_receipt_id=receipt_id)
+        mock_update.assert_awaited_once()
+
+    def test_update_route_rejects_explicit_null(self, make_client):
+        client = make_client()
+        with patch("app.api.funding_receipt_routes.update_receipt_service") as mock_update:
+            response = client.patch(f"/api/v1/funding-receipts/{uuid4()}", json={"amount": None})
+        assert response.status_code == 422
+        mock_update.assert_not_called()
+
+    def test_delete_route_sets_span_attributes(self, make_client):
+        client = make_client()
+        receipt_id = uuid4()
+        with (
+            patch(
+                "app.api.funding_receipt_routes.delete_receipt_service",
+                return_value=True,
+            ),
+            patch("app.api.funding_receipt_routes.set_span_attributes") as mock_set_span_attrs,
+        ):
+            response = client.delete(f"/api/v1/funding-receipts/{receipt_id}")
+        mock_set_span_attrs.assert_any_call(funding_receipt_id=receipt_id)
+        assert response.json() == {"success": True}
 
 
 class TestCurrencyConversionRoutesWiring:

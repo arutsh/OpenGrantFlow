@@ -12,6 +12,8 @@ vi.mock("@/api/currencyLedgerApi", async (importOriginal) => {
   return {
     ...actual,
     createFundingReceipt: vi.fn(),
+    updateFundingReceipt: vi.fn(),
+    deleteFundingReceipt: vi.fn(),
     listFundingReceiptsByBudget: vi.fn(),
     createCurrencyConversion: vi.fn(),
     listCurrencyConversionsByBudget: vi.fn(),
@@ -30,6 +32,8 @@ vi.mock("@/utils/roleAccess", async (importOriginal) => {
 });
 
 const createFundingReceiptMock = currencyLedgerApi.createFundingReceipt as unknown as Mock;
+const updateFundingReceiptMock = currencyLedgerApi.updateFundingReceipt as unknown as Mock;
+const deleteFundingReceiptMock = currencyLedgerApi.deleteFundingReceipt as unknown as Mock;
 const listFundingReceiptsByBudgetMock =
   currencyLedgerApi.listFundingReceiptsByBudget as unknown as Mock;
 const createCurrencyConversionMock =
@@ -303,5 +307,114 @@ describe("CurrencyLedgerPanel", () => {
         screen.getByText("No funding receipts or conversions recorded yet."),
       ).toBeInTheDocument(),
     );
+  });
+
+  describe("funding receipt edit/delete", () => {
+    const receipt = {
+      id: "r1",
+      budget_id: "b1",
+      amount: 20000,
+      received_at: "2026-06-01",
+    } as FundingReceipt;
+
+    beforeEach(() => {
+      listFundingReceiptsByBudgetMock.mockResolvedValue([receipt]);
+    });
+
+    it("hides receipt Edit/Delete actions from the funder", async () => {
+      isBudgetOwnerMock.mockReturnValue(false);
+      isBudgetFunderMock.mockReturnValue(true);
+      renderPanel(makeBudget());
+
+      await waitFor(() => expect(screen.getByText("Funding receipt")).toBeInTheDocument());
+      expect(screen.queryByTitle("Edit funding receipt")).not.toBeInTheDocument();
+      expect(screen.queryByTitle("Delete funding receipt")).not.toBeInTheDocument();
+    });
+
+    it("edits a receipt from a prefilled modal and refetches the ledger", async () => {
+      const user = userEvent.setup();
+      updateFundingReceiptMock.mockResolvedValue({ ...receipt, amount: 25000 });
+      renderPanel(makeBudget());
+
+      await waitFor(() => expect(screen.getByTitle("Edit funding receipt")).toBeInTheDocument());
+      await user.click(screen.getByTitle("Edit funding receipt"));
+      expect(screen.getByRole("heading", { name: "Edit Payment Received" })).toBeInTheDocument();
+      expect(screen.getByLabelText(/^amount/i)).toHaveValue(20000);
+      expect(screen.getByLabelText(/received date/i)).toHaveValue("2026-06-01");
+
+      await user.clear(screen.getByLabelText(/^amount/i));
+      await user.type(screen.getByLabelText(/^amount/i), "25000");
+      await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+      await waitFor(() =>
+        expect(updateFundingReceiptMock).toHaveBeenCalledWith("r1", {
+          amount: 25000,
+          received_at: "2026-06-01",
+        }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("heading", { name: "Edit Payment Received" }),
+        ).not.toBeInTheDocument(),
+      );
+      expect(listFundingReceiptsByBudgetMock).toHaveBeenCalledTimes(2);
+      expect(getLedgerBalanceMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the edit modal open and shows the backend error when an update fails", async () => {
+      const user = userEvent.setup();
+      updateFundingReceiptMock.mockRejectedValue({
+        response: { data: { detail: "Funding Receipt Not found" } },
+      });
+      renderPanel(makeBudget());
+
+      await waitFor(() => expect(screen.getByTitle("Edit funding receipt")).toBeInTheDocument());
+      await user.click(screen.getByTitle("Edit funding receipt"));
+      await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+      await waitFor(() =>
+        expect(screen.getByText("Funding Receipt Not found")).toBeInTheDocument(),
+      );
+      expect(screen.getByRole("heading", { name: "Edit Payment Received" })).toBeInTheDocument();
+    });
+
+    it("deletes a receipt after confirmation and refetches the ledger", async () => {
+      const user = userEvent.setup();
+      deleteFundingReceiptMock.mockResolvedValue(undefined);
+      renderPanel(makeBudget());
+
+      await waitFor(() =>
+        expect(screen.getByTitle("Delete funding receipt")).toBeInTheDocument(),
+      );
+      listFundingReceiptsByBudgetMock.mockResolvedValue([]);
+      await user.click(screen.getByTitle("Delete funding receipt"));
+      expect(deleteFundingReceiptMock).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: "Yes" }));
+
+      await waitFor(() => expect(deleteFundingReceiptMock).toHaveBeenCalledWith("r1"));
+      await waitFor(() =>
+        expect(
+          screen.getByText("No funding receipts or conversions recorded yet."),
+        ).toBeInTheDocument(),
+      );
+      expect(getLedgerBalanceMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the receipt and shows the backend error when a delete fails", async () => {
+      const user = userEvent.setup();
+      deleteFundingReceiptMock.mockRejectedValue({
+        response: { data: { detail: "Permission denied" } },
+      });
+      renderPanel(makeBudget());
+
+      await waitFor(() =>
+        expect(screen.getByTitle("Delete funding receipt")).toBeInTheDocument(),
+      );
+      await user.click(screen.getByTitle("Delete funding receipt"));
+      await user.click(screen.getByRole("button", { name: "Yes" }));
+
+      await waitFor(() => expect(screen.getByText("Permission denied")).toBeInTheDocument());
+      expect(screen.getByText("Funding receipt")).toBeInTheDocument();
+    });
   });
 });

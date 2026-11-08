@@ -21,7 +21,11 @@ from app.crud.report_line_crud import list_report_lines
 from app.schemas.budget_schema import BudgetStatus
 from app.schemas.report_schema import ReportStatus
 from app.schemas.report_line_schema import ReportLineCreate, ReportLineUpdate
-from app.schemas.currency_ledger_schema import FundingReceiptCreate, CurrencyConversionCreate
+from app.schemas.currency_ledger_schema import (
+    CurrencyConversionCreate,
+    FundingReceiptCreate,
+    FundingReceiptUpdate,
+)
 from app.services.report_line_services import (
     create_report_line_service,
     update_report_line_service,
@@ -33,6 +37,8 @@ from app.services.currency_ledger_services import (
     get_ledger_balance_service,
     list_funding_receipts_service,
     list_currency_conversions_service,
+    update_receipt_service,
+    delete_receipt_service,
 )
 from tests.factories.user import ValidUserFactory
 
@@ -443,3 +449,73 @@ class TestFunderCanViewButNotRecord:
                     converted_at=date(2026, 1, 5),
                 ),
             )
+
+
+@pytest.mark.anyio
+class TestFundingReceiptCorrection:
+    async def test_owner_updates_receipt_and_balance_reflects_it(self, db):
+        budget = await _make_budget(db)
+        receipt = await _record_receipt(db, budget, 1000.0, date(2026, 1, 5))
+
+        updated = await update_receipt_service(
+            db,
+            _valid_user(),
+            receipt.id,
+            FundingReceiptUpdate(amount=1200.0, received_at=date(2026, 1, 6)),
+        )
+
+        assert updated.amount == Decimal("1200")
+        assert updated.received_at == date(2026, 1, 6)
+        balance = await get_ledger_balance_service(db, _valid_user(), budget.id)
+        assert balance.donor_balance == Decimal("1200")
+
+    async def test_partial_update_keeps_omitted_fields(self, db):
+        budget = await _make_budget(db)
+        receipt = await _record_receipt(db, budget, 1000.0, date(2026, 1, 5))
+
+        updated = await update_receipt_service(
+            db, _valid_user(), receipt.id, FundingReceiptUpdate(amount=900.0)
+        )
+
+        assert updated.amount == Decimal("900")
+        assert updated.received_at == date(2026, 1, 5)
+
+    async def test_owner_deletes_receipt_and_balance_drops_it(self, db):
+        budget = await _make_budget(db)
+        keep = await _record_receipt(db, budget, 300.0, date(2026, 1, 5))
+        gone = await _record_receipt(db, budget, 700.0, date(2026, 1, 6))
+
+        assert await delete_receipt_service(db, _valid_user(), gone.id) is True
+
+        receipts = await list_funding_receipts_service(db, _valid_user(), budget.id)
+        assert [r.id for r in receipts] == [keep.id]
+        balance = await get_ledger_balance_service(db, _valid_user(), budget.id)
+        assert balance.donor_balance == Decimal("300")
+
+    async def test_funder_cannot_update_or_delete_a_receipt(self, db):
+        budget = await _make_budget(db, funding_customer_id=FUNDER_ID)
+        receipt = await _record_receipt(db, budget, 1000.0, date(2026, 1, 5))
+
+        with pytest.raises(PermissionDenied):
+            await update_receipt_service(
+                db, _valid_user(FUNDER_ID), receipt.id, FundingReceiptUpdate(amount=1.0)
+            )
+        with pytest.raises(PermissionDenied):
+            await delete_receipt_service(db, _valid_user(FUNDER_ID), receipt.id)
+
+        assert receipt.amount == Decimal("1000")
+
+    async def test_stranger_cannot_update_or_delete_a_receipt(self, db):
+        budget = await _make_budget(db)
+        receipt = await _record_receipt(db, budget, 1000.0, date(2026, 1, 5))
+
+        with pytest.raises(DomainError):
+            await update_receipt_service(
+                db, _valid_user(STRANGER_ID), receipt.id, FundingReceiptUpdate(amount=1.0)
+            )
+        with pytest.raises(DomainError):
+            await delete_receipt_service(db, _valid_user(STRANGER_ID), receipt.id)
+
+    async def test_unknown_receipt_is_rejected(self, db):
+        with pytest.raises(DomainError):
+            await delete_receipt_service(db, _valid_user(), uuid4())
