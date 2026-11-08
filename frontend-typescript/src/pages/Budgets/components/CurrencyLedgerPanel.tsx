@@ -15,6 +15,8 @@ import {
   deleteFundingReceipt,
   listFundingReceiptsByBudget,
   createCurrencyConversion,
+  updateCurrencyConversion,
+  deleteCurrencyConversion,
   listCurrencyConversionsByBudget,
   getLedgerBalance,
 } from "@/api/currencyLedgerApi";
@@ -65,8 +67,9 @@ export function CurrencyLedgerPanel({
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [editingReceipt, setEditingReceipt] = useState<FundingReceipt | null>(null);
   const [isConversionModalOpen, setIsConversionModalOpen] = useState(false);
+  const [editingConversion, setEditingConversion] = useState<CurrencyConversion | null>(null);
   const [historyError, setHistoryError] = useState("");
-  const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   // Hooks always run (Rules of Hooks) — visibility is decided below, after
   // they're called, same as ReportsList's shouldShow pattern.
@@ -87,21 +90,28 @@ export function CurrencyLedgerPanel({
     enabled: canView && isConfirmed && hasActualCurrency,
   });
 
-  const handleDeleteReceipt = async (receiptId: string) => {
+  const handleDeleteEntry = async (entry: HistoryEntry) => {
+    const isReceipt = entry.kind === "receipt";
     setHistoryError("");
-    setDeletingReceiptId(receiptId);
+    setDeletingKey(`${entry.kind}-${entry.item.id}`);
     try {
-      await deleteFundingReceipt(receiptId);
+      if (isReceipt) await deleteFundingReceipt(entry.item.id);
+      else await deleteCurrencyConversion(entry.item.id);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: fundingReceiptsQueryKey(budget.id) }),
+        queryClient.invalidateQueries({
+          queryKey: isReceipt
+            ? fundingReceiptsQueryKey(budget.id)
+            : currencyConversionsQueryKey(budget.id),
+        }),
         queryClient.invalidateQueries({ queryKey: ledgerBalanceQueryKey(budget.id) }),
       ]);
     } catch (err) {
       setHistoryError(
-        errorDetail(err) || "Failed to delete funding receipt. Please try again."
+        errorDetail(err) ||
+          `Failed to delete ${isReceipt ? "funding receipt" : "currency conversion"}. Please try again.`
       );
     } finally {
-      setDeletingReceiptId(null);
+      setDeletingKey(null);
     }
   };
 
@@ -288,8 +298,8 @@ export function CurrencyLedgerPanel({
                           <ConfirmDeleteButton
                             variant="icon-danger"
                             title="Delete funding receipt"
-                            disabled={deletingReceiptId !== null}
-                            onConfirm={() => handleDeleteReceipt(entry.item.id)}
+                            disabled={deletingKey !== null}
+                            onConfirm={() => handleDeleteEntry(entry)}
                           >
                             <Trash2 size={14} />
                           </ConfirmDeleteButton>
@@ -314,6 +324,28 @@ export function CurrencyLedgerPanel({
                         rate {impliedRate(entry.item as CurrencyConversion)} ·{" "}
                         {formatDateOnly(entry.date) ?? "—"}
                       </span>
+                      {owner && (
+                        <span className="flex items-center gap-1">
+                          <Button
+                            variant="icon"
+                            title="Edit currency conversion"
+                            onClick={() => {
+                              setHistoryError("");
+                              setEditingConversion(entry.item as CurrencyConversion);
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                          <ConfirmDeleteButton
+                            variant="icon-danger"
+                            title="Delete currency conversion"
+                            disabled={deletingKey !== null}
+                            onConfirm={() => handleDeleteEntry(entry)}
+                          >
+                            <Trash2 size={14} />
+                          </ConfirmDeleteButton>
+                        </span>
+                      )}
                     </>
                   )}
                 </li>
@@ -334,11 +366,15 @@ export function CurrencyLedgerPanel({
           }}
         />
       )}
-      {isConversionModalOpen && (
-        <RecordCurrencyConversionModal
+      {(isConversionModalOpen || editingConversion) && (
+        <CurrencyConversionModal
           budget={budget}
-          isOpen={isConversionModalOpen}
-          onClose={() => setIsConversionModalOpen(false)}
+          conversion={editingConversion ?? undefined}
+          isOpen
+          onClose={() => {
+            setIsConversionModalOpen(false);
+            setEditingConversion(null);
+          }}
         />
       )}
     </Card>
@@ -435,19 +471,27 @@ function FundingReceiptModal({
   );
 }
 
-function RecordCurrencyConversionModal({
+// Records a new conversion, or edits `conversion` when one is passed.
+function CurrencyConversionModal({
   budget,
+  conversion,
   isOpen,
   onClose,
 }: {
   budget: Budget;
+  conversion?: CurrencyConversion;
   isOpen: boolean;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [donorAmount, setDonorAmount] = useState("");
-  const [localAmount, setLocalAmount] = useState("");
-  const [convertedAt, setConvertedAt] = useState("");
+  const isEdit = !!conversion;
+  const [donorAmount, setDonorAmount] = useState(
+    conversion?.donor_amount != null ? String(conversion.donor_amount) : ""
+  );
+  const [localAmount, setLocalAmount] = useState(
+    conversion?.local_amount != null ? String(conversion.local_amount) : ""
+  );
+  const [convertedAt, setConvertedAt] = useState(conversion?.converted_at ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -456,24 +500,37 @@ function RecordCurrencyConversionModal({
     setIsSaving(true);
     setError("");
     try {
-      await createCurrencyConversion({
-        budget_id: budget.id,
+      const fields = {
         donor_amount: Number(donorAmount),
         local_amount: Number(localAmount),
         converted_at: convertedAt,
-      });
+      };
+      if (conversion) {
+        await updateCurrencyConversion(conversion.id, fields);
+      } else {
+        await createCurrencyConversion({ budget_id: budget.id, ...fields });
+      }
       queryClient.invalidateQueries({ queryKey: currencyConversionsQueryKey(budget.id) });
       queryClient.invalidateQueries({ queryKey: ledgerBalanceQueryKey(budget.id) });
       onClose();
-    } catch {
-      setError("Failed to record currency conversion. Please try again.");
+    } catch (err) {
+      setError(
+        errorDetail(err) ||
+          (isEdit
+            ? "Failed to update currency conversion. Please try again."
+            : "Failed to record currency conversion. Please try again.")
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Record Currency Conversion">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEdit ? "Edit Currency Conversion" : "Record Currency Conversion"}
+    >
       <form onSubmit={handleSubmit} className="flex flex-col">
         <Input
           label={`Donor Amount (${budget.actual_currency})`}
@@ -514,7 +571,7 @@ function RecordCurrencyConversionModal({
             type="submit"
             disabled={isSaving || !donorAmount || !localAmount || !convertedAt}
           >
-            {isSaving ? "Saving..." : "Record Conversion"}
+            {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Record Conversion"}
           </Button>
         </div>
       </form>

@@ -56,6 +56,20 @@ class CurrencyConversionCreate(CurrencyConversionBase):
     converted_at: date
 
 
+class CurrencyConversionUpdate(BaseModel):
+    donor_amount: Money | None = None
+    local_amount: Money | None = None
+    converted_at: date | None = None
+
+    @field_validator("donor_amount", "local_amount", "converted_at")
+    @classmethod
+    def reject_explicit_null(cls, v):
+        # Only runs for fields the client sent; omitting a field leaves it unchanged.
+        if v is None:
+            raise ValueError("must not be null; omit the field to leave it unchanged")
+        return v
+
+
 class CurrencyConversion(CurrencyConversionBase):
     id: UUID
     model_config = ConfigDict(from_attributes=True)

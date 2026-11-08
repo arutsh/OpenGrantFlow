@@ -1,0 +1,8 @@
+rules:
+  review: { level: block }
+  comment_brevity: { level: block, max_lines: 2 }
+  test_factories: { level: warn, discouraged_calls: [make_valid_user] }
+  branch_name:
+    level: block
+    pattern: "^[A-Z][A-Za-z]*/(feat|fix|chore|refactor)/Issue-[0-9]+/.+$"
+  secrets: { patterns: [".devrc"] }

@@ -23,6 +23,7 @@ from app.schemas.report_schema import ReportStatus
 from app.schemas.report_line_schema import ReportLineCreate, ReportLineUpdate
 from app.schemas.currency_ledger_schema import (
     CurrencyConversionCreate,
+    CurrencyConversionUpdate,
     FundingReceiptCreate,
     FundingReceiptUpdate,
 )
@@ -39,6 +40,8 @@ from app.services.currency_ledger_services import (
     list_currency_conversions_service,
     update_receipt_service,
     delete_receipt_service,
+    update_conversion_service,
+    delete_conversion_service,
 )
 from tests.factories.user import ValidUserFactory
 
@@ -519,3 +522,114 @@ class TestFundingReceiptCorrection:
     async def test_unknown_receipt_is_rejected(self, db):
         with pytest.raises(DomainError):
             await delete_receipt_service(db, _valid_user(), uuid4())
+
+
+@pytest.mark.anyio
+class TestCurrencyConversionCorrection:
+    async def test_owner_updates_unallocated_conversion_and_rate_follows(self, db):
+        budget = await _make_budget(db)
+        conversion = await _record_conversion(
+            db, budget, donor_amount=500.0, local_amount=550.0, converted_at=date(2026, 1, 2)
+        )
+
+        updated = await update_conversion_service(
+            db,
+            _valid_user(),
+            conversion.id,
+            CurrencyConversionUpdate(
+                donor_amount=400.0, local_amount=500.0, converted_at=date(2026, 1, 3)
+            ),
+        )
+
+        assert updated.donor_amount == Decimal("400")
+        assert updated.local_amount == Decimal("500")
+        assert updated.converted_at == date(2026, 1, 3)
+        assert updated.donor_amount / updated.local_amount == Decimal("0.8")
+        balance = await get_ledger_balance_service(db, _valid_user(), budget.id)
+        assert balance.local_balance == Decimal("500")
+
+    async def test_partial_update_keeps_omitted_fields(self, db):
+        budget = await _make_budget(db)
+        conversion = await _record_conversion(
+            db, budget, donor_amount=500.0, local_amount=550.0, converted_at=date(2026, 1, 2)
+        )
+
+        updated = await update_conversion_service(
+            db, _valid_user(), conversion.id, CurrencyConversionUpdate(local_amount=600.0)
+        )
+
+        assert updated.donor_amount == Decimal("500")
+        assert updated.local_amount == Decimal("600")
+        assert updated.converted_at == date(2026, 1, 2)
+
+    async def test_owner_deletes_unallocated_conversion_and_balance_drops_it(self, db):
+        budget = await _make_budget(db)
+        keep = await _record_conversion(
+            db, budget, donor_amount=200.0, local_amount=220.0, converted_at=date(2026, 1, 2)
+        )
+        gone = await _record_conversion(
+            db, budget, donor_amount=300.0, local_amount=330.0, converted_at=date(2026, 1, 5)
+        )
+
+        assert await delete_conversion_service(db, _valid_user(), gone.id) is True
+
+        conversions = await list_currency_conversions_service(db, _valid_user(), budget.id)
+        assert [c.id for c in conversions] == [keep.id]
+        balance = await get_ledger_balance_service(db, _valid_user(), budget.id)
+        assert balance.local_balance == Decimal("220")
+
+    async def test_directly_consumed_conversion_is_locked(self, db):
+        budget = await _make_budget(db)
+        budget_line = await _make_budget_line(db, budget.id)
+        report = await _make_report(db, budget.id)
+        conversion = await _record_conversion(
+            db, budget, donor_amount=500.0, local_amount=550.0, converted_at=date(2026, 1, 2)
+        )
+        await _make_expense(db, report, budget_line, amount=100.0)
+
+        with pytest.raises(DomainError):
+            await update_conversion_service(
+                db, _valid_user(), conversion.id, CurrencyConversionUpdate(local_amount=1.0)
+            )
+        with pytest.raises(DomainError):
+            await delete_conversion_service(db, _valid_user(), conversion.id)
+
+        await db.refresh(conversion)
+        assert conversion.local_amount == Decimal("550")
+
+    async def test_backfilling_conversion_is_locked(self, db):
+        budget = await _make_budget(db)
+        budget_line = await _make_budget_line(db, budget.id)
+        report = await _make_report(db, budget.id)
+        # No lot yet, so the expense stays unsatisfied until the conversion backfills it.
+        await _make_expense(db, report, budget_line, amount=100.0)
+        conversion = await _record_conversion(
+            db, budget, donor_amount=500.0, local_amount=550.0, converted_at=date(2026, 1, 2)
+        )
+
+        with pytest.raises(DomainError):
+            await update_conversion_service(
+                db, _valid_user(), conversion.id, CurrencyConversionUpdate(local_amount=1.0)
+            )
+        with pytest.raises(DomainError):
+            await delete_conversion_service(db, _valid_user(), conversion.id)
+
+    async def test_funder_cannot_update_or_delete_a_conversion(self, db):
+        budget = await _make_budget(db, funding_customer_id=FUNDER_ID)
+        conversion = await _record_conversion(
+            db, budget, donor_amount=500.0, local_amount=550.0, converted_at=date(2026, 1, 2)
+        )
+
+        with pytest.raises(PermissionDenied):
+            await update_conversion_service(
+                db,
+                _valid_user(FUNDER_ID),
+                conversion.id,
+                CurrencyConversionUpdate(local_amount=1.0),
+            )
+        with pytest.raises(PermissionDenied):
+            await delete_conversion_service(db, _valid_user(FUNDER_ID), conversion.id)
+
+    async def test_unknown_conversion_is_rejected(self, db):
+        with pytest.raises(DomainError):
+            await delete_conversion_service(db, _valid_user(), uuid4())

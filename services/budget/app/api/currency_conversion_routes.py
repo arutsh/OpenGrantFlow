@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.schemas.currency_ledger_schema import (
     CurrencyConversion,
     CurrencyConversionCreate,
+    CurrencyConversionUpdate,
     LedgerBalance,
 )
 from app.services.currency_ledger_services import (
@@ -15,6 +16,8 @@ from app.services.currency_ledger_services import (
     get_currency_conversion_service,
     list_currency_conversions_service,
     get_ledger_balance_service,
+    update_conversion_service,
+    delete_conversion_service,
 )
 from shared.observability import set_span_attributes
 from shared.security.dependencies import get_validated_user
@@ -50,6 +53,25 @@ async def get_currency_conversion_view(
 ):
     set_span_attributes(conversion_id=conversion_id)
     return await get_currency_conversion_service(db, valid_user, conversion_id)
+
+
+@router.patch("/{conversion_id}", response_model=CurrencyConversion)
+async def update_currency_conversion_view(
+    conversion_id: UUID,
+    conversion: CurrencyConversionUpdate,
+    db: AsyncSession = Depends(get_db),
+    valid_user=Depends(get_validated_user),
+):
+    set_span_attributes(conversion_id=conversion_id)
+    return await update_conversion_service(db, valid_user, conversion_id, conversion)
+
+
+@router.delete("/{conversion_id}")
+async def delete_currency_conversion_view(
+    conversion_id: UUID, db: AsyncSession = Depends(get_db), valid_user=Depends(get_validated_user)
+):
+    set_span_attributes(conversion_id=conversion_id)
+    return {"success": await delete_conversion_service(db, valid_user, conversion_id)}
 
 
 @router.get("/by-budget/{budget_id}", response_model=List[CurrencyConversion])
