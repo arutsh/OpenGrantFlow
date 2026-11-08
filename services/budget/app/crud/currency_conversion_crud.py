@@ -49,6 +49,40 @@ async def list_currency_conversions(
     return list(result.scalars().all())
 
 
+async def update_currency_conversion(
+    session: AsyncSession,
+    conversion: CurrencyConversionModel,
+    donor_amount: Decimal | None = None,
+    local_amount: Decimal | None = None,
+    converted_at: date | None = None,
+) -> CurrencyConversionModel:
+    if donor_amount is not None:
+        conversion.donor_amount = donor_amount
+    if local_amount is not None:
+        conversion.local_amount = local_amount
+    if converted_at is not None:
+        conversion.converted_at = converted_at
+    await session.commit()
+    return conversion
+
+
+async def delete_currency_conversion(
+    session: AsyncSession, conversion: CurrencyConversionModel
+) -> bool:
+    await session.delete(conversion)
+    await session.commit()
+    return True
+
+
+async def count_allocations_for_conversion(session: AsyncSession, conversion_id: UUID) -> int:
+    result = await session.execute(
+        select(func.count()).where(
+            ReportLineConversionAllocationModel.conversion_id == conversion_id
+        )
+    )
+    return result.scalar_one()
+
+
 async def create_allocation(
     session: AsyncSession,
     report_line_id: UUID,

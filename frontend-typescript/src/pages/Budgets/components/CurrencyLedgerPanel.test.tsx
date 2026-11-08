@@ -16,6 +16,8 @@ vi.mock("@/api/currencyLedgerApi", async (importOriginal) => {
     deleteFundingReceipt: vi.fn(),
     listFundingReceiptsByBudget: vi.fn(),
     createCurrencyConversion: vi.fn(),
+    updateCurrencyConversion: vi.fn(),
+    deleteCurrencyConversion: vi.fn(),
     listCurrencyConversionsByBudget: vi.fn(),
     getLedgerBalance: vi.fn(),
   };
@@ -38,6 +40,10 @@ const listFundingReceiptsByBudgetMock =
   currencyLedgerApi.listFundingReceiptsByBudget as unknown as Mock;
 const createCurrencyConversionMock =
   currencyLedgerApi.createCurrencyConversion as unknown as Mock;
+const updateCurrencyConversionMock =
+  currencyLedgerApi.updateCurrencyConversion as unknown as Mock;
+const deleteCurrencyConversionMock =
+  currencyLedgerApi.deleteCurrencyConversion as unknown as Mock;
 const listCurrencyConversionsByBudgetMock =
   currencyLedgerApi.listCurrencyConversionsByBudget as unknown as Mock;
 const getLedgerBalanceMock = currencyLedgerApi.getLedgerBalance as unknown as Mock;
@@ -415,6 +421,131 @@ describe("CurrencyLedgerPanel", () => {
 
       await waitFor(() => expect(screen.getByText("Permission denied")).toBeInTheDocument());
       expect(screen.getByText("Funding receipt")).toBeInTheDocument();
+    });
+  });
+
+  describe("currency conversion edit/delete", () => {
+    const conversion = {
+      id: "c1",
+      budget_id: "b1",
+      donor_amount: 3000,
+      local_amount: 3750,
+      converted_at: "2026-06-03",
+    } as CurrencyConversion;
+    const allocatedDetail =
+      "This conversion has already funded report-line expenses and cannot be edited " +
+      "or deleted. Remove or edit those report lines first, or reset the ledger.";
+
+    beforeEach(() => {
+      listCurrencyConversionsByBudgetMock.mockResolvedValue([conversion]);
+    });
+
+    it("hides conversion Edit/Delete actions from the funder", async () => {
+      isBudgetOwnerMock.mockReturnValue(false);
+      isBudgetFunderMock.mockReturnValue(true);
+      renderPanel(makeBudget());
+
+      await waitFor(() => expect(screen.getByText("Conversion")).toBeInTheDocument());
+      expect(screen.queryByTitle("Edit currency conversion")).not.toBeInTheDocument();
+      expect(screen.queryByTitle("Delete currency conversion")).not.toBeInTheDocument();
+    });
+
+    it("edits a conversion from a prefilled modal and shows the recomputed rate", async () => {
+      const user = userEvent.setup();
+      updateCurrencyConversionMock.mockResolvedValue({ ...conversion, local_amount: 6000 });
+      renderPanel(makeBudget());
+
+      await waitFor(() =>
+        expect(screen.getByTitle("Edit currency conversion")).toBeInTheDocument(),
+      );
+      await user.click(screen.getByTitle("Edit currency conversion"));
+      expect(
+        screen.getByRole("heading", { name: "Edit Currency Conversion" }),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText(/donor amount/i)).toHaveValue(3000);
+      expect(screen.getByLabelText(/local amount/i)).toHaveValue(3750);
+      expect(screen.getByLabelText(/conversion date/i)).toHaveValue("2026-06-03");
+
+      listCurrencyConversionsByBudgetMock.mockResolvedValue([
+        { ...conversion, local_amount: 6000 },
+      ]);
+      await user.clear(screen.getByLabelText(/local amount/i));
+      await user.type(screen.getByLabelText(/local amount/i), "6000");
+      await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+      await waitFor(() =>
+        expect(updateCurrencyConversionMock).toHaveBeenCalledWith("c1", {
+          donor_amount: 3000,
+          local_amount: 6000,
+          converted_at: "2026-06-03",
+        }),
+      );
+      await waitFor(() => expect(screen.getByText(/rate 0.5000/)).toBeInTheDocument());
+      expect(
+        screen.queryByRole("heading", { name: "Edit Currency Conversion" }),
+      ).not.toBeInTheDocument();
+      expect(getLedgerBalanceMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the edit modal open and shows the backend error when the conversion is allocated", async () => {
+      const user = userEvent.setup();
+      updateCurrencyConversionMock.mockRejectedValue({
+        response: { data: { detail: allocatedDetail } },
+      });
+      renderPanel(makeBudget());
+
+      await waitFor(() =>
+        expect(screen.getByTitle("Edit currency conversion")).toBeInTheDocument(),
+      );
+      await user.click(screen.getByTitle("Edit currency conversion"));
+      await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+      await waitFor(() => expect(screen.getByText(allocatedDetail)).toBeInTheDocument());
+      expect(
+        screen.getByRole("heading", { name: "Edit Currency Conversion" }),
+      ).toBeInTheDocument();
+      expect(listCurrencyConversionsByBudgetMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("deletes a conversion after confirmation and refetches the ledger", async () => {
+      const user = userEvent.setup();
+      deleteCurrencyConversionMock.mockResolvedValue(undefined);
+      renderPanel(makeBudget());
+
+      await waitFor(() =>
+        expect(screen.getByTitle("Delete currency conversion")).toBeInTheDocument(),
+      );
+      listCurrencyConversionsByBudgetMock.mockResolvedValue([]);
+      await user.click(screen.getByTitle("Delete currency conversion"));
+      expect(deleteCurrencyConversionMock).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: "Yes" }));
+
+      await waitFor(() => expect(deleteCurrencyConversionMock).toHaveBeenCalledWith("c1"));
+      await waitFor(() =>
+        expect(
+          screen.getByText("No funding receipts or conversions recorded yet."),
+        ).toBeInTheDocument(),
+      );
+      expect(deleteFundingReceiptMock).not.toHaveBeenCalled();
+      expect(getLedgerBalanceMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the conversion and shows the backend error when a delete is blocked by allocations", async () => {
+      const user = userEvent.setup();
+      deleteCurrencyConversionMock.mockRejectedValue({
+        response: { data: { detail: allocatedDetail } },
+      });
+      renderPanel(makeBudget());
+
+      await waitFor(() =>
+        expect(screen.getByTitle("Delete currency conversion")).toBeInTheDocument(),
+      );
+      await user.click(screen.getByTitle("Delete currency conversion"));
+      await user.click(screen.getByRole("button", { name: "Yes" }));
+
+      await waitFor(() => expect(screen.getByText(allocatedDetail)).toBeInTheDocument());
+      expect(screen.getByText("Conversion")).toBeInTheDocument();
+      expect(screen.getByText(/rate 0.8000/)).toBeInTheDocument();
     });
   });
 });

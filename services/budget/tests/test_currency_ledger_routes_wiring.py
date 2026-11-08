@@ -75,9 +75,7 @@ class TestCurrencyConversionRoutesWiring:
                 "app.api.currency_conversion_routes.record_conversion_service",
                 return_value=SimpleNamespace(id=conversion_id),
             ),
-            patch(
-                "app.api.currency_conversion_routes.set_span_attributes"
-            ) as mock_set_span_attrs,
+            patch("app.api.currency_conversion_routes.set_span_attributes") as mock_set_span_attrs,
         ):
             client.post(
                 "/api/v1/currency-conversions/",
@@ -90,3 +88,42 @@ class TestCurrencyConversionRoutesWiring:
             )
         mock_set_span_attrs.assert_any_call(budget_id=budget_id)
         mock_set_span_attrs.assert_any_call(conversion_id=conversion_id)
+
+    def test_update_route_sets_span_attributes(self, make_client):
+        client = make_client()
+        conversion_id = uuid4()
+        with (
+            patch(
+                "app.api.currency_conversion_routes.update_conversion_service",
+                return_value=SimpleNamespace(id=conversion_id),
+            ) as mock_update,
+            patch("app.api.currency_conversion_routes.set_span_attributes") as mock_set_span_attrs,
+        ):
+            client.patch(
+                f"/api/v1/currency-conversions/{conversion_id}", json={"local_amount": 5.0}
+            )
+        mock_set_span_attrs.assert_any_call(conversion_id=conversion_id)
+        mock_update.assert_awaited_once()
+
+    def test_update_route_rejects_explicit_null(self, make_client):
+        client = make_client()
+        with patch("app.api.currency_conversion_routes.update_conversion_service") as mock_update:
+            response = client.patch(
+                f"/api/v1/currency-conversions/{uuid4()}", json={"donor_amount": None}
+            )
+        assert response.status_code == 422
+        mock_update.assert_not_called()
+
+    def test_delete_route_sets_span_attributes(self, make_client):
+        client = make_client()
+        conversion_id = uuid4()
+        with (
+            patch(
+                "app.api.currency_conversion_routes.delete_conversion_service",
+                return_value=True,
+            ),
+            patch("app.api.currency_conversion_routes.set_span_attributes") as mock_set_span_attrs,
+        ):
+            response = client.delete(f"/api/v1/currency-conversions/{conversion_id}")
+        mock_set_span_attrs.assert_any_call(conversion_id=conversion_id)
+        assert response.json() == {"success": True}

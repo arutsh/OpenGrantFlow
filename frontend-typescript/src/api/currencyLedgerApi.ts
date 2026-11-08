@@ -5,6 +5,7 @@ import {
   FundingReceiptUpdate,
   CurrencyConversion,
   CurrencyConversionCreate,
+  CurrencyConversionUpdate,
   LedgerBalance,
 } from "@/pages/Budgets/types/budget";
 
@@ -54,6 +55,18 @@ export const listCurrencyConversionsByBudget = async (
     `/currency-conversions/by-budget/${budgetId}`
   );
   return data;
+};
+
+export const updateCurrencyConversion = async (
+  conversionId: string,
+  conversion: CurrencyConversionUpdate
+): Promise<CurrencyConversion> => {
+  const { data } = await gatewayApi.patch(`/currency-conversions/${conversionId}`, conversion);
+  return data;
+};
+
+export const deleteCurrencyConversion = async (conversionId: string): Promise<void> => {
+  await gatewayApi.delete(`/currency-conversions/${conversionId}`);
 };
 
 // Per-currency balance, computed server-side (see LedgerBalance's own

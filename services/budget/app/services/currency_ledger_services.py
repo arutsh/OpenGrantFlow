@@ -8,14 +8,17 @@ from uuid import UUID
 
 from app.core.exceptions import DomainError, PermissionDenied
 from app.crud.currency_conversion_crud import (
+    count_allocations_for_conversion,
     create_allocation,
     create_currency_conversion,
     delete_allocations_for_report_line,
+    delete_currency_conversion,
     get_currency_conversion,
     list_currency_conversions,
     list_unconsumed_lots,
     list_unsatisfied_report_lines,
     sum_report_line_amounts,
+    update_currency_conversion,
 )
 from app.crud.funding_receipt_crud import (
     create_funding_receipt,
@@ -28,6 +31,7 @@ from app.models.currency_ledger import CurrencyConversionModel
 from app.models.report import ReportLineModel
 from app.schemas.currency_ledger_schema import (
     CurrencyConversionCreate,
+    CurrencyConversionUpdate,
     FundingReceiptCreate,
     FundingReceiptUpdate,
     LedgerBalance,
@@ -225,6 +229,39 @@ async def get_currency_conversion_service(db, valid_user: dict, conversion_id: U
     conversion = await _get_currency_conversion_or_404(db, conversion_id)
     await get_viewable_budget(db, valid_user, conversion.budget_id)
     return conversion
+
+
+async def _reject_if_allocated(db, conversion_id: UUID) -> None:
+    if await count_allocations_for_conversion(db, conversion_id):
+        raise DomainError(
+            "This conversion has already funded report-line expenses and cannot be edited "
+            "or deleted. Remove or edit those report lines first, or reset the ledger.",
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+
+async def update_conversion_service(
+    db, valid_user: dict, conversion_id: UUID, conversion_in: CurrencyConversionUpdate
+):
+    conversion = await _get_currency_conversion_or_404(db, conversion_id)
+    budget = await _require_owned_budget(db, valid_user, conversion.budget_id)
+    async with budget_ledger_lock(db, budget.id):
+        await _reject_if_allocated(db, conversion.id)
+        return await update_currency_conversion(
+            session=db,
+            conversion=conversion,
+            donor_amount=conversion_in.donor_amount,
+            local_amount=conversion_in.local_amount,
+            converted_at=conversion_in.converted_at,
+        )
+
+
+async def delete_conversion_service(db, valid_user: dict, conversion_id: UUID) -> bool:
+    conversion = await _get_currency_conversion_or_404(db, conversion_id)
+    budget = await _require_owned_budget(db, valid_user, conversion.budget_id)
+    async with budget_ledger_lock(db, budget.id):
+        await _reject_if_allocated(db, conversion.id)
+        return await delete_currency_conversion(db, conversion)
 
 
 async def list_currency_conversions_service(db, valid_user: dict, budget_id: UUID):

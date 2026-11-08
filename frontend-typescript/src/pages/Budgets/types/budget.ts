@@ -248,6 +248,12 @@ export interface CurrencyConversionCreate {
   converted_at: string;
 }
 
+export interface CurrencyConversionUpdate {
+  donor_amount?: number;
+  local_amount?: number;
+  converted_at?: string;
+}
+
 // Per-currency balances only — never blended into one figure, per
 // design.md's "group by currency, never blend" rule.
 export interface LedgerBalance {
