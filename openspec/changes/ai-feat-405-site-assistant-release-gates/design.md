@@ -70,7 +70,7 @@ See proposal.md for motivation; requirements are in `specs/ai-release-evaluation
 6. **Judge design.**
    - The judge prompt lives in `tests/evals/data/judge_prompt.yaml` (version, system, user template). It wraps `<question>`, `<answer>` and each cited `<site_content id=...>` as data, applying the same `<`/`>` escaping the site-assistant user template applies to the question.
    - Output type is `JudgeVerdict(grounded: bool, complete: bool, reason: str)`, built with `build_agent` at temperature 0.
-   - A validation failure or provider error is recorded as a judge error.
+   - A validation failure or provider error is recorded as a judge error. A provider error (429, 5xx, timeout) also marks the run incomplete, as it does for generation, so a run whose judge was unreachable can't become a baseline.
    - The judge model name must match `-\d{8}$` (dated) or the run refuses to start.
    - The same provider as generation is an accepted trade-off (see Risks).
 
