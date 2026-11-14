@@ -18,6 +18,7 @@ from app.services.currency_ledger_services import (
     get_ledger_balance_service,
     update_conversion_service,
     delete_conversion_service,
+    reset_ledger_service,
 )
 from shared.observability import set_span_attributes
 from shared.security.dependencies import get_validated_user
@@ -35,6 +36,14 @@ async def create_currency_conversion_view(
     created_conversion = await record_conversion_service(db, valid_user, conversion)
     set_span_attributes(conversion_id=created_conversion.id)
     return created_conversion
+
+
+@router.post("/reset/{budget_id}")
+async def reset_ledger_view(
+    budget_id: UUID, db: AsyncSession = Depends(get_db), valid_user=Depends(get_validated_user)
+):
+    set_span_attributes(budget_id=budget_id)
+    return await reset_ledger_service(db, valid_user, budget_id)
 
 
 @router.get("/balance/{budget_id}", response_model=LedgerBalance)

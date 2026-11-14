@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from app.core.exceptions import DomainError
 from app.models.budget import BudgetModel, BudgetLineModel, BudgetCategoryModel
+from app.models.currency_ledger import FundingReceiptModel
 from app.models.report import ReportModel, ReportLineModel
 from app.schemas.budget_schema import BudgetStatus, BudgetUpdate
 from app.schemas.report_schema import ReportStatus
@@ -28,6 +29,7 @@ from app.services.budget_line_services import (
     delete_budget_line_service,
 )
 from app.schemas import BudgetLineCreate, BudgetLineUpdate
+from tests.factories.currency_ledger import CurrencyConversionFactory, FundingReceiptFactory
 from tests.factories.user import make_valid_user
 
 OWNER_ID = str(uuid4())
@@ -74,6 +76,20 @@ async def _make_report(db, budget_id, status=ReportStatus.draft):
     await db.commit()
     await db.refresh(report)
     return report
+
+
+async def _make_receipt(db, budget_id):
+    receipt = FundingReceiptFactory.build(budget_id=budget_id)
+    db.add(receipt)
+    await db.commit()
+    return receipt
+
+
+async def _make_conversion(db, budget_id):
+    conversion = CurrencyConversionFactory.build(budget_id=budget_id)
+    db.add(conversion)
+    await db.commit()
+    return conversion
 
 
 @pytest.mark.anyio
@@ -231,6 +247,53 @@ class TestRevertToDraft:
         ).scalar_one_or_none()
         assert deleted_report is None
         assert deleted_line is None
+
+    async def test_revert_blocked_by_a_funding_receipt(self, db):
+        budget = await _make_budget(db, status=BudgetStatus.confirmed, start_date=date(2026, 1, 1))
+        await _make_receipt(db, budget.id)
+        payload = BudgetUpdate(status=BudgetStatus.draft)
+
+        with pytest.raises(DomainError, match="currency ledger"):
+            await update_budget_service(budget.id, payload, _valid_user(OWNER_ID), db)
+
+        await db.refresh(budget)
+        assert budget.status == BudgetStatus.confirmed
+
+    async def test_revert_blocked_by_a_currency_conversion(self, db):
+        budget = await _make_budget(db, status=BudgetStatus.confirmed, start_date=date(2026, 1, 1))
+        await _make_conversion(db, budget.id)
+        payload = BudgetUpdate(status=BudgetStatus.draft)
+
+        with pytest.raises(DomainError, match="currency ledger"):
+            await update_budget_service(budget.id, payload, _valid_user(OWNER_ID), db)
+
+        await db.refresh(budget)
+        assert budget.status == BudgetStatus.confirmed
+
+    async def test_revert_blocked_by_non_draft_report_and_ledger_movement(self, db):
+        budget = await _make_budget(db, status=BudgetStatus.confirmed, start_date=date(2026, 1, 1))
+        await _make_report(db, budget.id, status=ReportStatus.submitted)
+        await _make_receipt(db, budget.id)
+        await _make_conversion(db, budget.id)
+        payload = BudgetUpdate(status=BudgetStatus.draft)
+
+        with pytest.raises(DomainError):
+            await update_budget_service(budget.id, payload, _valid_user(OWNER_ID), db)
+
+        await db.refresh(budget)
+        assert budget.status == BudgetStatus.confirmed
+        assert (await db.execute(select(FundingReceiptModel))).scalars().all() != []
+
+    async def test_revert_succeeds_with_empty_ledger_and_draft_reports(self, db):
+        budget = await _make_budget(db, status=BudgetStatus.confirmed, start_date=date(2026, 1, 1))
+        await _make_report(db, budget.id, status=ReportStatus.draft)
+        other = await _make_budget(db, status=BudgetStatus.confirmed, start_date=date(2026, 1, 1))
+        await _make_receipt(db, other.id)
+        payload = BudgetUpdate(status=BudgetStatus.draft)
+
+        result = await update_budget_service(budget.id, payload, _valid_user(OWNER_ID), db)
+
+        assert result.status == BudgetStatus.draft
 
 
 @pytest.mark.anyio

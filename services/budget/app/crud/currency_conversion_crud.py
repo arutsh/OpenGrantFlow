@@ -5,7 +5,11 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
-from app.models.currency_ledger import CurrencyConversionModel, ReportLineConversionAllocationModel
+from app.models.currency_ledger import (
+    CurrencyConversionModel,
+    FundingReceiptModel,
+    ReportLineConversionAllocationModel,
+)
 from app.models.report import ReportLineModel, ReportModel
 
 
@@ -72,6 +76,27 @@ async def delete_currency_conversion(
     await session.delete(conversion)
     await session.commit()
     return True
+
+
+async def delete_ledger_for_budget(session: AsyncSession, budget_id: UUID) -> tuple[int, int]:
+    """Deletes a budget's allocations, conversions and receipts in one commit; the
+    allocation FK has no ON DELETE CASCADE, so allocations must go first."""
+    conversion_ids = select(CurrencyConversionModel.id).where(
+        CurrencyConversionModel.budget_id == budget_id
+    )
+    await session.execute(
+        delete(ReportLineConversionAllocationModel).where(
+            ReportLineConversionAllocationModel.conversion_id.in_(conversion_ids)
+        )
+    )
+    conversions = await session.execute(
+        delete(CurrencyConversionModel).where(CurrencyConversionModel.budget_id == budget_id)
+    )
+    receipts = await session.execute(
+        delete(FundingReceiptModel).where(FundingReceiptModel.budget_id == budget_id)
+    )
+    await session.commit()
+    return receipts.rowcount, conversions.rowcount
 
 
 async def count_allocations_for_conversion(session: AsyncSession, conversion_id: UUID) -> int:

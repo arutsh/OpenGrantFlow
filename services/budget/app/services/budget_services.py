@@ -17,6 +17,8 @@ from app.crud.budget_crud import (
     reload_total_amount,
 )
 from app.crud.budget_line_crud import bulk_create_budget_lines
+from app.crud.currency_conversion_crud import list_currency_conversions
+from app.crud.funding_receipt_crud import list_funding_receipts
 from app.services.budget_category_services import get_or_create_categories_by_names_service
 from app.crud.dashboard_crud import (
     count_budgets_by_status,
@@ -326,6 +328,15 @@ async def update_budget_service(budget_id: UUID, budget: BudgetCreate, valid_use
             raise DomainError(
                 "Cannot revert to draft while the budget has a submitted, approved, "
                 "or rejected report",
+                status.HTTP_400_BAD_REQUEST,
+            )
+        # Ledger rows are FK'd to the budget with no cascade; reverting would orphan them.
+        if await list_funding_receipts(db, budget_id) or await list_currency_conversions(
+            db, budget_id
+        ):
+            raise DomainError(
+                "Cannot revert to draft while the budget has funding receipts or currency "
+                "conversions. Edit, delete, or reset them in the currency ledger section first.",
                 status.HTTP_400_BAD_REQUEST,
             )
         # session.delete only — not crud.delete_report, which commits per

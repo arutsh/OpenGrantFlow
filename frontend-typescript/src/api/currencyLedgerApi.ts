@@ -69,6 +69,13 @@ export const deleteCurrencyConversion = async (conversionId: string): Promise<vo
   await gatewayApi.delete(`/currency-conversions/${conversionId}`);
 };
 
+export const resetLedger = async (
+  budgetId: string
+): Promise<{ receipts_deleted: number; conversions_deleted: number }> => {
+  const { data } = await gatewayApi.post(`/currency-conversions/reset/${budgetId}`);
+  return data;
+};
+
 // Per-currency balance, computed server-side (see LedgerBalance's own
 // comment) — the frontend never re-derives this from the raw receipt/
 // conversion rows.
