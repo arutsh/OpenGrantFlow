@@ -202,6 +202,47 @@ describe("CurrencyLedgerPanel", () => {
     await waitFor(() => expect(screen.getByText(/40% of £50,000 committed/)).toBeInTheDocument());
   });
 
+  it("marks the budget fully received at exactly 100% of the commitment", async () => {
+    listFundingReceiptsByBudgetMock.mockResolvedValue([
+      { id: "r1", budget_id: "b1", amount: 100000, received_at: "2026-06-01" },
+    ] as FundingReceipt[]);
+    renderPanel(
+      makeBudget({ local_currency: "GBP", actual_currency: "GBP", donor_total_amount: 100000 }),
+    );
+
+    await waitFor(() => expect(screen.getByText("Fully received")).toBeInTheDocument());
+    expect(screen.queryByText("Over-received")).not.toBeInTheDocument();
+    expect(screen.queryByText(/ over$/)).not.toBeInTheDocument();
+  });
+
+  it("treats receipts summing to the commitment with float residue as fully received", async () => {
+    listFundingReceiptsByBudgetMock.mockResolvedValue([
+      { id: "r1", budget_id: "b1", amount: 10000.1, received_at: "2026-06-01" },
+      { id: "r2", budget_id: "b1", amount: 20000.2, received_at: "2026-07-01" },
+    ] as FundingReceipt[]);
+    renderPanel(
+      makeBudget({ local_currency: "GBP", actual_currency: "GBP", donor_total_amount: 30000.3 }),
+    );
+
+    await waitFor(() => expect(screen.getByText("Fully received")).toBeInTheDocument());
+    expect(screen.queryByText("Over-received")).not.toBeInTheDocument();
+  });
+
+  it("flags an over-received budget and shows the excess", async () => {
+    listFundingReceiptsByBudgetMock.mockResolvedValue([
+      { id: "r1", budget_id: "b1", amount: 150000, received_at: "2026-06-01" },
+    ] as FundingReceipt[]);
+    renderPanel(
+      makeBudget({ local_currency: "GBP", actual_currency: "GBP", donor_total_amount: 100000 }),
+    );
+
+    await waitFor(() => expect(screen.getByText("Over-received")).toBeInTheDocument());
+    expect(screen.queryByText("Fully received")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/150% of £100,000 committed · £50,000 over/),
+    ).toBeInTheDocument();
+  });
+
   it("floors the received percentage at 0% when a correction receipt makes the total negative", async () => {
     listFundingReceiptsByBudgetMock.mockResolvedValue([
       { id: "r1", budget_id: "b1", amount: -5000, received_at: "2026-06-01" },
@@ -304,7 +345,7 @@ describe("CurrencyLedgerPanel", () => {
 
     await waitFor(() => expect(screen.getByText("Funding receipt")).toBeInTheDocument());
     expect(screen.getByText("Conversion")).toBeInTheDocument();
-    expect(screen.getByText(/rate 0.8000/)).toBeInTheDocument();
+    expect(screen.getByText(/rate 1 GBP = 1\.25 GBP/)).toBeInTheDocument();
   });
 
   it("shows an empty history state when there are no receipts or conversions", async () => {
@@ -482,7 +523,7 @@ describe("CurrencyLedgerPanel", () => {
           converted_at: "2026-06-03",
         }),
       );
-      await waitFor(() => expect(screen.getByText(/rate 0.5000/)).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText(/rate 1 GBP = 2 GBP/)).toBeInTheDocument());
       expect(
         screen.queryByRole("heading", { name: "Edit Currency Conversion" }),
       ).not.toBeInTheDocument();
@@ -547,7 +588,7 @@ describe("CurrencyLedgerPanel", () => {
 
       await waitFor(() => expect(screen.getByText(allocatedDetail)).toBeInTheDocument());
       expect(screen.getByText("Conversion")).toBeInTheDocument();
-      expect(screen.getByText(/rate 0.8000/)).toBeInTheDocument();
+      expect(screen.getByText(/rate 1 GBP = 1\.25 GBP/)).toBeInTheDocument();
     });
   });
 

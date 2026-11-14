@@ -29,10 +29,18 @@ import {
 import { Budget, FundingReceipt, CurrencyConversion } from "../types/budget";
 import { SummaryStat } from "./BudgetViewSummary";
 
-function impliedRate(conversion: CurrencyConversion): string {
+// Local per donor unit, matching the direction of budget.estimated_exchange_rate.
+function impliedRate(
+  conversion: CurrencyConversion,
+  donorCurrency: string | null | undefined,
+  localCurrency: string | null | undefined,
+): string {
   const { donor_amount, local_amount } = conversion;
   if (!donor_amount || !local_amount) return "—";
-  return (donor_amount / local_amount).toFixed(4);
+  const rate = (local_amount / donor_amount).toLocaleString("en-GB", {
+    maximumFractionDigits: 4,
+  });
+  return `1 ${donorCurrency ?? ""} = ${rate} ${localCurrency ?? ""}`;
 }
 
 // String-only: a 422's `detail` is a list of objects and would crash React if rendered.
@@ -167,6 +175,11 @@ export function CurrencyLedgerPanel({
     donorTotal && donorTotal > 0
       ? Math.max(0, Math.round((receivedToDate / donorTotal) * 100))
       : null;
+  // Rounded to cents so float residue from summing receipts isn't flagged as excess.
+  const overReceived =
+    donorTotal && donorTotal > 0
+      ? Math.max(0, Math.round((receivedToDate - donorTotal) * 100) / 100)
+      : 0;
 
   // Newest first, same convention as a bank/ledger statement.
   const history: HistoryEntry[] = [
@@ -210,7 +223,11 @@ export function CurrencyLedgerPanel({
               label="Received from Donor"
               value={formatCurrency(receivedToDate, budget.actual_currency)}
               badge={
-                receivedPct !== null && receivedPct >= 100 ? (
+                overReceived > 0 ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                    Over-received
+                  </span>
+                ) : receivedPct !== null && receivedPct >= 100 ? (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
                     Fully received
                   </span>
@@ -223,6 +240,8 @@ export function CurrencyLedgerPanel({
                   <div className="text-xs text-slate-500 mt-1">
                     {receivedPct}% of {formatCurrency(donorTotal, budget.actual_currency)}{" "}
                     committed
+                    {overReceived > 0 &&
+                      ` · ${formatCurrency(overReceived, budget.actual_currency)} over`}
                   </div>
                 </div>
               )}
@@ -335,7 +354,13 @@ export function CurrencyLedgerPanel({
                         )}
                       </span>
                       <span className="text-slate-400 text-xs">
-                        rate {impliedRate(entry.item as CurrencyConversion)} ·{" "}
+                        rate{" "}
+                        {impliedRate(
+                          entry.item as CurrencyConversion,
+                          budget.actual_currency,
+                          budget.local_currency,
+                        )}{" "}
+                        ·{" "}
                         {formatDateOnly(entry.date) ?? "—"}
                       </span>
                       {owner && (
