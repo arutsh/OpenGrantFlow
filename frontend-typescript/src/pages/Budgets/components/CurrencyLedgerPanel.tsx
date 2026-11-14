@@ -127,7 +127,7 @@ export function CurrencyLedgerPanel({
     return (
       <Card className="w-full bg-white rounded-xl border border-slate-200 shadow-sm px-6 py-5">
         <CardHeader>
-          <h2 className="text-section-title">Currency Ledger</h2>
+          <h2 id="currency-ledger" className="text-section-title">Currency Ledger</h2>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-slate-500">
@@ -182,7 +182,7 @@ export function CurrencyLedgerPanel({
     <Card className="w-full bg-white rounded-xl border border-slate-200 shadow-sm px-6 py-5">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-section-title">Currency Ledger</h2>
+          <h2 id="currency-ledger" className="text-section-title">Currency Ledger</h2>
           {owner && (
             <div className="flex flex-wrap gap-2 sm:flex-nowrap">
               <Button

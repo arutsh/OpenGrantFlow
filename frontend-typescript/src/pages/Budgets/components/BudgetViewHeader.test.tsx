@@ -542,6 +542,50 @@ describe("BudgetViewHeader cancel confirmation", () => {
       ).toBeInTheDocument(),
     );
     expect(onBudgetUpdated).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: /go to currency ledger/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("points the owner to the currency ledger when blocked by ledger movement", async () => {
+    const user = userEvent.setup();
+    editBudgetMock.mockRejectedValue({
+      response: {
+        data: {
+          detail:
+            "Cannot revert to draft while the budget has funding receipts or currency " +
+            "conversions. Edit, delete, or reset them in the currency ledger section first.",
+        },
+      },
+    });
+    const onBudgetUpdated = vi.fn();
+    const ledgerHeading = document.createElement("h2");
+    ledgerHeading.id = "currency-ledger";
+    ledgerHeading.scrollIntoView = vi.fn();
+    document.body.appendChild(ledgerHeading);
+
+    renderHeader(
+      <BudgetViewHeader
+        budget={makeBudget({ status: "confirmed" })}
+        isLocked={true}
+        onBudgetUpdated={onBudgetUpdated}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /cancel confirmation/i }));
+    await user.click(screen.getByRole("button", { name: "Yes" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/funding receipts or currency conversions/i),
+      ).toBeInTheDocument(),
+    );
+    expect(onBudgetUpdated).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /cancel confirmation/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /go to currency ledger/i }));
+    expect(ledgerHeading.scrollIntoView).toHaveBeenCalled();
+    ledgerHeading.remove();
   });
 });
 

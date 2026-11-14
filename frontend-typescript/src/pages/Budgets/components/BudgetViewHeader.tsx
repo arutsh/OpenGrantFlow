@@ -798,12 +798,18 @@ function BudgetCancelConfirmationAction({
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } })
         ?.response?.data?.detail;
-      setError(detail || "Failed to cancel confirmation. Please try again.");
+      setError(
+        (typeof detail === "string" && detail) ||
+          "Failed to cancel confirmation. Please try again.",
+      );
     } finally {
       setIsSaving(false);
       onBusyChange?.(false);
     }
   };
+
+  // Matches the backend's ledger-movement rejection in budget_services.py.
+  const blockedByLedger = /currency ledger/i.test(error);
 
   return (
     <div className="mt-4 pt-3 border-t border-dashed border-slate-200 flex flex-wrap items-center justify-end gap-2">
@@ -821,6 +827,19 @@ function BudgetCancelConfirmationAction({
       </ConfirmDeleteButton>
       {error && (
         <p className="text-sm text-red-600 w-full text-right">{error}</p>
+      )}
+      {blockedByLedger && (
+        <button
+          type="button"
+          className="text-sm text-blue-600 hover:underline"
+          onClick={() =>
+            document
+              .getElementById("currency-ledger")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
+        >
+          Go to Currency Ledger
+        </button>
       )}
     </div>
   );
